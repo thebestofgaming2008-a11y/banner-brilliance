@@ -18,7 +18,8 @@ type BannerProps = {
 function HeroBanner({ title, image, imageAlt, titleTopPct, eager }: BannerProps) {
   return (
     <article
-      className="relative w-full overflow-hidden aspect-[390/649] bg-[#f5c518] @container"
+      className="relative w-full overflow-hidden aspect-[390/649] bg-[#f5c518]"
+      style={{ containerType: "inline-size" }}
     >
       {/* Product photo — carries the yellow gradient itself, so it fills the whole banner. */}
       <img
