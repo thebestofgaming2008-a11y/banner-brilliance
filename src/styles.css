@@ -19,6 +19,9 @@
  */
 
 @theme inline {
+  --font-serif-display: "Cormorant Garamond", ui-serif, Georgia, serif;
+  --color-hero-yellow-top: #f5c518;
+  --color-hero-yellow-bottom: #f4d97a;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
