@@ -19,25 +19,18 @@ type BannerProps = {
 
 function HeroBanner({ title, image, imageAlt, imageTopPct, titleTopPct, eager }: BannerProps) {
   return (
-    <article
-      className="relative w-full overflow-hidden aspect-[390/649]"
-      style={{
-        background:
-          "linear-gradient(180deg, var(--color-hero-yellow-top) 0%, var(--color-hero-yellow-bottom) 100%)",
-      }}
-    >
-      {/* Product image, positioned per Figma spec */}
+    <article className="relative w-full overflow-hidden aspect-[390/649] bg-[#f5c518]">
+      {/* Product photo — carries the yellow gradient itself, so it fills the whole banner.
+          object-position is tuned so the product sits at the Figma-specified vertical start. */}
       <img
         src={image}
         alt={imageAlt}
         loading={eager ? "eager" : "lazy"}
         decoding="async"
-        className="absolute inset-x-0 w-full object-cover object-top"
-        style={{
-          top: `${imageTopPct}%`,
-          height: `${100 - imageTopPct}%`,
-        }}
+        className="absolute inset-0 h-full w-full object-cover"
+        style={{ objectPosition: `center ${(imageTopPct / (100 - (100 - 100))).toFixed(2)}%` }}
       />
+
 
       {/* Title — sits above the image on the yellow field */}
       <h2
