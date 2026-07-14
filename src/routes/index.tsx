@@ -1,24 +1,79 @@
 import { createFileRoute } from "@tanstack/react-router";
+import niqabImg from "@/assets/hero-niqab.jpg";
+import shemaghImg from "@/assets/hero-shemagh.jpg";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
+type BannerProps = {
+  title: string;
+  image: string;
+  imageAlt: string;
+  /** Percentage of banner height where the title baseline sits (from Figma). */
+  titleTopPct: number;
+  eager?: boolean;
+};
+
+function HeroBanner({ title, image, imageAlt, titleTopPct, eager }: BannerProps) {
+  return (
+    <article
+      className="relative w-full overflow-hidden aspect-[390/649] bg-[#f5c518]"
+      style={{ containerType: "inline-size" }}
+    >
+      {/* Product photo — carries the yellow gradient itself, so it fills the whole banner. */}
+      <img
+        src={image}
+        alt={imageAlt}
+        loading={eager ? "eager" : "lazy"}
+        decoding="async"
+        className="absolute inset-0 h-full w-full object-cover object-center"
+      />
+
+      {/* Title — positioned per Figma spec, sized against the banner (container) width */}
+      <h2
+        className="absolute left-0 right-0 text-center font-light tracking-[0.08em] text-white px-[8%]"
+        style={{
+          top: `${titleTopPct}%`,
+          fontFamily: "var(--font-serif-display)",
+          fontSize: "clamp(1.5rem, 7.2cqw, 3.25rem)",
+          lineHeight: 1,
+        }}
+      >
+        {title}
+      </h2>
+
+      {/* Action link — bottom-left per Figma (x=25, y=614 on a 649-tall canvas) */}
+      <a
+        href="#"
+        className="absolute left-[6.4%] bottom-[5.4%] text-white tracking-[0.12em] underline underline-offset-4 hover:opacity-80 transition-opacity"
+        style={{ fontSize: "clamp(0.7rem, 3.3cqw, 0.95rem)" }}
+      >
+        SHOP THE COLLECTION
+      </a>
+    </article>
+  );
+}
+
 function Index() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+    <main className="min-h-screen bg-background">
+      <div className="grid grid-cols-1 md:grid-cols-2">
+        <HeroBanner
+          title="AS-SALIHAAT SET"
+          image={niqabImg}
+          imageAlt="Black niqab set on mannequin"
+          titleTopPct={15.4}
+
+          eager
+        />
+        <HeroBanner
+          title="AL-IKHWAAN SET"
+          image={shemaghImg}
+          imageAlt="Red and white shemagh set on mannequin"
+          titleTopPct={18.6}
+        />
+      </div>
+    </main>
   );
 }
