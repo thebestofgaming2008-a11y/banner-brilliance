@@ -27,9 +27,9 @@ function HeroBanner({ title, image, imageAlt, imageTopPct, titleTopPct, eager }:
         alt={imageAlt}
         loading={eager ? "eager" : "lazy"}
         decoding="async"
-        className="absolute inset-0 h-full w-full object-cover"
-        style={{ objectPosition: `center ${(imageTopPct / (100 - (100 - 100))).toFixed(2)}%` }}
+        className="absolute inset-0 h-full w-full object-cover object-center"
       />
+
 
 
       {/* Title — sits above the image on the yellow field */}
