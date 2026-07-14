@@ -62,15 +62,14 @@ function Index() {
           title="AS-SALIHAAT SET"
           image={niqabImg}
           imageAlt="Black niqab set on mannequin"
-          imageTopPct={22.2}
           titleTopPct={15.4}
+
           eager
         />
         <HeroBanner
           title="AL-IKHWAAN SET"
           image={shemaghImg}
           imageAlt="Red and white shemagh set on mannequin"
-          imageTopPct={33.9}
           titleTopPct={18.6}
         />
       </div>
