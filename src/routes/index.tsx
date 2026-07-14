@@ -10,18 +10,17 @@ type BannerProps = {
   title: string;
   image: string;
   imageAlt: string;
-  /** Percentage of banner height where the product image starts (from Figma). */
-  imageTopPct: number;
-  /** Percentage of banner height where the title baseline sits. */
+  /** Percentage of banner height where the title baseline sits (from Figma). */
   titleTopPct: number;
   eager?: boolean;
 };
 
-function HeroBanner({ title, image, imageAlt, imageTopPct, titleTopPct, eager }: BannerProps) {
+function HeroBanner({ title, image, imageAlt, titleTopPct, eager }: BannerProps) {
   return (
-    <article className="relative w-full overflow-hidden aspect-[390/649] bg-[#f5c518]">
-      {/* Product photo — carries the yellow gradient itself, so it fills the whole banner.
-          object-position is tuned so the product sits at the Figma-specified vertical start. */}
+    <article
+      className="relative w-full overflow-hidden aspect-[390/649] bg-[#f5c518] @container"
+    >
+      {/* Product photo — carries the yellow gradient itself, so it fills the whole banner. */}
       <img
         src={image}
         alt={imageAlt}
@@ -30,15 +29,13 @@ function HeroBanner({ title, image, imageAlt, imageTopPct, titleTopPct, eager }:
         className="absolute inset-0 h-full w-full object-cover object-center"
       />
 
-
-
-      {/* Title — sits above the image on the yellow field */}
+      {/* Title — positioned per Figma spec, sized against the banner (container) width */}
       <h2
-        className="absolute left-0 right-0 text-center font-light tracking-[0.08em] text-white px-8"
+        className="absolute left-0 right-0 text-center font-light tracking-[0.08em] text-white px-[8%]"
         style={{
           top: `${titleTopPct}%`,
           fontFamily: "var(--font-serif-display)",
-          fontSize: "clamp(1.75rem, 7.2vw, 3rem)",
+          fontSize: "clamp(1.5rem, 7.2cqw, 3.25rem)",
           lineHeight: 1,
         }}
       >
@@ -48,7 +45,8 @@ function HeroBanner({ title, image, imageAlt, imageTopPct, titleTopPct, eager }:
       {/* Action link — bottom-left per Figma (x=25, y=614 on a 649-tall canvas) */}
       <a
         href="#"
-        className="absolute left-[6.4%] bottom-[3%] text-white text-[13px] tracking-[0.12em] underline underline-offset-4 hover:opacity-80 transition-opacity"
+        className="absolute left-[6.4%] bottom-[5.4%] text-white tracking-[0.12em] underline underline-offset-4 hover:opacity-80 transition-opacity"
+        style={{ fontSize: "clamp(0.7rem, 3.3cqw, 0.95rem)" }}
       >
         SHOP THE COLLECTION
       </a>
