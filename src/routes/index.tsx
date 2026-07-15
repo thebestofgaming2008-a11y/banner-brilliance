@@ -1,53 +1,86 @@
 import { createFileRoute } from "@tanstack/react-router";
-import niqabImg from "@/assets/hero-niqab.jpg";
-import shemaghImg from "@/assets/hero-shemagh.jpg";
+import bgAsset from "@/assets/hero-bg.png.asset.json";
+import niqabAsset from "@/assets/niqab.png.asset.json";
+import shemaghAsset from "@/assets/shemagh.png.asset.json";
 
 export const Route = createFileRoute("/")({
   component: Index,
 });
 
+// Figma frame: 390 × 649 (mobile). All positions below are % of that frame.
 type BannerProps = {
   title: string;
-  image: string;
-  imageAlt: string;
-  /** Percentage of banner height where the title baseline sits (from Figma). */
-  titleTopPct: number;
+  product: string;
+  productAlt: string;
+  // Title box from Figma (x, y, width in px on 390-wide frame)
+  titleX: number;
+  titleY: number;
+  titleW: number;
   eager?: boolean;
 };
 
-function HeroBanner({ title, image, imageAlt, titleTopPct, eager }: BannerProps) {
+const FRAME_W = 390;
+const FRAME_H = 649;
+
+function HeroBanner({ title, product, productAlt, titleX, titleY, titleW, eager }: BannerProps) {
   return (
     <article
-      className="relative w-full overflow-hidden aspect-[390/649] bg-[#f5c518]"
-      style={{ containerType: "inline-size" }}
+      className="relative w-full overflow-hidden"
+      style={{
+        aspectRatio: `${FRAME_W} / ${FRAME_H}`,
+        containerType: "inline-size",
+      }}
     >
-      {/* Product photo — carries the yellow gradient itself, so it fills the whole banner. */}
+      {/* Yellow gradient background */}
       <img
-        src={image}
-        alt={imageAlt}
-        loading={eager ? "eager" : "lazy"}
-        decoding="async"
-        className="absolute inset-0 h-full w-full object-cover object-center"
+        src={bgAsset.url}
+        alt=""
+        aria-hidden
+        className="absolute inset-0 h-full w-full object-cover"
       />
 
-      {/* Title — positioned per Figma spec, sized against the banner (container) width */}
+      {/* Product photo — bottom-centered, roughly 82% of frame height */}
+      <img
+        src={product}
+        alt={productAlt}
+        loading={eager ? "eager" : "lazy"}
+        decoding="async"
+        className="absolute left-1/2 -translate-x-1/2 bottom-0 z-10"
+        style={{ height: "82%", width: "auto", maxWidth: "92%", objectFit: "contain" }}
+      />
+
+      {/* Title — Instrument Serif 52px on 390 frame */}
       <h2
-        className="absolute left-0 right-0 text-center font-light tracking-[0.08em] text-white px-[8%]"
+        className="absolute text-white m-0"
         style={{
-          top: `${titleTopPct}%`,
+          left: `${(titleX / FRAME_W) * 100}%`,
+          top: `${(titleY / FRAME_H) * 100}%`,
+          width: `${(titleW / FRAME_W) * 100}%`,
           fontFamily: "var(--font-serif-display)",
-          fontSize: "clamp(1.5rem, 7.2cqw, 3.25rem)",
+          fontWeight: 400,
+          fontSize: `${(52 / FRAME_W) * 100}cqw`,
           lineHeight: 1,
+          letterSpacing: "-0.01em",
+          textAlign: "center",
+          whiteSpace: "nowrap",
         }}
       >
         {title}
       </h2>
 
-      {/* Action link — bottom-left per Figma (x=25, y=614 on a 649-tall canvas) */}
+      {/* Action link — Schibsted Grotesk 13px, x=25 y=614 on 390×649 frame */}
       <a
         href="#"
-        className="absolute left-[6.4%] bottom-[5.4%] text-white tracking-[0.12em] underline underline-offset-4 hover:opacity-80 transition-opacity"
-        style={{ fontSize: "clamp(0.7rem, 3.3cqw, 0.95rem)" }}
+        className="absolute z-20 text-white underline underline-offset-4 hover:opacity-80 transition-opacity"
+        style={{
+          left: `${(25 / FRAME_W) * 100}%`,
+          top: `${(614 / FRAME_H) * 100}%`,
+          fontFamily: "var(--font-sans-ui)",
+          fontWeight: 500,
+          fontSize: `${(13 / FRAME_W) * 100}cqw`,
+          letterSpacing: "0.15em",
+          lineHeight: 1,
+        }}
       >
         SHOP THE COLLECTION
       </a>
@@ -61,17 +94,20 @@ function Index() {
       <div className="grid grid-cols-1 md:grid-cols-2">
         <HeroBanner
           title="AS-SALIHAAT SET"
-          image={niqabImg}
-          imageAlt="Black niqab set on mannequin"
-          titleTopPct={15.4}
-
+          product={niqabAsset.url}
+          productAlt="Black niqab"
+          titleX={41}
+          titleY={100}
+          titleW={319}
           eager
         />
         <HeroBanner
           title="AL-IKHWAAN SET"
-          image={shemaghImg}
-          imageAlt="Red and white shemagh set on mannequin"
-          titleTopPct={18.6}
+          product={shemaghAsset.url}
+          productAlt="Red and white shemagh"
+          titleX={37}
+          titleY={121}
+          titleW={316}
         />
       </div>
     </main>
