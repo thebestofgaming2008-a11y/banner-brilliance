@@ -45,7 +45,7 @@ function HeroBanner({ title, product, productAlt, titleX, titleY, titleW, eager 
         alt={productAlt}
         loading={eager ? "eager" : "lazy"}
         decoding="async"
-        className="absolute left-1/2 -translate-x-1/2 bottom-0"
+        className="absolute left-1/2 -translate-x-1/2 bottom-0 z-10"
         style={{ height: "82%", width: "auto", maxWidth: "92%", objectFit: "contain" }}
       />
 
