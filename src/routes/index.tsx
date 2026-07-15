@@ -71,7 +71,7 @@ function HeroBanner({ title, product, productAlt, titleX, titleY, titleW, eager 
       {/* Action link — Schibsted Grotesk 13px, x=25 y=614 on 390×649 frame */}
       <a
         href="#"
-        className="absolute text-white underline underline-offset-4 hover:opacity-80 transition-opacity"
+        className="absolute z-20 text-white underline underline-offset-4 hover:opacity-80 transition-opacity"
         style={{
           left: `${(25 / FRAME_W) * 100}%`,
           top: `${(614 / FRAME_H) * 100}%`,
