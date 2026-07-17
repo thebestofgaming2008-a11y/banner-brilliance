@@ -52,17 +52,29 @@ function catalogVersion() {
     : (window.localStorage.getItem("fawzaan.catalogVersion") ?? "default");
 }
 
+async function fetchJsonWithRetry<T>(url: string, attempts = 3): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetch(url, { headers: { accept: "application/json" } });
+      if (!response.ok) throw new Error(`Catalog presentation failed with ${response.status}`);
+      return (await response.json()) as T;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts - 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 250 * (attempt + 1)));
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Catalog presentation is unavailable");
+}
+
 async function fetchCatalogPresentation(): Promise<CatalogPresentation> {
   try {
     if (typeof window !== "undefined") {
-      const response = await fetch(
+      return await fetchJsonWithRetry<CatalogPresentation>(
         `/api/catalog/presentation?version=${encodeURIComponent(catalogVersion())}`,
-        {
-          headers: { accept: "application/json" },
-        },
       );
-      if (!response.ok) throw new Error(`Catalog presentation failed with ${response.status}`);
-      return (await response.json()) as CatalogPresentation;
     }
     if (convexHttp) {
       const [taxonomy, banners] = await Promise.all([
