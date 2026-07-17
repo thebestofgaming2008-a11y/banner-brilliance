@@ -4187,7 +4187,8 @@ function ProductDrawer({
                   />
                 </label>
                 <input
-                  type="url"
+                  type="text"
+                  inputMode="url"
                   value={cleanImageUrl(form.cover_image_url) ?? ""}
                   data-testid="admin-product-image-url-input"
                   onChange={(e) => {
