@@ -41,17 +41,18 @@ export const fallbackTaxonomy: CatalogTaxonomyItem[] = [
 ];
 
 let cachedPresentation: CatalogPresentation | null = null;
+let cachedPresentationAt = 0;
+let presentationRequest: Promise<CatalogPresentation> | null = null;
+const PRESENTATION_MEMORY_TTL_MS = 5 * 60 * 1000;
 
-export async function listCatalogPresentation(): Promise<CatalogPresentation> {
+async function fetchCatalogPresentation(): Promise<CatalogPresentation> {
   try {
     if (typeof window !== "undefined") {
       const response = await fetch("/api/catalog/presentation", {
         headers: { accept: "application/json" },
-        cache: "no-store",
       });
       if (!response.ok) throw new Error(`Catalog presentation failed with ${response.status}`);
-      cachedPresentation = (await response.json()) as CatalogPresentation;
-      return cachedPresentation;
+      return (await response.json()) as CatalogPresentation;
     }
     if (convexHttp) {
       const [taxonomy, banners] = await Promise.all([
@@ -66,10 +67,31 @@ export async function listCatalogPresentation(): Promise<CatalogPresentation> {
   return cachedPresentation ?? { taxonomy: fallbackTaxonomy, banners: [] };
 }
 
+export async function listCatalogPresentation(
+  options: { force?: boolean } = {},
+): Promise<CatalogPresentation> {
+  const fresh =
+    cachedPresentation && Date.now() - cachedPresentationAt < PRESENTATION_MEMORY_TTL_MS;
+  if (!options.force && fresh) return cachedPresentation;
+  if (!options.force && presentationRequest) return presentationRequest;
+
+  presentationRequest = fetchCatalogPresentation()
+    .then((presentation) => {
+      cachedPresentation = presentation;
+      cachedPresentationAt = Date.now();
+      return presentation;
+    })
+    .finally(() => {
+      presentationRequest = null;
+    });
+  return presentationRequest;
+}
+
 export function useCatalogPresentation() {
-  const [presentation, setPresentation] = useState<CatalogPresentation>(
-    cachedPresentation ?? { taxonomy: fallbackTaxonomy, banners: [] },
-  );
+  const [presentation, setPresentation] = useState<CatalogPresentation>({
+    taxonomy: fallbackTaxonomy,
+    banners: [],
+  });
   useEffect(() => {
     let alive = true;
     listCatalogPresentation().then((next) => {

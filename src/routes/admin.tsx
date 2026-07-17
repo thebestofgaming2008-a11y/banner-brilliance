@@ -75,6 +75,8 @@ import {
   upsertCategory,
   seedDefaultCategories,
   listStorefrontBanners,
+  listPaymentRecoveries,
+  retryPaymentRecovery,
   upsertStorefrontBanner,
   archiveStorefrontBanner,
   type ProductInput,
@@ -84,6 +86,7 @@ import {
   type AdminCategory,
   type ShippingRate,
   type StorefrontBanner,
+  type PaymentRecovery,
 } from "@/services/adminService";
 import type { Product } from "@/services/productService";
 import { catalog as storefrontCatalog } from "@/lib/products";
@@ -161,16 +164,29 @@ function notify({
 
 const NAV = [
   { key: "dash", label: "Dashboard", Icon: LayoutDashboard },
-  { key: "homepage", label: "Homepage", Icon: Store },
+  { key: "homepage", label: "Storefront", Icon: Store },
   { key: "orders", label: "Orders", Icon: ShoppingBag },
   { key: "products", label: "Products", Icon: Package },
   { key: "inventory", label: "Inventory", Icon: Boxes },
-  { key: "categories", label: "Categories", Icon: Tag },
+  { key: "categories", label: "Organize shop", Icon: Tag },
   { key: "shipping", label: "Shipping", Icon: Truck },
   { key: "reviews", label: "Reviews", Icon: MessageSquare },
   { key: "customers", label: "Customers", Icon: Users },
   { key: "settings", label: "Settings", Icon: Settings },
 ] as const;
+
+const PAGE_DESCRIPTIONS: Record<TabKey, string> = {
+  dash: "See what needs attention today.",
+  homepage: "Choose what customers see on the home and shop pages.",
+  orders: "Confirm, pack, ship, and track customer orders.",
+  products: "Add products and manage their details, images, and visibility.",
+  inventory: "Keep stock accurate and find low-stock products.",
+  categories: "Group products into collections and storefront filters.",
+  shipping: "Manage shipping methods and delivery rates.",
+  reviews: "Approve or hide customer reviews.",
+  customers: "View customer accounts and order activity.",
+  settings: "Check security and store integrations.",
+};
 
 type TabKey = (typeof NAV)[number]["key"];
 
@@ -284,6 +300,7 @@ const Admin = () => {
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [shippingRates, setShippingRates] = useState<ShippingRate[]>([]);
   const [banners, setBanners] = useState<StorefrontBanner[]>([]);
+  const [paymentRecoveries, setPaymentRecoveries] = useState<PaymentRecovery[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Product | null>(null);
   const [creating, setCreating] = useState(false);
@@ -315,8 +332,9 @@ const Admin = () => {
       listCategories(),
       listShippingRates(),
       listStorefrontBanners(),
+      listPaymentRecoveries(),
     ])
-      .then(([p, o, c, r, cats, rates, bannerRows]) => {
+      .then(([p, o, c, r, cats, rates, bannerRows, recoveries]) => {
         if (cancelled) return;
         setProducts(p);
         setOrders(o);
@@ -325,6 +343,7 @@ const Admin = () => {
         setCategories(cats);
         setShippingRates(rates);
         setBanners(bannerRows);
+        setPaymentRecoveries(recoveries);
         setLoading(false);
       })
       .catch((error) => {
@@ -347,6 +366,7 @@ const Admin = () => {
   const refreshCategories = async () => setCategories(await listCategories());
   const refreshShippingRates = async () => setShippingRates(await listShippingRates());
   const refreshBanners = async () => setBanners(await listStorefrontBanners());
+  const refreshPaymentRecoveries = async () => setPaymentRecoveries(await listPaymentRecoveries());
 
   const handleSaveTracking = async (
     order: AdminOrder,
@@ -581,7 +601,7 @@ const Admin = () => {
     { label: "System", items: NAV.filter((item) => item.key === "settings") },
   ];
   const navBadges: Partial<Record<TabKey, number>> = {
-    orders: processingOrders.length + shippedMissingTracking.length,
+    orders: processingOrders.length + shippedMissingTracking.length + paymentRecoveries.length,
     inventory: opsStats.lowStock + opsStats.outOfStock,
     reviews: pendingReviews,
   };
@@ -708,9 +728,14 @@ const Admin = () => {
             >
               <Menu className="h-6 w-6" />
             </button>
-            <h1 className="truncate text-xl font-semibold leading-tight sm:text-2xl">
-              {activeNav.label}
-            </h1>
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-semibold leading-tight sm:text-2xl">
+                {activeNav.label}
+              </h1>
+              <p className="hidden truncate text-xs text-[rgb(var(--vibe-muted))] sm:block">
+                {PAGE_DESCRIPTIONS[tab]}
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -1007,6 +1032,37 @@ const Admin = () => {
                   </div>
                 }
               >
+                {paymentRecoveries.length > 0 && (
+                  <PaymentRecoveryPanel
+                    rows={paymentRecoveries}
+                    onRetry={async (row) => {
+                      const result = await retryPaymentRecovery(row.razorpay_order_id);
+                      if (result.status === "completed") {
+                        notify({
+                          title: "Paid order recovered",
+                          description: "The customer order is now in the orders list.",
+                        });
+                        await Promise.all([refreshOrders(), refreshPaymentRecoveries()]);
+                        return;
+                      }
+                      if (result.status === "not_captured") {
+                        notify({
+                          title: "Payment is not captured yet",
+                          description:
+                            "No order was created. Razorpay will be checked again automatically.",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      notify({
+                        title: "Payment still needs attention",
+                        description: "The recovery reason is shown below.",
+                        variant: "destructive",
+                      });
+                      await refreshPaymentRecoveries();
+                    }}
+                  />
+                )}
                 {shippedMissingTracking.length > 0 && (
                   <div
                     className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
@@ -2906,6 +2962,66 @@ function BannerAdminPanel({
   );
 }
 
+function PaymentRecoveryPanel({
+  rows,
+  onRetry,
+}: {
+  rows: PaymentRecovery[];
+  onRetry: (row: PaymentRecovery) => Promise<void>;
+}) {
+  const [workingId, setWorkingId] = useState<string | null>(null);
+  return (
+    <div
+      className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-4"
+      data-testid="admin-payment-recovery-panel"
+    >
+      <div className="flex items-start gap-3">
+        <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-rose-700" />
+        <div className="min-w-0 flex-1">
+          <h3 className="font-semibold text-rose-950">Paid checkouts need confirmation</h3>
+          <p className="mt-1 text-sm leading-5 text-rose-900/75">
+            Razorpay reported a payment, but its customer order could not be completed. Check each
+            payment once; the action never creates an order unless Razorpay confirms it was
+            captured.
+          </p>
+          <div className="mt-4 space-y-2">
+            {rows.map((row) => (
+              <div
+                key={row.id}
+                className="flex flex-col gap-3 rounded-md border border-rose-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0 text-sm">
+                  <p className="font-semibold text-[#111827]">
+                    {row.customer?.name || row.customer?.email || "Customer"} ·{" "}
+                    {formatPrice(row.amount_paise / 100)}
+                  </p>
+                  <p className="truncate text-xs text-[#6B7280]">{row.customer?.email}</p>
+                  {row.error ? <p className="mt-1 text-xs text-rose-700">{row.error}</p> : null}
+                </div>
+                <button
+                  type="button"
+                  disabled={workingId === row.id}
+                  onClick={async () => {
+                    setWorkingId(row.id);
+                    try {
+                      await onRetry(row);
+                    } finally {
+                      setWorkingId(null);
+                    }
+                  }}
+                  className="h-9 shrink-0 rounded-md bg-[#111827] px-3 text-xs font-semibold text-white disabled:opacity-60"
+                >
+                  {workingId === row.id ? "Checking..." : "Check payment & create order"}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CategoriesAdminPanel({
   categories,
   products,
@@ -2919,6 +3035,7 @@ function CategoriesAdminPanel({
     slug?: string | null;
     name: string;
     type?: string;
+    description?: string | null;
     parent_slug?: string | null;
     sort_order?: number | null;
     is_active?: boolean;
@@ -2936,8 +3053,10 @@ function CategoriesAdminPanel({
   const [draft, setDraft] = useState(emptyDraft);
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
   const productCount = (category: AdminCategory) =>
-    products.filter(
-      (product) => product.category_id === category.slug || product.category === category.name,
+    products.filter((product) =>
+      category.type === "filter"
+        ? product.tags?.includes(category.slug)
+        : product.category_id === category.slug || product.category === category.name,
     ).length;
 
   const editCategory = (category: AdminCategory) => {
@@ -2972,54 +3091,82 @@ function CategoriesAdminPanel({
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+    <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
       <Section
-        title={editingSlug ? "Edit catalog group" : "Add collection or filter"}
-        subtitle="Collections organize products; filters are reusable labels."
+        title={editingSlug ? "Edit shop group" : "Add to your shop"}
+        subtitle="Choose what you are adding, give it a name, and save."
       >
-        <div className="space-y-3">
-          <AdminField label="Name">
+        <div className="space-y-4">
+          <AdminField label={draft.type === "filter" ? "Filter name" : "Collection name"}>
             <input
               className="admin-input"
               value={draft.name}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+              placeholder={draft.type === "filter" ? "Example: New arrivals" : "Example: Watches"}
             />
           </AdminField>
-          <AdminField label="Slug">
-            <input
-              className="admin-input"
-              value={draft.slug}
-              onChange={(e) => setDraft({ ...draft, slug: e.target.value })}
-              placeholder="auto from name"
-              disabled={Boolean(editingSlug)}
-            />
-          </AdminField>
-          <AdminField label="Type">
-            <select
-              className="admin-input"
-              value={draft.type}
-              onChange={(e) => setDraft({ ...draft, type: e.target.value })}
-            >
-              <option value="collection">Collection</option>
-              <option value="filter">Filter</option>
-            </select>
-          </AdminField>
-          <AdminField label="Description">
+          <div>
+            <p className="mb-2 text-sm font-medium">Where should it appear?</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                ["collection", "Collection", "Main shop section"],
+                ["filter", "Filter", "Quick product label"],
+              ].map(([value, label, help]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setDraft({ ...draft, type: value })}
+                  className={cn(
+                    "rounded-md border p-3 text-left",
+                    draft.type === value
+                      ? "border-[#111827] bg-[#111827] text-white"
+                      : "border-[rgb(var(--vibe-border))] bg-white",
+                  )}
+                >
+                  <span className="block text-sm font-semibold">{label}</span>
+                  <span
+                    className={cn(
+                      "block text-xs",
+                      draft.type === value ? "text-white/70" : "text-[rgb(var(--vibe-muted))]",
+                    )}
+                  >
+                    {help}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <AdminField label="Description (optional)">
             <textarea
               className="admin-input min-h-20 resize-y"
               value={draft.description}
               onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-              placeholder="Optional internal or empty-state description"
+              placeholder="A short note about what belongs here"
             />
           </AdminField>
-          <AdminField label="Sort order">
-            <input
-              className="admin-input"
-              value={draft.sort_order}
-              onChange={(e) => setDraft({ ...draft, sort_order: e.target.value })}
-              inputMode="numeric"
-            />
-          </AdminField>
+          <details className="rounded-md border border-[rgb(var(--vibe-border))] bg-[rgb(var(--vibe-soft))] p-3">
+            <summary className="cursor-pointer text-sm font-medium">Advanced settings</summary>
+            <div className="mt-3 space-y-3">
+              <AdminField label="Web address name">
+                <input
+                  className="admin-input"
+                  value={draft.slug}
+                  onChange={(e) => setDraft({ ...draft, slug: e.target.value })}
+                  placeholder="Created automatically"
+                  disabled={Boolean(editingSlug)}
+                />
+              </AdminField>
+              <AdminField label="Display order">
+                <input
+                  className="admin-input"
+                  value={draft.sort_order}
+                  onChange={(e) => setDraft({ ...draft, sort_order: e.target.value })}
+                  inputMode="numeric"
+                  placeholder="Automatic"
+                />
+              </AdminField>
+            </div>
+          </details>
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -3030,7 +3177,7 @@ function CategoriesAdminPanel({
           </label>
           <div className="flex flex-wrap gap-2">
             <button type="button" className="admin-button" onClick={save}>
-              {editingSlug ? "Update" : "Create"}
+              {editingSlug ? "Save changes" : `Add ${draft.type}`}
             </button>
             {editingSlug ? (
               <button
@@ -3044,74 +3191,105 @@ function CategoriesAdminPanel({
                 Cancel
               </button>
             ) : null}
-            <button
-              type="button"
-              className="admin-button admin-button-secondary"
-              onClick={() => void onSeed()}
-            >
-              Reset defaults
-            </button>
           </div>
         </div>
       </Section>
 
-      <Section title="Catalog organization" subtitle={`${categories.length} configured`}>
-        <div className="grid gap-3 md:grid-cols-2">
-          {categories.map((category) => {
-            return (
-              <article
-                key={category.id}
-                className={cn(
-                  "rounded-lg border border-[rgb(var(--vibe-border))] bg-white p-4",
-                  category.is_active === false && "opacity-60",
-                )}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium">{category.name}</p>
-                      <span className="rounded bg-[rgb(var(--vibe-surface))] px-2 py-0.5 text-[10px] uppercase text-[rgb(var(--vibe-muted))]">
-                        {category.type}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-[rgb(var(--vibe-muted))]">
-                      {category.slug} · order {category.sort_order ?? "auto"}
-                    </p>
-                  </div>
-                  <span className="rounded bg-[rgb(var(--vibe-surface))] px-2 py-1 text-[11px] text-[rgb(var(--vibe-muted))]">
-                    {productCount(category)} products
-                  </span>
-                </div>
-                {category.description ? (
-                  <p className="mt-3 text-sm text-[rgb(var(--vibe-muted))]">
-                    {category.description}
-                  </p>
-                ) : null}
-                <div className="mt-4 flex gap-2">
-                  <button
-                    type="button"
-                    className="h-8 rounded-md border border-[rgb(var(--vibe-border))] px-3 text-xs"
-                    onClick={() => editCategory(category)}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="h-8 rounded-md border border-[rgb(var(--vibe-border))] px-3 text-xs"
-                    onClick={() =>
-                      void onSave({
-                        ...category,
-                        is_active: category.is_active === false,
-                      })
-                    }
-                  >
-                    {category.is_active === false ? "Activate" : "Archive"}
-                  </button>
-                </div>
-              </article>
-            );
-          })}
+      <Section title="Shop organization" subtitle="Collections first, then quick filters.">
+        <div className="mb-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-md bg-[rgb(var(--vibe-soft))] p-3 text-sm">
+            <strong>Collections</strong>
+            <p className="mt-0.5 text-xs text-[rgb(var(--vibe-muted))]">
+              Main groups such as Watches and Honey.
+            </p>
+          </div>
+          <div className="rounded-md bg-[rgb(var(--vibe-soft))] p-3 text-sm">
+            <strong>Filters</strong>
+            <p className="mt-0.5 text-xs text-[rgb(var(--vibe-muted))]">
+              Quick labels such as New arrivals and Gifts.
+            </p>
+          </div>
         </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          {[...categories]
+            .sort(
+              (a, b) =>
+                a.type.localeCompare(b.type) || (a.sort_order ?? 999) - (b.sort_order ?? 999),
+            )
+            .map((category) => {
+              return (
+                <article
+                  key={category.id}
+                  className={cn(
+                    "rounded-lg border border-[rgb(var(--vibe-border))] bg-white p-4",
+                    category.is_active === false && "opacity-60",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium">{category.name}</p>
+                        <span className="rounded bg-[rgb(var(--vibe-surface))] px-2 py-0.5 text-[10px] uppercase text-[rgb(var(--vibe-muted))]">
+                          {category.type === "filter" ? "Filter" : "Collection"}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-[rgb(var(--vibe-muted))]">
+                        {category.is_active === false
+                          ? "Hidden from customers"
+                          : "Visible to customers"}
+                      </p>
+                    </div>
+                    <span className="rounded bg-[rgb(var(--vibe-surface))] px-2 py-1 text-[11px] text-[rgb(var(--vibe-muted))]">
+                      {productCount(category)} products
+                    </span>
+                  </div>
+                  {category.description ? (
+                    <p className="mt-3 text-sm text-[rgb(var(--vibe-muted))]">
+                      {category.description}
+                    </p>
+                  ) : null}
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      type="button"
+                      className="h-8 rounded-md border border-[rgb(var(--vibe-border))] px-3 text-xs"
+                      onClick={() => editCategory(category)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="h-8 rounded-md border border-[rgb(var(--vibe-border))] px-3 text-xs"
+                      onClick={() =>
+                        void onSave({
+                          ...category,
+                          is_active: category.is_active === false,
+                        })
+                      }
+                    >
+                      {category.is_active === false ? "Show" : "Hide"}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+        </div>
+        <details className="mt-6 border-t border-[rgb(var(--vibe-border))] pt-4">
+          <summary className="cursor-pointer text-sm font-medium text-[rgb(var(--vibe-muted))]">
+            Restore the original shop organization
+          </summary>
+          <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <p>
+              This hides custom groups and restores the original Fawzaan collections and filters.
+            </p>
+            <button
+              type="button"
+              className="mt-3 h-9 rounded-md border border-amber-300 bg-white px-3 text-xs font-semibold"
+              onClick={() => void onSeed()}
+            >
+              Restore defaults
+            </button>
+          </div>
+        </details>
       </Section>
     </div>
   );

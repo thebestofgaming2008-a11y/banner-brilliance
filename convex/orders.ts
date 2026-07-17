@@ -10,7 +10,14 @@ import {
   query,
 } from "./_generated/server";
 import { api, internal } from "./_generated/api";
-import { nowIso, publicOrder, requireAdmin, requireIdentity, writeAuditLog } from "./lib";
+import {
+  isAdminEmail,
+  nowIso,
+  publicOrder,
+  requireAdmin,
+  requireIdentity,
+  writeAuditLog,
+} from "./lib";
 import { checkoutShippingForCountry } from "./shipping";
 
 const cartItem = v.object({
@@ -180,6 +187,11 @@ function cleanTrackingUrl(value: string | null | undefined) {
   return url;
 }
 
+async function getCheckoutProduct(ctx: any, productId: string) {
+  const id = ctx.db.normalizeId("products", cleanText(productId, 200));
+  return id ? await ctx.db.get(id) : null;
+}
+
 async function nextOrderNumber(ctx: any) {
   const timestamp = nowIso();
   const existing = await ctx.db
@@ -219,10 +231,11 @@ async function checkoutQuote(ctx: any, cart: Array<any>) {
   if (!cart.length) throw new Error("Cart is empty.");
   let subtotal = 0;
   let itemCount = 0;
+  const validatedCart = [];
   for (const item of cart) {
     const qty = Math.floor(item.qty);
     if (!Number.isFinite(qty) || qty < 1 || qty > 99) throw new Error("Cart quantity is invalid.");
-    const product = (await ctx.db.get(item.productId as any)) as any;
+    const product = (await getCheckoutProduct(ctx, item.productId)) as any;
     if (!product || product.is_active === false)
       throw new Error(`Product is no longer available: ${cleanText(item.name, 80)}`);
     const stock = product.stock_quantity ?? 0;
@@ -231,20 +244,51 @@ async function checkoutQuote(ctx: any, cart: Array<any>) {
     const unitPrice = product.sale_price_inr ?? product.price_inr ?? product.price;
     if (!Number.isFinite(unitPrice) || unitPrice < 0)
       throw new Error(`Invalid price for ${product.name}.`);
-    cleanVariantSelection(item.selectedColor, product.color_options, "Colour", product.name);
-    cleanVariantSelection(item.selectedSize, product.size_options, "Size", product.name);
+    const selectedColor = cleanVariantSelection(
+      item.selectedColor,
+      product.color_options,
+      "Colour",
+      product.name,
+    );
+    const selectedSize = cleanVariantSelection(
+      item.selectedSize,
+      product.size_options,
+      "Size",
+      product.name,
+    );
     subtotal += unitPrice * qty;
     itemCount += qty;
+    validatedCart.push({
+      cartKey: cleanNullable(item.cartKey, 160) ?? undefined,
+      productId: String(product._id),
+      qty,
+      name: cleanText(product.name, 160),
+      price: unitPrice,
+      priceInr: unitPrice,
+      image: cleanNullable(product.cover_image_url, 1000),
+      slug: cleanNullable(product.slug, 120),
+      weightG: Number.isFinite(product.weight_g) ? product.weight_g : null,
+      shippingClass: cleanNullable(product.shipping_class, 80),
+      selectedColor,
+      selectedSize,
+    });
   }
   const shipping = 0;
   const total = subtotal + shipping;
-  return { subtotal, shipping, total, amountPaise: Math.round(total * 100), itemCount };
+  return {
+    subtotal,
+    shipping,
+    total,
+    amountPaise: Math.round(total * 100),
+    itemCount,
+    validatedCart,
+  };
 }
 
 async function restoreReservedStock(ctx: any, cart: Array<any>) {
   const timestamp = nowIso();
   for (const item of cart) {
-    const product = (await ctx.db.get(item.productId as any)) as any;
+    const product = (await getCheckoutProduct(ctx, item.productId)) as any;
     if (!product) continue;
     const nextStock = Math.max(
       0,
@@ -265,8 +309,12 @@ async function releaseExpiredReservations(ctx: any) {
     .collect();
   const now = Date.now();
   for (const intent of expired.filter((item: any) => item.expires_at <= now)) {
-    await restoreReservedStock(ctx, intent.cart);
-    await ctx.db.patch(intent._id, { status: "released", updated_at: nowIso() });
+    if (intent.stock_reserved !== false) await restoreReservedStock(ctx, intent.cart);
+    await ctx.db.patch(intent._id, {
+      status: "released",
+      stock_reserved: false,
+      updated_at: nowIso(),
+    });
   }
 }
 
@@ -285,9 +333,10 @@ async function failCheckoutIntent(
     )
     .first();
   if (!intent || intent.status !== "pending") return null;
-  await restoreReservedStock(ctx, intent.cart);
+  if (intent.stock_reserved !== false) await restoreReservedStock(ctx, intent.cart);
   await ctx.db.patch(intent._id, {
     status: "failed",
+    stock_reserved: false,
     payment_id: args.razorpay_payment_id ?? null,
     error: cleanNullable(args.error, 500),
     updated_at: nowIso(),
@@ -304,6 +353,8 @@ async function savePaidOrder(
     razorpay_order_id: string;
     razorpay_payment_id: string;
     razorpay_signature: string;
+    locked_amount_paise?: number;
+    stock_already_reserved?: boolean;
   },
 ) {
   const existingByPayment = await ctx.db
@@ -351,13 +402,16 @@ async function savePaidOrder(
   for (const item of args.cart) {
     const qty = Math.floor(item.qty);
     if (!Number.isFinite(qty) || qty < 1 || qty > 99) throw new Error("Cart quantity is invalid.");
-    const product = (await ctx.db.get(item.productId as any)) as any;
-    if (!product || product.is_active === false)
+    const product = (await getCheckoutProduct(ctx, item.productId)) as any;
+    if (!product || (args.locked_amount_paise === undefined && product.is_active === false))
       throw new Error(`Product is no longer available: ${cleanText(item.name, 80)}`);
     const stock = product.stock_quantity ?? 0;
-    if (stock < qty || product.in_stock === false)
+    if (!args.stock_already_reserved && (stock < qty || product.in_stock === false))
       throw new Error(`Not enough stock for ${product.name}.`);
-    const unitPrice = product.sale_price_inr ?? product.price_inr ?? product.price;
+    const unitPrice =
+      args.locked_amount_paise !== undefined
+        ? Number(item.priceInr)
+        : (product.sale_price_inr ?? product.price_inr ?? product.price);
     if (!Number.isFinite(unitPrice) || unitPrice < 0)
       throw new Error(`Invalid price for ${product.name}.`);
     const selectedColor = cleanVariantSelection(
@@ -379,6 +433,12 @@ async function savePaidOrder(
   const shippingMeta = requireIndiaShipping(customer.country);
   const computedShipping = shippingMeta.amount;
   const computedTotal = computedSubtotal + computedShipping;
+  if (
+    args.locked_amount_paise !== undefined &&
+    Math.round(computedTotal * 100) !== args.locked_amount_paise
+  ) {
+    throw new Error("Reserved checkout total does not match the captured Razorpay amount.");
+  }
   const timestamp = nowIso();
   const orderNumber = await nextOrderNumber(ctx);
   const orderId = await ctx.db.insert("orders", {
@@ -423,12 +483,14 @@ async function savePaidOrder(
       unit_price: item.unitPrice,
       subtotal: item.unitPrice * item.qty,
     });
-    const nextStock = Math.max(0, (item.product.stock_quantity ?? 0) - item.qty);
-    await ctx.db.patch(item.product._id, {
-      stock_quantity: nextStock,
-      in_stock: nextStock > 0,
-      updated_at: timestamp,
-    });
+    if (!args.stock_already_reserved) {
+      const nextStock = Math.max(0, (item.product.stock_quantity ?? 0) - item.qty);
+      await ctx.db.patch(item.product._id, {
+        stock_quantity: nextStock,
+        in_stock: nextStock > 0,
+        updated_at: timestamp,
+      });
+    }
   }
 
   if (args.user_id) {
@@ -491,7 +553,7 @@ export const createWhatsAppOrderRequest = mutation({
       const qty = Math.floor(item.qty);
       if (!Number.isFinite(qty) || qty < 1 || qty > 99)
         throw new Error("Cart quantity is invalid.");
-      const product = (await ctx.db.get(item.productId as any)) as any;
+      const product = (await getCheckoutProduct(ctx, item.productId)) as any;
       if (!product || product.is_active === false)
         throw new Error(`Product is no longer available: ${cleanText(item.name, 80)}`);
       const stock = Number(product.stock_quantity ?? 0);
@@ -670,6 +732,7 @@ export const createRazorpayCheckoutOrder = action({
   handler: async (ctx, args) => {
     validateCheckoutCustomer(args.customer);
     const quote = await ctx.runQuery(api.orders.quoteCheckout, { cart: args.cart });
+    if (quote.amountPaise < 100) throw new Error("Order total must be at least INR 1.");
     const { keyId } = razorpayKeys();
     const receipt = `FZ-${Date.now().toString().slice(-8)}`;
     const order = await razorpayRequest("/orders", {
@@ -718,8 +781,8 @@ export const reserveCheckoutIntent = internalMutation({
     if (quote.amountPaise !== args.amount_paise)
       throw new Error("Checkout total changed. Please try again.");
     const timestamp = nowIso();
-    for (const item of args.cart) {
-      const product = (await ctx.db.get(item.productId as any)) as any;
+    for (const item of quote.validatedCart) {
+      const product = (await getCheckoutProduct(ctx, item.productId)) as any;
       if (!product) throw new Error("Product is no longer available.");
       const nextStock = Number(product.stock_quantity ?? 0) - Math.max(1, Math.floor(item.qty));
       if (nextStock < 0) throw new Error(`Not enough stock for ${product.name}.`);
@@ -734,10 +797,13 @@ export const reserveCheckoutIntent = internalMutation({
       user_id: args.user_id ?? null,
       payment_id: null,
       status: "pending",
-      cart: args.cart,
+      cart: quote.validatedCart,
       customer: args.customer,
       amount_paise: args.amount_paise,
       error: null,
+      stock_reserved: true,
+      reconciliation_attempts: 0,
+      last_reconciled_at: null,
       expires_at: Date.now() + CHECKOUT_RESERVATION_MS,
       created_at: timestamp,
       updated_at: timestamp,
@@ -760,6 +826,38 @@ export const finalizeCheckoutIntent = internalMutation({
     currency: v.optional(v.string()),
   },
   handler: async (ctx, args) => finalizeCheckoutIntentHandler(ctx, args),
+});
+
+export const markCheckoutRecovery = internalMutation({
+  args: {
+    razorpay_order_id: v.string(),
+    razorpay_payment_id: v.optional(v.union(v.string(), v.null())),
+    error: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const intent = await ctx.db
+      .query("checkout_intents")
+      .withIndex("by_razorpay_order_id", (q) => q.eq("razorpay_order_id", args.razorpay_order_id))
+      .first();
+    if (!intent || intent.status === "completed") return false;
+    await ctx.db.patch(intent._id, {
+      status: "recovery_required",
+      payment_id: args.razorpay_payment_id ?? intent.payment_id ?? null,
+      error: cleanText(args.error, 500) || "Paid checkout needs recovery.",
+      last_reconciled_at: nowIso(),
+      updated_at: nowIso(),
+    });
+    return true;
+  },
+});
+
+export const markCheckoutFailed = internalMutation({
+  args: {
+    razorpay_order_id: v.string(),
+    razorpay_payment_id: v.optional(v.union(v.string(), v.null())),
+    error: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, args) => await failCheckoutIntent(ctx, args),
 });
 
 async function finalizeCheckoutIntentHandler(
@@ -798,35 +896,26 @@ async function finalizeCheckoutIntentHandler(
       )
       .first();
   }
-  try {
-    if (intent.status === "pending") await restoreReservedStock(ctx, intent.cart);
-    const order = await savePaidOrder(ctx, {
-      cart: intent.cart,
-      customer: intent.customer,
-      user_id: intent.user_id ?? null,
-      razorpay_order_id: args.razorpay_order_id,
-      razorpay_payment_id: args.razorpay_payment_id,
-      razorpay_signature: "verified-by-server",
-    });
-    await ctx.db.patch(intent._id, {
-      status: "completed",
-      payment_id: args.razorpay_payment_id,
-      error: null,
-      updated_at: nowIso(),
-    });
-    return order;
-  } catch (error) {
-    await ctx.db.patch(intent._id, {
-      status: "recovery_required",
-      payment_id: args.razorpay_payment_id,
-      error:
-        error instanceof Error
-          ? cleanText(error.message, 500)
-          : "Paid checkout needs manual recovery.",
-      updated_at: nowIso(),
-    });
-    return null;
-  }
+  const hasServerSnapshot = intent.stock_reserved !== undefined;
+  const stockAlreadyReserved = intent.stock_reserved ?? intent.status === "pending";
+  const order = await savePaidOrder(ctx, {
+    cart: intent.cart,
+    customer: intent.customer,
+    user_id: intent.user_id ?? null,
+    razorpay_order_id: args.razorpay_order_id,
+    razorpay_payment_id: args.razorpay_payment_id,
+    razorpay_signature: "verified-by-server",
+    locked_amount_paise: hasServerSnapshot ? intent.amount_paise : undefined,
+    stock_already_reserved: stockAlreadyReserved,
+  });
+  await ctx.db.patch(intent._id, {
+    status: "completed",
+    payment_id: args.razorpay_payment_id,
+    error: null,
+    stock_reserved: false,
+    updated_at: nowIso(),
+  });
+  return order;
 }
 
 export const saveVerifiedGuestOrder = internalMutation({
@@ -901,12 +990,22 @@ export const verifyRazorpayPayment = action({
     const identity = await ctx.auth.getUserIdentity();
     const userId = identity ? await getAuthUserId(ctx) : null;
 
-    const reservedOrder: any = await ctx.runMutation(internal.orders.finalizeCheckoutIntent, {
-      razorpay_order_id: args.razorpay_order_id,
-      razorpay_payment_id: args.razorpay_payment_id,
-      amount_paise: fetchedPayment.amount,
-      currency: fetchedPayment.currency,
-    });
+    let reservedOrder: any;
+    try {
+      reservedOrder = await ctx.runMutation(internal.orders.finalizeCheckoutIntent, {
+        razorpay_order_id: args.razorpay_order_id,
+        razorpay_payment_id: args.razorpay_payment_id,
+        amount_paise: fetchedPayment.amount,
+        currency: fetchedPayment.currency,
+      });
+    } catch (error) {
+      await ctx.runMutation(internal.orders.markCheckoutRecovery, {
+        razorpay_order_id: args.razorpay_order_id,
+        razorpay_payment_id: args.razorpay_payment_id,
+        error: error instanceof Error ? error.message : "Paid checkout could not be finalized.",
+      });
+      throw new Error("Payment received and is being confirmed. Do not pay again.");
+    }
     if (reservedOrder) return reservedOrder;
     const hasIntent = await ctx.runQuery(internal.orders.findCheckoutIntent, {
       razorpay_order_id: args.razorpay_order_id,
@@ -939,23 +1038,109 @@ export const findCheckoutIntent = internalQuery({
   },
 });
 
+export const getCheckoutStatus = query({
+  args: { razorpay_order_id: v.string(), email: v.string() },
+  handler: async (ctx, args) => {
+    const intent = await ctx.db
+      .query("checkout_intents")
+      .withIndex("by_razorpay_order_id", (q) =>
+        q.eq("razorpay_order_id", cleanText(args.razorpay_order_id, 120)),
+      )
+      .first();
+    const storedEmail = String(intent?.customer?.email ?? "")
+      .trim()
+      .toLowerCase();
+    const requestedEmail = String(args.email ?? "")
+      .trim()
+      .toLowerCase();
+    if (!intent || !requestedEmail || storedEmail !== requestedEmail) return null;
+    const order =
+      intent.status === "completed"
+        ? await ctx.db
+            .query("orders")
+            .withIndex("by_payment_order_id", (q) =>
+              q.eq("payment_order_id", intent.razorpay_order_id),
+            )
+            .first()
+        : null;
+    return {
+      status: intent.status,
+      order_number: order?.order_number ?? null,
+      payment_received: Boolean(intent.payment_id) || intent.status === "completed",
+      message:
+        intent.status === "completed"
+          ? "Order confirmed."
+          : intent.status === "failed"
+            ? "Payment failed."
+            : intent.status === "recovery_required"
+              ? "Payment received and under confirmation."
+              : "Waiting for payment confirmation.",
+    };
+  },
+});
+
+export const recordReconciliationAttempt = internalMutation({
+  args: { razorpay_order_id: v.string() },
+  handler: async (ctx, args) => {
+    const intent = await ctx.db
+      .query("checkout_intents")
+      .withIndex("by_razorpay_order_id", (q) => q.eq("razorpay_order_id", args.razorpay_order_id))
+      .first();
+    if (!intent || intent.status === "completed") return false;
+    await ctx.db.patch(intent._id, {
+      reconciliation_attempts: Number(intent.reconciliation_attempts ?? 0) + 1,
+      last_reconciled_at: nowIso(),
+      updated_at: nowIso(),
+    });
+    return true;
+  },
+});
+
 export const listUnresolvedCheckoutIntents = internalQuery({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const limit = Math.min(Math.max(args.limit ?? 50, 1), 100);
-    const statuses = ["pending", "released"];
+    const statuses = ["pending", "released", "recovery_required"];
     const rows = [];
     const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
     for (const status of statuses) {
       const matches = await ctx.db
         .query("checkout_intents")
         .withIndex("by_status", (q) => q.eq("status", status))
-        .collect();
-      rows.push(...matches.filter((intent) => !intent.payment_id && intent.expires_at >= cutoff));
+        .take(100);
+      rows.push(
+        ...matches.filter(
+          (intent) =>
+            intent.expires_at >= cutoff && Number(intent.reconciliation_attempts ?? 0) < 12,
+        ),
+      );
     }
     return rows.sort((a, b) => b._creationTime - a._creationTime).slice(0, limit);
   },
 });
+
+async function capturedPaymentForIntent(intent: any) {
+  const result = await razorpayRequest(`/orders/${intent.razorpay_order_id}/payments`);
+  const payments = Array.isArray(result?.items) ? result.items : [];
+  let payment = payments.find(
+    (item: any) =>
+      ["captured", "authorized"].includes(item?.status) &&
+      item?.amount === intent.amount_paise &&
+      item?.currency === "INR" &&
+      item?.order_id === intent.razorpay_order_id,
+  );
+  if (payment?.status === "authorized") {
+    try {
+      payment = await razorpayRequest(`/payments/${payment.id}/capture`, {
+        method: "POST",
+        body: JSON.stringify({ amount: intent.amount_paise, currency: "INR" }),
+      });
+    } catch {
+      payment = await razorpayRequest(`/payments/${payment.id}`);
+    }
+  }
+  return payment?.status === "captured" ? payment : null;
+}
 
 export const reconcileCapturedPayments = internalAction({
   args: {},
@@ -968,23 +1153,28 @@ export const reconcileCapturedPayments = internalAction({
     const errors: string[] = [];
     for (const intent of intents) {
       checked += 1;
+      await ctx.runMutation(internal.orders.recordReconciliationAttempt, {
+        razorpay_order_id: intent.razorpay_order_id,
+      });
       try {
-        const result = await razorpayRequest(`/orders/${intent.razorpay_order_id}/payments`);
-        const payments = Array.isArray(result?.items) ? result.items : [];
-        const captured = payments.find(
-          (payment: any) =>
-            payment?.status === "captured" &&
-            payment?.amount === intent.amount_paise &&
-            payment?.currency === "INR" &&
-            payment?.order_id === intent.razorpay_order_id,
-        );
+        const captured = await capturedPaymentForIntent(intent);
         if (!captured?.id) continue;
-        const order = await ctx.runMutation(internal.orders.finalizeCheckoutIntent, {
-          razorpay_order_id: intent.razorpay_order_id,
-          razorpay_payment_id: cleanText(captured.id, 120),
-          amount_paise: captured.amount,
-          currency: captured.currency,
-        });
+        let order;
+        try {
+          order = await ctx.runMutation(internal.orders.finalizeCheckoutIntent, {
+            razorpay_order_id: intent.razorpay_order_id,
+            razorpay_payment_id: cleanText(captured.id, 120),
+            amount_paise: captured.amount,
+            currency: captured.currency,
+          });
+        } catch (error) {
+          await ctx.runMutation(internal.orders.markCheckoutRecovery, {
+            razorpay_order_id: intent.razorpay_order_id,
+            razorpay_payment_id: cleanText(captured.id, 120),
+            error: error instanceof Error ? error.message : "Reconciliation failed.",
+          });
+          throw error;
+        }
         if (order) finalized += 1;
       } catch (error) {
         errors.push(
@@ -995,6 +1185,41 @@ export const reconcileCapturedPayments = internalAction({
       }
     }
     return { checked, finalized, errors: errors.slice(0, 10) };
+  },
+});
+
+export const retryPaymentRecovery = action({
+  args: { razorpay_order_id: v.string() },
+  handler: async (ctx, args): Promise<any> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!isAdminEmail(identity?.email)) throw new Error("Admin access required.");
+    const intent: any = await ctx.runQuery(internal.orders.findCheckoutIntent, {
+      razorpay_order_id: cleanText(args.razorpay_order_id, 120),
+    });
+    if (!intent) throw new Error("Checkout attempt was not found.");
+    if (intent.status === "completed") {
+      return { status: "completed", order: null };
+    }
+    const payment = await capturedPaymentForIntent(intent);
+    if (!payment?.id) {
+      return { status: "not_captured", order: null };
+    }
+    try {
+      const order = await ctx.runMutation(internal.orders.finalizeCheckoutIntent, {
+        razorpay_order_id: intent.razorpay_order_id,
+        razorpay_payment_id: cleanText(payment.id, 120),
+        amount_paise: payment.amount,
+        currency: payment.currency,
+      });
+      return { status: order ? "completed" : "recovery_required", order };
+    } catch (error) {
+      await ctx.runMutation(internal.orders.markCheckoutRecovery, {
+        razorpay_order_id: intent.razorpay_order_id,
+        razorpay_payment_id: cleanText(payment.id, 120),
+        error: error instanceof Error ? error.message : "Manual recovery failed.",
+      });
+      throw new Error(error instanceof Error ? error.message : "Manual recovery failed.");
+    }
   },
 });
 
@@ -1026,32 +1251,37 @@ export const recordRazorpayWebhook = internalMutation({
       .query("razorpay_webhook_events")
       .withIndex("by_event_id", (q) => q.eq("event_id", args.event_id))
       .first();
-    if (existing) return { duplicate: true };
+    if (existing) return { duplicate: true, status: existing.processing_status ?? "received" };
     await ctx.db.insert("razorpay_webhook_events", {
       event_id: args.event_id,
       event_type: args.event_type,
+      razorpay_order_id: args.razorpay_order_id,
+      razorpay_payment_id: args.razorpay_payment_id,
+      processing_status: "received",
       created_at: nowIso(),
     });
-    if (
-      args.event_type === "payment.captured" &&
-      args.razorpay_order_id &&
-      args.razorpay_payment_id
-    ) {
-      await finalizeCheckoutIntentHandler(ctx, {
-        razorpay_order_id: args.razorpay_order_id,
-        razorpay_payment_id: args.razorpay_payment_id,
-        amount_paise: args.amount_paise,
-        currency: args.currency,
-      });
-    }
-    if (args.event_type === "payment.failed" && args.razorpay_order_id) {
-      await failCheckoutIntent(ctx, {
-        razorpay_order_id: args.razorpay_order_id,
-        razorpay_payment_id: args.razorpay_payment_id ?? null,
-        error: "Razorpay payment failed.",
-      });
-    }
-    return { duplicate: false };
+    return { duplicate: false, status: "received" };
+  },
+});
+
+export const updateRazorpayWebhookEvent = internalMutation({
+  args: {
+    event_id: v.string(),
+    processing_status: v.string(),
+    error: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const event = await ctx.db
+      .query("razorpay_webhook_events")
+      .withIndex("by_event_id", (q) => q.eq("event_id", args.event_id))
+      .first();
+    if (!event) return false;
+    await ctx.db.patch(event._id, {
+      processing_status: cleanText(args.processing_status, 40),
+      error: args.error ? cleanText(args.error, 500) : null,
+      processed_at: nowIso(),
+    });
+    return true;
   },
 });
 
@@ -1065,7 +1295,12 @@ export const razorpayWebhook = httpAction(async (ctx, request) => {
     return new Response("Invalid signature.", { status: 401 });
   const eventId = request.headers.get("x-razorpay-event-id") ?? "";
   if (!eventId) return new Response("Missing event ID.", { status: 400 });
-  const payload = JSON.parse(rawBody);
+  let payload: any;
+  try {
+    payload = JSON.parse(rawBody);
+  } catch {
+    return new Response("Invalid JSON payload.", { status: 400 });
+  }
   let payment = payload?.payload?.payment?.entity;
   const order = payload?.payload?.order?.entity;
   const eventType = cleanText(payload?.event, 80);
@@ -1080,18 +1315,71 @@ export const razorpayWebhook = httpAction(async (ctx, request) => {
         Number.isFinite(item?.amount),
     );
   }
+  const effectiveEventType = payment?.status === "captured" ? "payment.captured" : eventType;
+  const razorpayOrderId = payment?.order_id
+    ? cleanText(payment.order_id, 120)
+    : order?.id
+      ? cleanText(order.id, 120)
+      : undefined;
+  const razorpayPaymentId = payment?.id ? cleanText(payment.id, 120) : undefined;
   await ctx.runMutation(internal.orders.recordRazorpayWebhook, {
     event_id: eventId,
-    event_type: payment?.status === "captured" ? "payment.captured" : eventType,
-    razorpay_order_id: payment?.order_id
-      ? cleanText(payment.order_id, 120)
-      : order?.id
-        ? cleanText(order.id, 120)
-        : undefined,
-    razorpay_payment_id: payment?.id ? cleanText(payment.id, 120) : undefined,
+    event_type: effectiveEventType,
+    razorpay_order_id: razorpayOrderId,
+    razorpay_payment_id: razorpayPaymentId,
     amount_paise: Number.isFinite(payment?.amount) ? payment.amount : undefined,
     currency: payment?.currency ? cleanText(payment.currency, 12) : undefined,
   });
+
+  try {
+    if (effectiveEventType === "payment.captured" && razorpayOrderId && razorpayPaymentId) {
+      await ctx.runMutation(internal.orders.finalizeCheckoutIntent, {
+        razorpay_order_id: razorpayOrderId,
+        razorpay_payment_id: razorpayPaymentId,
+        amount_paise: Number.isFinite(payment?.amount) ? payment.amount : undefined,
+        currency: payment?.currency ? cleanText(payment.currency, 12) : undefined,
+      });
+      await ctx.runMutation(internal.orders.updateRazorpayWebhookEvent, {
+        event_id: eventId,
+        processing_status: "processed",
+      });
+    } else if (effectiveEventType === "payment.failed" && razorpayOrderId) {
+      const failure =
+        cleanText(
+          payment?.error_description ?? payment?.error_reason ?? payment?.error_code ?? "",
+          500,
+        ) || "Razorpay payment failed.";
+      await ctx.runMutation(internal.orders.markCheckoutFailed, {
+        razorpay_order_id: razorpayOrderId,
+        razorpay_payment_id: razorpayPaymentId ?? null,
+        error: failure,
+      });
+      await ctx.runMutation(internal.orders.updateRazorpayWebhookEvent, {
+        event_id: eventId,
+        processing_status: "failed",
+        error: failure,
+      });
+    } else {
+      await ctx.runMutation(internal.orders.updateRazorpayWebhookEvent, {
+        event_id: eventId,
+        processing_status: "ignored",
+      });
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Webhook processing failed.";
+    if (razorpayOrderId && effectiveEventType === "payment.captured") {
+      await ctx.runMutation(internal.orders.markCheckoutRecovery, {
+        razorpay_order_id: razorpayOrderId,
+        razorpay_payment_id: razorpayPaymentId ?? null,
+        error: message,
+      });
+    }
+    await ctx.runMutation(internal.orders.updateRazorpayWebhookEvent, {
+      event_id: eventId,
+      processing_status: "recovery_required",
+      error: message,
+    });
+  }
   return new Response("ok", { status: 200 });
 });
 

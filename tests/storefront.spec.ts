@@ -57,11 +57,12 @@ test("mobile shop controls scroll and menu search filters the live catalog", asy
 
   const tabs = page.getByRole("tablist", { name: "Product collections" });
   await expect(tabs.getByRole("tab", { name: "Watches" })).toBeVisible();
-  const initialScroll = await tabs.evaluate((element) => element.scrollLeft);
+  expect(await tabs.evaluate((element) => element.scrollWidth > element.clientWidth)).toBeTruthy();
+  await tabs.evaluate((element) => {
+    element.scrollLeft = 0;
+  });
   await page.getByRole("button", { name: "More collections" }).click();
-  await expect
-    .poll(() => tabs.evaluate((element) => element.scrollLeft))
-    .toBeGreaterThan(initialScroll);
+  await expect.poll(() => tabs.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
 
   await expect(page.getByLabel("Sort products")).toBeVisible();
   await expect(page.getByRole("button", { name: "Bestsellers" })).toBeVisible();
@@ -90,4 +91,20 @@ test("account, tracking lookup, and admin entry render", async ({ page }) => {
   await page.goto("/admin");
   await expect(page.locator("body")).toContainText(/Admin|Dashboard|Sign in/i);
   expect(errors).toEqual([]);
+});
+
+test("payment endpoints reject client-trusted legacy requests", async ({ request }) => {
+  const createResponse = await request.post("/api/create-order", {
+    data: { amount: 100, currency: "INR", receipt: "unsafe-client-total" },
+  });
+  expect(createResponse.status()).toBe(400);
+
+  const verifyResponse = await request.post("/api/verify-payment", {
+    data: {
+      razorpay_order_id: "order_fake",
+      razorpay_payment_id: "pay_fake",
+      razorpay_signature: "fake",
+    },
+  });
+  expect(verifyResponse.status()).toBe(400);
 });

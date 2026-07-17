@@ -414,68 +414,6 @@ async function readJsonBody(request: Request) {
   }
 }
 
-function razorpayRuntimeKeys(env: unknown, request: Request) {
-  const keyId = envString(env, "RAZORPAY_KEY_ID", request);
-  const keySecret = envString(env, "RAZORPAY_KEY_SECRET", request);
-  if (!keyId || !keySecret) throw new Error("Razorpay keys are not configured.");
-  return { keyId, keySecret };
-}
-
-function basicAuth(keyId: string, keySecret: string) {
-  return `Basic ${btoa(`${keyId}:${keySecret}`)}`;
-}
-
-async function createDirectRazorpayOrder(
-  body: Record<string, unknown>,
-  env: unknown,
-  request: Request,
-) {
-  const amount = Math.round(Number(body.amount));
-  const currency =
-    typeof body.currency === "string" && body.currency.trim() ? body.currency.trim() : "INR";
-  const receipt =
-    typeof body.receipt === "string" && body.receipt.trim()
-      ? body.receipt.trim().slice(0, 40)
-      : `receipt_${Date.now()}`;
-  if (!Number.isFinite(amount) || amount < 100) {
-    throw new Error("Amount must be at least 100 paise.");
-  }
-  const { keyId, keySecret } = razorpayRuntimeKeys(env, request);
-  const response = await fetch("https://api.razorpay.com/v1/orders", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: basicAuth(keyId, keySecret),
-    },
-    body: JSON.stringify({ amount, currency, receipt }),
-  });
-  const order = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(order?.error?.description ?? "Razorpay order creation failed.");
-  return { order_id: order.id, amount: order.amount, currency: order.currency };
-}
-
-async function hmacSha256Hex(secret: string, message: string) {
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(message));
-  return [...new Uint8Array(signature)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function timingSafeEqual(left: string, right: string) {
-  if (left.length !== right.length) return false;
-  let mismatch = 0;
-  for (let index = 0; index < left.length; index += 1) {
-    mismatch |= left.charCodeAt(index) ^ right.charCodeAt(index);
-  }
-  return mismatch === 0;
-}
-
 async function handleRazorpayApiRequest(request: Request, env: unknown): Promise<Response | null> {
   const url = new URL(request.url);
   if (url.pathname !== "/api/create-order" && url.pathname !== "/api/verify-payment") {
@@ -487,6 +425,10 @@ async function handleRazorpayApiRequest(request: Request, env: unknown): Promise
   if (request.method !== "POST") {
     return jsonResponse({ error: "Method not allowed." }, 405, corsHeaders);
   }
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  if (Number.isFinite(contentLength) && contentLength > 128 * 1024) {
+    return jsonResponse({ error: "Checkout request is too large." }, 413, corsHeaders);
+  }
 
   const body = await readJsonBody(request);
   if (!body || typeof body !== "object") {
@@ -495,22 +437,17 @@ async function handleRazorpayApiRequest(request: Request, env: unknown): Promise
 
   try {
     if (url.pathname === "/api/create-order") {
-      if ("amount" in body && !("cart" in body)) {
-        const order = await createDirectRazorpayOrder(
-          body as Record<string, unknown>,
-          env,
-          request,
+      const checkoutBody = body as { cart?: unknown; customer?: unknown };
+      if (!Array.isArray(checkoutBody.cart) || !checkoutBody.customer) {
+        return jsonResponse(
+          { error: "A complete server-validated checkout payload is required." },
+          400,
+          corsHeaders,
         );
-        return jsonResponse(order, 200, { "cache-control": "no-store", ...corsHeaders });
       }
       const client = convexClient(env, request);
       if (!client)
         return jsonResponse({ error: "Convex backend is not configured." }, 500, corsHeaders);
-      const total = Number((body as { total?: unknown }).total);
-      const amountPaise = Math.round(total * 100);
-      if (!Number.isFinite(amountPaise) || amountPaise < 100) {
-        return jsonResponse({ error: "Amount must be at least 100 paise." }, 400, corsHeaders);
-      }
       const order = await client.action(api.orders.createRazorpayCheckoutOrder, body as never);
       return jsonResponse(
         {
@@ -538,19 +475,12 @@ async function handleRazorpayApiRequest(request: Request, env: unknown): Promise
     ) {
       return jsonResponse({ error: "Missing Razorpay verification fields." }, 400, corsHeaders);
     }
-    if (!verifyBody.payload) {
-      const { keySecret } = razorpayRuntimeKeys(env, request);
-      const expected = await hmacSha256Hex(
-        keySecret,
-        `${verifyBody.razorpay_order_id}|${verifyBody.razorpay_payment_id}`,
+    if (!verifyBody.payload || typeof verifyBody.payload !== "object") {
+      return jsonResponse(
+        { error: "The original server-validated checkout payload is required." },
+        400,
+        { "cache-control": "no-store", ...corsHeaders },
       );
-      if (!timingSafeEqual(expected, verifyBody.razorpay_signature)) {
-        return jsonResponse({ error: "Payment signature mismatch." }, 400, {
-          "cache-control": "no-store",
-          ...corsHeaders,
-        });
-      }
-      return jsonResponse({ success: true }, 200, { "cache-control": "no-store", ...corsHeaders });
     }
     const client = convexClient(env, request);
     if (!client)

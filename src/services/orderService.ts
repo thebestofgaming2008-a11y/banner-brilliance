@@ -1,6 +1,8 @@
 import type { CartItem } from "@/lib/cart";
 import type { Product } from "@/lib/products";
 import { listActiveProducts } from "@/services/productService";
+import { api } from "../../convex/_generated/api";
+import { convex } from "@/integrations/convex/client";
 
 type CheckoutCustomer = {
   email: string;
@@ -229,4 +231,11 @@ export async function verifyRazorpayPayment(args: {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body?.error ?? "Could not verify Razorpay payment.");
   return body.order;
+}
+
+export async function getRazorpayCheckoutStatus(razorpayOrderId: string, email: string) {
+  return await convex.query(api.orders.getCheckoutStatus, {
+    razorpay_order_id: razorpayOrderId,
+    email,
+  });
 }

@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Lock, MapPin, MessageCircle, ShieldCheck } from "lucide-react";
+import { Clock, ExternalLink, Lock, MapPin, MessageCircle, ShieldCheck } from "lucide-react";
 import { SiteHeader } from "@/components/brand/SiteHeader";
 import { useCart } from "@/lib/cart";
 import { useAccount, type Address } from "@/lib/account";
@@ -8,6 +8,7 @@ import { useCurrency } from "@/lib/currency";
 import {
   createBackendWhatsAppOrder,
   createRazorpayOrder,
+  getRazorpayCheckoutStatus,
   verifyRazorpayPayment,
 } from "@/services/orderService";
 import { toast } from "sonner";
@@ -22,6 +23,17 @@ type RazorpayInstance = {
   open: () => void;
   on: (event: "payment.failed", callback: (response: RazorpayFailure) => void) => void;
 };
+
+const PENDING_PAYMENT_KEY = "fawzaan.pendingRazorpayPayment";
+
+type PendingPayment = {
+  orderId: string;
+  email: string;
+};
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
 
 declare global {
   interface Window {
@@ -115,6 +127,16 @@ function CheckoutPage() {
   const [country, setCountry] = useState(defaultAddress?.country ?? "India");
   const [phone, setPhone] = useState(defaultAddress?.phone ?? "");
   const [processing, setProcessing] = useState(false);
+  const [pendingPayment, setPendingPayment] = useState<PendingPayment | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      return JSON.parse(window.localStorage.getItem(PENDING_PAYMENT_KEY) ?? "null");
+    } catch {
+      window.localStorage.removeItem(PENDING_PAYMENT_KEY);
+      return null;
+    }
+  });
+  const [checkingPayment, setCheckingPayment] = useState(false);
 
   useEffect(() => {
     if (defaultAddress) return;
@@ -181,6 +203,39 @@ function CheckoutPage() {
     await addAddress(address);
   };
 
+  const finishConfirmedOrder = (orderNumber: string, customerEmail: string) => {
+    window.localStorage.removeItem(PENDING_PAYMENT_KEY);
+    setPendingPayment(null);
+    clear();
+    toast.success("Payment captured. Your order is confirmed.");
+    window.location.href = isAuthenticated
+      ? "/account"
+      : `/order/${encodeURIComponent(orderNumber)}?email=${encodeURIComponent(customerEmail)}`;
+  };
+
+  const checkPendingPayment = async (pending: PendingPayment, attempts = 1) => {
+    setCheckingPayment(true);
+    try {
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        if (attempt > 0) await wait(2000);
+        const status = await getRazorpayCheckoutStatus(pending.orderId, pending.email);
+        if (status?.status === "completed" && status.order_number) {
+          finishConfirmedOrder(status.order_number, pending.email);
+          return true;
+        }
+        if (status?.status === "failed") {
+          window.localStorage.removeItem(PENDING_PAYMENT_KEY);
+          setPendingPayment(null);
+          toast.error("The payment failed. You can try again safely.");
+          return false;
+        }
+      }
+      return false;
+    } finally {
+      setCheckingPayment(false);
+    }
+  };
+
   const placeInternationalOrder = async () => {
     const whatsappWindow = window.open("about:blank", "_blank");
     if (whatsappWindow) whatsappWindow.opener = null;
@@ -226,6 +281,9 @@ function CheckoutPage() {
         },
       },
       handler: async (response: RazorpaySuccess) => {
+        const pending = { orderId: response.razorpay_order_id, email: customer.email };
+        window.localStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify(pending));
+        setPendingPayment(pending);
         try {
           const savedOrder = await verifyRazorpayPayment({
             payload: order.payload,
@@ -234,21 +292,22 @@ function CheckoutPage() {
             razorpay_signature: response.razorpay_signature,
           });
           await rememberAddress();
-          clear();
-          toast.success("Payment captured. Your order is confirmed.");
           const orderNumber = String(
             savedOrder?.order_number ?? savedOrder?.id ?? response.razorpay_order_id,
           );
-          window.location.href = isAuthenticated
-            ? "/account"
-            : `/order/${encodeURIComponent(orderNumber)}?email=${encodeURIComponent(customer.email)}`;
+          finishConfirmedOrder(orderNumber, customer.email);
         } catch (error) {
           setProcessing(false);
-          toast.error(error instanceof Error ? error.message : "Payment verification failed.");
+          const confirmed = await checkPendingPayment(pending, 5).catch(() => false);
+          if (!confirmed) {
+            toast.message("Payment received. We are confirming your order. Do not pay again.");
+          }
         }
       },
     });
     razorpay.on("payment.failed", (response) => {
+      window.localStorage.removeItem(PENDING_PAYMENT_KEY);
+      setPendingPayment(null);
       setProcessing(false);
       toast.error(
         response.error?.description ||
@@ -454,10 +513,33 @@ function CheckoutPage() {
               </div>
             </div>
 
+            {pendingPayment ? (
+              <div className="mt-4 border border-amber-300 bg-amber-50 p-4 text-amber-950">
+                <div className="flex items-start gap-3">
+                  <Clock className="mt-0.5 h-5 w-5 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold">Your payment is being confirmed</p>
+                    <p className="mt-1 text-sm leading-6 text-amber-900/80">
+                      Do not pay again. Razorpay and our server are checking this payment, even if
+                      the payment window or browser was closed.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void checkPendingPayment(pendingPayment)}
+                      disabled={checkingPayment}
+                      className="mt-3 border border-amber-400 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] disabled:opacity-60"
+                    >
+                      {checkingPayment ? "Checking..." : "Check order status"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             <button
               type="button"
               onClick={placeOrder}
-              disabled={processing}
+              disabled={processing || Boolean(pendingPayment)}
               className="mt-6 inline-flex w-full items-center justify-center gap-2 bg-ink px-6 py-4 text-xs font-semibold uppercase tracking-[0.22em] text-ivory transition hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-60"
             >
               {processing ? (

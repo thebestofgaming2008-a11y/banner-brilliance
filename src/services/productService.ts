@@ -11,12 +11,14 @@ import { catalog, type Product } from "@/lib/products";
 export type { BackendProduct as Product };
 
 let cachedProducts: Product[] | null = null;
+let cachedProductsAt = 0;
+let productsRequest: Promise<Product[]> | null = null;
+const CATALOG_MEMORY_TTL_MS = 5 * 60 * 1000;
 
 async function fetchCatalogProducts(): Promise<Product[]> {
   if (typeof window !== "undefined") {
     const response = await fetch("/api/catalog/products", {
       headers: { accept: "application/json" },
-      cache: "no-store",
     });
     if (!response.ok) throw new Error(`Catalog request failed with ${response.status}`);
     const rows = (await response.json()) as BackendProduct[];
@@ -31,22 +33,34 @@ async function fetchCatalogProducts(): Promise<Product[]> {
   return localBackendProducts.map(backendProductToProduct);
 }
 
-export async function listActiveProducts(): Promise<Product[]> {
-  try {
-    cachedProducts = await fetchCatalogProducts();
-    return cachedProducts;
-  } catch (error) {
-    console.warn("Using local catalog fallback", error);
-    return cachedProducts ?? catalog;
-  }
+export async function listActiveProducts(options: { force?: boolean } = {}): Promise<Product[]> {
+  const fresh = cachedProducts && Date.now() - cachedProductsAt < CATALOG_MEMORY_TTL_MS;
+  if (!options.force && fresh) return cachedProducts;
+  if (!options.force && productsRequest) return productsRequest;
+
+  productsRequest = fetchCatalogProducts()
+    .then((products) => {
+      cachedProducts = products;
+      cachedProductsAt = Date.now();
+      return products;
+    })
+    .catch((error) => {
+      console.warn("Using local catalog fallback", error);
+      return cachedProducts ?? catalog;
+    })
+    .finally(() => {
+      productsRequest = null;
+    });
+  return productsRequest;
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
+  const cached = cachedProducts?.find((product) => product.slug === slug);
+  if (cached && Date.now() - cachedProductsAt < CATALOG_MEMORY_TTL_MS) return cached;
   try {
     if (typeof window !== "undefined") {
       const response = await fetch(`/api/catalog/product?slug=${encodeURIComponent(slug)}`, {
         headers: { accept: "application/json" },
-        cache: "no-store",
       });
       if (response.status === 404) return null;
       if (!response.ok) throw new Error(`Product request failed with ${response.status}`);

@@ -368,6 +368,18 @@ export async function listPaymentRecoveries(): Promise<PaymentRecovery[]> {
   return (await convex.query(api.orders.listPaymentRecoveries, {})) as PaymentRecovery[];
 }
 
+export async function retryPaymentRecovery(razorpayOrderId: string): Promise<{
+  status: "completed" | "not_captured" | "recovery_required";
+  order: AdminOrder | null;
+}> {
+  return (await convex.action(api.orders.retryPaymentRecovery, {
+    razorpay_order_id: razorpayOrderId,
+  })) as {
+    status: "completed" | "not_captured" | "recovery_required";
+    order: AdminOrder | null;
+  };
+}
+
 export async function updateOrderStatus(id: string, status: string): Promise<boolean> {
   return await convex.mutation(api.orders.updateStatus, { id, status });
 }

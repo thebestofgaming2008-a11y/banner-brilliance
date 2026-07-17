@@ -154,6 +154,9 @@ export default defineSchema({
     customer: v.any(),
     amount_paise: v.number(),
     error: optionalString,
+    stock_reserved: optionalBoolean,
+    reconciliation_attempts: optionalNumber,
+    last_reconciled_at: optionalString,
     expires_at: v.number(),
     created_at: v.string(),
     updated_at: v.string(),
@@ -164,6 +167,11 @@ export default defineSchema({
   razorpay_webhook_events: defineTable({
     event_id: v.string(),
     event_type: v.string(),
+    razorpay_order_id: optionalString,
+    razorpay_payment_id: optionalString,
+    processing_status: optionalString,
+    error: optionalString,
+    processed_at: optionalString,
     created_at: v.string(),
   }).index("by_event_id", ["event_id"]),
   order_items: defineTable({
