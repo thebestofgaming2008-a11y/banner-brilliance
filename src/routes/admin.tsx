@@ -22,9 +22,9 @@ import {
   PackageOpen,
   ShoppingBag,
   Users,
-  Settings,
   IndianRupee,
   Plus,
+  Minus,
   Trash2,
   Edit3,
   X,
@@ -66,10 +66,8 @@ import {
   listAllCustomers,
   listAllReviews,
   listCategories,
-  listShippingRates,
   updateOrderStatus,
   updateOrderTracking,
-  updateShippingRate,
   updateReviewStatus,
   upsertCategory,
   listPaymentRecoveries,
@@ -159,26 +157,20 @@ function notify({
 
 const NAV = [
   { key: "dash", label: "Dashboard", Icon: LayoutDashboard },
-  { key: "homepage", label: "Product placement", Icon: Store },
   { key: "orders", label: "Orders", Icon: ShoppingBag },
   { key: "products", label: "Products", Icon: Package },
   { key: "inventory", label: "Inventory", Icon: Boxes },
-  { key: "shipping", label: "Shipping", Icon: Truck },
   { key: "reviews", label: "Reviews", Icon: MessageSquare },
   { key: "customers", label: "Customers", Icon: Users },
-  { key: "settings", label: "Settings", Icon: Settings },
 ] as const;
 
 const PAGE_DESCRIPTIONS: Record<TabKey, string> = {
   dash: "See what needs attention today.",
-  homepage: "Choose which current products are featured on the storefront.",
   orders: "Confirm, pack, ship, and track customer orders.",
   products: "Add products and manage their details, images, and visibility.",
   inventory: "Keep stock accurate and find low-stock products.",
-  shipping: "Manage shipping methods and delivery rates.",
   reviews: "Approve or hide customer reviews.",
   customers: "View customer accounts and order activity.",
-  settings: "Check security and store integrations.",
 };
 
 type TabKey = (typeof NAV)[number]["key"];
@@ -285,13 +277,13 @@ const Admin = () => {
   const { signIn, signOut } = useAuthActions();
   const [tab, setTab] = useState<TabKey>("dash");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobileNavClosing, setMobileNavClosing] = useState(false);
   const [dashboardRange, setDashboardRange] = useState<"7d" | "30d" | "90d">("7d");
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [reviews, setReviews] = useState<AdminReview[]>([]);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
-  const [shippingRates, setShippingRates] = useState<ShippingRate[]>([]);
   const [paymentRecoveries, setPaymentRecoveries] = useState<PaymentRecovery[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Product | null>(null);
@@ -322,17 +314,15 @@ const Admin = () => {
       listAllCustomers(200),
       listAllReviews(200),
       listCategories(),
-      listShippingRates(),
       listPaymentRecoveries(),
     ])
-      .then(([p, o, c, r, cats, rates, recoveries]) => {
+      .then(([p, o, c, r, cats, recoveries]) => {
         if (cancelled) return;
         setProducts(p);
         setOrders(o);
         setCustomers(c);
         setReviews(r);
         setCategories(cats);
-        setShippingRates(rates);
         setPaymentRecoveries(recoveries);
         setLoading(false);
       })
@@ -353,8 +343,38 @@ const Admin = () => {
   const refreshProducts = async () => setProducts(await listAllProducts());
   const refreshOrders = async () => setOrders(await listAllOrders(200));
   const refreshReviews = async () => setReviews(await listAllReviews(200));
-  const refreshShippingRates = async () => setShippingRates(await listShippingRates());
   const refreshPaymentRecoveries = async () => setPaymentRecoveries(await listPaymentRecoveries());
+
+  const setProductArchived = async (product: Product, archived: boolean) => {
+    const saved = await updateProduct(product.id, { is_active: !archived });
+    if (!saved) {
+      notify({
+        title: archived ? "Could not archive product" : "Could not restore product",
+        variant: "destructive",
+      });
+      return false;
+    }
+    await refreshPublicCatalog(saved);
+    notify({ title: archived ? "Product archived" : "Product restored" });
+    await refreshProducts();
+    return true;
+  };
+
+  const permanentlyDeleteProduct = async (product: Product) => {
+    if (
+      !confirm(
+        `Permanently delete "${product.name}"? This cannot be undone. Existing orders keep their saved item details.`,
+      )
+    )
+      return;
+    if (!(await deleteProduct(product.id))) {
+      notify({ title: "Could not delete product", variant: "destructive" });
+      return;
+    }
+    await refreshPublicCatalog(product);
+    notify({ title: "Product permanently deleted" });
+    await refreshProducts();
+  };
 
   const handleSaveTracking = async (
     order: AdminOrder,
@@ -578,15 +598,12 @@ const Admin = () => {
       .join("") || "HE";
   const activeNav = NAV.find((item) => item.key === tab) ?? NAV[0];
   const navGroups: { label: string; items: (typeof NAV)[number][] }[] = [
-    { label: "Overview", items: NAV.filter((item) => ["dash", "homepage"].includes(item.key)) },
+    { label: "Overview", items: NAV.filter((item) => item.key === "dash") },
     {
       label: "Commerce",
-      items: NAV.filter((item) =>
-        ["orders", "products", "inventory", "shipping"].includes(item.key),
-      ),
+      items: NAV.filter((item) => ["orders", "products", "inventory"].includes(item.key)),
     },
     { label: "People", items: NAV.filter((item) => ["customers", "reviews"].includes(item.key)) },
-    { label: "System", items: NAV.filter((item) => item.key === "settings") },
   ];
   const navBadges: Partial<Record<TabKey, number>> = {
     orders: processingOrders.length + shippedMissingTracking.length + paymentRecoveries.length,
@@ -594,6 +611,14 @@ const Admin = () => {
     reviews: pendingReviews,
   };
   const ActiveIcon = activeNav.Icon;
+  const closeMobileNav = () => {
+    if (mobileNavClosing) return;
+    setMobileNavClosing(true);
+    window.setTimeout(() => {
+      setMobileNavOpen(false);
+      setMobileNavClosing(false);
+    }, 180);
+  };
 
   const submitAuth = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -673,7 +698,7 @@ const Admin = () => {
                       className={cn(
                         "group flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium transition-colors",
                         tab === key
-                          ? "bg-[rgb(var(--vibe-foreground))] text-white"
+                          ? "bg-[#171717] text-white shadow-sm"
                           : "text-[rgb(var(--vibe-muted))] hover:bg-[rgb(var(--vibe-soft))] hover:text-[rgb(var(--vibe-foreground))]",
                       )}
                     >
@@ -711,7 +736,10 @@ const Admin = () => {
             <button
               type="button"
               aria-label="Open admin menu"
-              onClick={() => setMobileNavOpen(true)}
+              onClick={() => {
+                setMobileNavClosing(false);
+                setMobileNavOpen(true);
+              }}
               className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-[rgb(var(--vibe-muted))] transition-colors hover:bg-white hover:text-[rgb(var(--vibe-foreground))] md:hidden"
             >
               <Menu className="h-6 w-6" />
@@ -750,14 +778,24 @@ const Admin = () => {
         </header>
 
         {mobileNavOpen && (
-          <div className="fixed inset-0 z-50 md:hidden">
+          <div
+            className={cn(
+              "admin-mobile-nav-backdrop fixed inset-0 z-50 md:hidden",
+              mobileNavClosing && "is-closing",
+            )}
+          >
             <button
               type="button"
               aria-label="Close admin menu"
               className="absolute inset-0 bg-black/30"
-              onClick={() => setMobileNavOpen(false)}
+              onClick={closeMobileNav}
             />
-            <div className="relative flex h-full w-[82vw] max-w-80 flex-col border-r border-[rgb(var(--vibe-border))] bg-white p-4 shadow-xl">
+            <div
+              className={cn(
+                "admin-mobile-nav-panel relative flex h-full w-[82vw] max-w-80 flex-col border-r border-[rgb(var(--vibe-border))] bg-white p-4 shadow-xl",
+                mobileNavClosing && "is-closing",
+              )}
+            >
               <div className="mb-6 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold">Fawzaan Store</p>
@@ -766,7 +804,7 @@ const Admin = () => {
                 <button
                   type="button"
                   aria-label="Close admin menu"
-                  onClick={() => setMobileNavOpen(false)}
+                  onClick={closeMobileNav}
                   className="grid h-9 w-9 place-items-center rounded-lg border border-[rgb(var(--vibe-border))]"
                 >
                   <X className="h-4 w-4" />
@@ -785,12 +823,12 @@ const Admin = () => {
                           type="button"
                           onClick={() => {
                             setTab(key);
-                            setMobileNavOpen(false);
+                            closeMobileNav();
                           }}
                           className={cn(
                             "flex h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-medium",
                             tab === key
-                              ? "bg-[rgb(var(--vibe-foreground))] text-white"
+                              ? "bg-[#171717] text-white shadow-sm"
                               : "text-[rgb(var(--vibe-muted))]",
                           )}
                         >
@@ -807,7 +845,7 @@ const Admin = () => {
         )}
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto max-w-[1400px] space-y-6">
+          <div key={tab} className="admin-tab-content mx-auto max-w-[1400px] space-y-6">
             {loading && (
               <div className="rounded-xl border border-border bg-background p-8 text-center text-foreground/55 text-sm">
                 Loading…
@@ -888,39 +926,6 @@ const Admin = () => {
                   </div>
                 </section>
 
-                <QuickAdminNav
-                  items={[
-                    {
-                      label: "Orders",
-                      value: orders.length,
-                      detail: `${toActionOrders} to action`,
-                      Icon: ShoppingBag,
-                      onClick: () => setTab("orders"),
-                    },
-                    {
-                      label: "Products",
-                      value: products.length,
-                      detail: `${opsStats.activeProducts} active`,
-                      Icon: Package,
-                      onClick: () => setTab("products"),
-                    },
-                    {
-                      label: "Inventory",
-                      value: opsStats.lowStock + opsStats.outOfStock,
-                      detail: "need attention",
-                      Icon: Boxes,
-                      onClick: () => setTab("inventory"),
-                    },
-                    {
-                      label: "Reviews",
-                      value: pendingReviews,
-                      detail: "pending",
-                      Icon: MessageSquare,
-                      onClick: () => setTab("reviews"),
-                    },
-                  ]}
-                />
-
                 <div className="vibe-card p-5 sm:p-6" data-testid="admin-revenue-card">
                   <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -939,21 +944,24 @@ const Admin = () => {
 
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
                   <div className="min-w-0 lg:col-span-3">
-                    <Section title="Recent orders" subtitle="Latest order activity">
-                      <OrdersTable
-                        rows={orders.slice(0, 8)}
-                        onSendWhatsApp={handleSendWhatsApp}
-                        onStatusChange={async (id, s) => {
-                          if (await updateOrderStatus(id, s)) {
-                            notify({ title: "Order status updated" });
-                            await refreshOrders();
-                          }
-                        }}
-                      />
+                    <Section
+                      title="Recent orders"
+                      subtitle="Latest order activity"
+                      action={
+                        <button
+                          type="button"
+                          onClick={() => setTab("orders")}
+                          className="inline-flex items-center gap-1 text-xs text-[#6B7280] hover:text-[#111827]"
+                        >
+                          View all <ChevronRight className="h-3.5 w-3.5" />
+                        </button>
+                      }
+                    >
+                      <RecentOrdersTable rows={orders.slice(0, 8)} />
                     </Section>
                   </div>
                   <div className="min-w-0 lg:col-span-2">
-                    <Section title="Best sellers" subtitle="Top products by units sold">
+                    <Section title="Top products" subtitle="Paid orders in this period">
                       <BestSellersList rows={dashboard.bestSellers} />
                     </Section>
                   </div>
@@ -961,123 +969,178 @@ const Admin = () => {
               </>
             )}
 
-            {!loading && !adminLoadError && tab === "homepage" && (
-              <HomepageAdminPanel
-                products={products}
-                onEdit={setEditing}
-                onPatch={async (product, patch) => {
-                  const saved = await updateProduct(product.id, patch);
-                  if (saved) {
-                    await refreshPublicCatalog(saved);
-                    notify({ title: "Homepage placement updated" });
-                    await refreshProducts();
-                  }
-                }}
-              />
-            )}
-
             {!loading && !adminLoadError && tab === "orders" && (
-              <Section
-                title="Orders"
-                subtitle={`${filteredOrders.length} of ${orders.length}`}
-                action={
-                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:flex-wrap">
-                    <div className="relative w-full sm:w-auto">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-foreground/40" />
-                      <input
-                        type="search"
-                        value={orderQuery}
-                        onChange={(e) => setOrderQuery(e.target.value)}
-                        placeholder="Search order, customer…"
-                        data-testid="admin-orders-search-input"
-                        className="h-10 w-full rounded-md border border-border bg-background pl-8 pr-3 text-sm outline-none transition-colors focus:border-foreground sm:h-9 sm:w-[240px]"
-                      />
-                    </div>
-                    <select
-                      value={orderFilter}
-                      onChange={(e) => setOrderFilter(e.target.value)}
-                      data-testid="admin-orders-filter-select"
-                      className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm capitalize outline-none transition-colors focus:border-foreground sm:h-9 sm:w-auto"
+              <>
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                  {[
+                    {
+                      label: "Not shipped",
+                      count: processingOrders.length,
+                      detail: "Awaiting fulfillment",
+                      filter: "processing",
+                      Icon: PackageOpen,
+                    },
+                    {
+                      label: "No tracking",
+                      count: shippedMissingTracking.length,
+                      detail: "Add a tracking ID",
+                      filter: "shipped_no_tracking",
+                      Icon: CircleAlert,
+                    },
+                    {
+                      label: "In transit",
+                      count: shippedTracked,
+                      detail: "On the way",
+                      filter: "shipped_tracked",
+                      Icon: Truck,
+                    },
+                    {
+                      label: "Delivered",
+                      count: deliveredOrders,
+                      detail: "Arrived to customer",
+                      filter: "delivered",
+                      Icon: CheckCircle2,
+                    },
+                    {
+                      label: "Cancelled",
+                      count: returnsOrCancellations,
+                      detail: "Stopped or refunded",
+                      filter: "returns",
+                      Icon: XCircle,
+                    },
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => setOrderFilter(item.filter)}
+                      className={cn(
+                        "min-h-28 rounded-lg border bg-white p-4 text-left transition-all hover:border-[#A3A3A3] hover:shadow-sm",
+                        orderFilter === item.filter
+                          ? "border-[#171717] ring-1 ring-[#171717]"
+                          : "border-[#E5E7EB]",
+                      )}
                     >
-                      <option value="all">All statuses</option>
-                      {ORDER_FILTERS.map((filter) => (
-                        <option key={filter.key} value={filter.key}>
-                          {filter.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                }
-              >
-                {paymentRecoveries.length > 0 && (
-                  <PaymentRecoveryPanel
-                    rows={paymentRecoveries}
-                    onRetry={async (row) => {
-                      const result = await retryPaymentRecovery(row.razorpay_order_id);
-                      if (result.status === "completed") {
-                        notify({
-                          title: "Paid order recovered",
-                          description: "The customer order is now in the orders list.",
-                        });
-                        await Promise.all([refreshOrders(), refreshPaymentRecoveries()]);
-                        return;
-                      }
-                      if (result.status === "not_captured") {
-                        notify({
-                          title: "Payment is not captured yet",
-                          description:
-                            "No order was created. Razorpay will be checked again automatically.",
-                          variant: "destructive",
-                        });
-                        return;
-                      }
-                      notify({
-                        title: "Payment still needs attention",
-                        description: "The recovery reason is shown below.",
-                        variant: "destructive",
-                      });
-                      await refreshPaymentRecoveries();
-                    }}
-                  />
-                )}
-                {shippedMissingTracking.length > 0 && (
-                  <div
-                    className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-                    data-testid="admin-shipped-missing-tracking-warning"
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex gap-2">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                        <div>
-                          <p className="font-semibold">Shipped orders missing tracking</p>
-                          <p className="text-amber-800/80">
-                            {shippedMissingTracking.length} shipped order
-                            {shippedMissingTracking.length === 1 ? "" : "s"} need a tracking number
-                            before customers can be updated.
-                          </p>
-                        </div>
+                      <div className="flex items-center justify-between gap-3 text-xs text-[#6B7280]">
+                        <span>{item.label}</span>
+                        <item.Icon className="h-4 w-4" />
                       </div>
+                      <p className="mt-4 text-2xl font-semibold tabular-nums text-[#111827]">
+                        {item.count}
+                      </p>
+                      <p className="mt-1 text-[11px] text-[#6B7280]">{item.detail}</p>
+                    </button>
+                  ))}
+                </div>
+                <Section
+                  title="Orders"
+                  subtitle={`${filteredOrders.length} of ${orders.length}`}
+                  action={
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:flex-wrap">
+                      <div className="relative w-full sm:w-auto">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-foreground/40" />
+                        <input
+                          type="search"
+                          value={orderQuery}
+                          onChange={(e) => setOrderQuery(e.target.value)}
+                          placeholder="Search order, customer…"
+                          data-testid="admin-orders-search-input"
+                          className="h-10 w-full rounded-md border border-border bg-background pl-8 pr-3 text-sm outline-none transition-colors focus:border-foreground sm:h-9 sm:w-[240px]"
+                        />
+                      </div>
+                      <select
+                        value={orderFilter}
+                        onChange={(e) => setOrderFilter(e.target.value)}
+                        data-testid="admin-orders-filter-select"
+                        className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm capitalize outline-none transition-colors focus:border-foreground sm:h-9 sm:w-auto"
+                      >
+                        <option value="all">All statuses</option>
+                        {ORDER_FILTERS.map((filter) => (
+                          <option key={filter.key} value={filter.key}>
+                            {filter.label}
+                          </option>
+                        ))}
+                      </select>
                       <button
                         type="button"
-                        onClick={() => setOrderFilter("shipped_no_tracking")}
-                        className="h-8 rounded-md border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                        onClick={() => void refreshOrders()}
+                        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium hover:bg-[#F9FAFB] sm:h-9 sm:w-auto"
                       >
-                        Review now
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Refresh
                       </button>
                     </div>
-                  </div>
-                )}
-                <OrdersTable
-                  rows={filteredOrders}
-                  onSendWhatsApp={handleSendWhatsApp}
-                  onStatusChange={async (id, s) => {
-                    if (await updateOrderStatus(id, s)) {
-                      notify({ title: "Order status updated" });
-                      await refreshOrders();
-                    }
-                  }}
-                />
-              </Section>
+                  }
+                >
+                  {paymentRecoveries.length > 0 && (
+                    <PaymentRecoveryPanel
+                      rows={paymentRecoveries}
+                      onRetry={async (row) => {
+                        const result = await retryPaymentRecovery(row.razorpay_order_id);
+                        if (result.status === "completed") {
+                          notify({
+                            title: "Paid order recovered",
+                            description: "The customer order is now in the orders list.",
+                          });
+                          await Promise.all([refreshOrders(), refreshPaymentRecoveries()]);
+                          return;
+                        }
+                        if (result.status === "not_captured") {
+                          notify({
+                            title: "Payment is not captured yet",
+                            description:
+                              "No order was created. Razorpay will be checked again automatically.",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+                        notify({
+                          title: "Payment still needs attention",
+                          description: "The recovery reason is shown below.",
+                          variant: "destructive",
+                        });
+                        await refreshPaymentRecoveries();
+                      }}
+                    />
+                  )}
+                  {shippedMissingTracking.length > 0 && (
+                    <div
+                      className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                      data-testid="admin-shipped-missing-tracking-warning"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex gap-2">
+                          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                          <div>
+                            <p className="font-semibold">Shipped orders missing tracking</p>
+                            <p className="text-amber-800/80">
+                              {shippedMissingTracking.length} shipped order
+                              {shippedMissingTracking.length === 1 ? "" : "s"} need a tracking
+                              number before customers can be updated.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setOrderFilter("shipped_no_tracking")}
+                          className="h-8 rounded-md border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                        >
+                          Review now
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <OrdersTable
+                    rows={filteredOrders}
+                    onSendWhatsApp={handleSendWhatsApp}
+                    onStatusChange={async (id, s) => {
+                      if (await updateOrderStatus(id, s)) {
+                        notify({ title: "Order status updated" });
+                        await refreshOrders();
+                      }
+                    }}
+                  />
+                </Section>
+              </>
             )}
 
             {!loading && !adminLoadError && tab === "products" && (
@@ -1123,17 +1186,9 @@ const Admin = () => {
                 <ProductsTable
                   products={filteredProducts}
                   onEdit={setEditing}
-                  onDelete={async (p) => {
-                    if (!confirm(`Archive "${p.name}"? It will be hidden from the storefront.`))
-                      return;
-                    if (await deleteProduct(p.id)) {
-                      await refreshPublicCatalog(p);
-                      notify({ title: "Product archived" });
-                      await refreshProducts();
-                    } else {
-                      notify({ title: "Could not archive", variant: "destructive" });
-                    }
-                  }}
+                  onArchive={(product) => void setProductArchived(product, true)}
+                  onRestore={(product) => void setProductArchived(product, false)}
+                  onDelete={(product) => void permanentlyDeleteProduct(product)}
                 />
               </Section>
             )}
@@ -1153,19 +1208,26 @@ const Admin = () => {
                   </button>
                 }
               >
-                <InventoryTable products={inventoryRows} onEdit={setEditing} />
+                <InventoryTable
+                  products={inventoryRows}
+                  onEdit={setEditing}
+                  onArchive={(product) => void setProductArchived(product, true)}
+                  onStockChange={async (product, stock) => {
+                    setProducts((current) =>
+                      current.map((item) =>
+                        item.id === product.id ? { ...item, stock_quantity: stock } : item,
+                      ),
+                    );
+                    const saved = await updateProduct(product.id, { stock_quantity: stock });
+                    if (!saved) {
+                      notify({ title: "Could not update stock", variant: "destructive" });
+                      await refreshProducts();
+                      return;
+                    }
+                    await refreshPublicCatalog(saved);
+                  }}
+                />
               </Section>
-            )}
-
-            {!loading && !adminLoadError && tab === "shipping" && (
-              <ShippingAdminPanel
-                rates={shippingRates}
-                onSave={async (rate, patch) => {
-                  await updateShippingRate(rate.id, patch);
-                  notify({ title: "Shipping rate updated" });
-                  await refreshShippingRates();
-                }}
-              />
             )}
 
             {!loading && !adminLoadError && tab === "customers" && (
@@ -1192,52 +1254,6 @@ const Admin = () => {
                     }
                   }}
                 />
-              </Section>
-            )}
-
-            {!loading && !adminLoadError && tab === "settings" && (
-              <Section
-                title="Settings & security"
-                subtitle="Operational guardrails and integrations"
-              >
-                <div className="grid lg:grid-cols-2 gap-4 text-sm leading-relaxed">
-                  <SettingsCard
-                    title="Security hardening"
-                    Icon={ShieldCheck}
-                    lines={[
-                      "Admin data is protected by Convex identity + ADMIN_EMAIL checks.",
-                      "Checkout totals are now computed server-side from live product prices.",
-                      "Order status, tracking URLs and product inputs are validated before writes.",
-                    ]}
-                  />
-                  <SettingsCard
-                    title="Fulfillment messaging"
-                    Icon={MessageCircle}
-                    lines={[
-                      "Tracking is WhatsApp click-to-send via wa.me links.",
-                      "Admin still presses Send inside WhatsApp, so no hidden automation risk.",
-                      "Orders without phone numbers are clearly blocked from WhatsApp sending.",
-                    ]}
-                  />
-                  <SettingsCard
-                    title="Currency"
-                    Icon={IndianRupee}
-                    lines={[
-                      "Customer display uses Exchangerate-API Pro rates.",
-                      "Converted prices are approximate; checkout and admin totals stay in INR.",
-                      "Frontend caches rates locally to reduce API usage.",
-                    ]}
-                  />
-                  <SettingsCard
-                    title="Payments"
-                    Icon={BadgeCheck}
-                    lines={[
-                      "India checkout uses server-verified Razorpay orders and captured payments.",
-                      "Signed webhooks and automatic reconciliation recover interrupted checkouts.",
-                      "International checkout opens WhatsApp and does not create an unconfirmed order.",
-                    ]}
-                  />
-                </div>
               </Section>
             )}
           </div>
@@ -1298,15 +1314,12 @@ function AdminLogin({
   onSubmit: (event: React.FormEvent) => void;
 }) {
   const navGroups: { label: string; items: (typeof NAV)[number][] }[] = [
-    { label: "Overview", items: NAV.filter((item) => ["dash", "homepage"].includes(item.key)) },
+    { label: "Overview", items: NAV.filter((item) => item.key === "dash") },
     {
       label: "Commerce",
-      items: NAV.filter((item) =>
-        ["orders", "products", "inventory", "shipping"].includes(item.key),
-      ),
+      items: NAV.filter((item) => ["orders", "products", "inventory"].includes(item.key)),
     },
     { label: "People", items: NAV.filter((item) => ["customers", "reviews"].includes(item.key)) },
-    { label: "System", items: NAV.filter((item) => item.key === "settings") },
   ];
 
   return (
@@ -1675,22 +1688,28 @@ function BestSellersList({ rows }: { rows: { name: string; units: number; revenu
     return (
       <p className="text-sm text-[#6B7280]">Best sellers appear after paid orders have items.</p>
     );
+  const maxUnits = Math.max(...rows.map((row) => row.units), 1);
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {rows.map((row, index) => (
-        <div
-          key={row.name}
-          className="flex items-center justify-between gap-3 border-b border-[#E5E7EB] pb-3 last:border-0 last:pb-0"
-        >
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-[#111827]">
+        <div key={row.name}>
+          <div className="flex items-start justify-between gap-3">
+            <p className="min-w-0 truncate text-sm font-medium text-[#111827]">
               {index + 1}. {row.name}
             </p>
-            <p className="text-xs text-[#6B7280]">{row.units} units sold</p>
+            <p className="shrink-0 text-xs font-semibold tabular-nums text-[#111827]">
+              {formatPrice(row.revenue)}
+            </p>
           </div>
-          <p className="shrink-0 text-sm font-semibold tabular-nums text-[#111827]">
-            {formatPrice(row.revenue)}
-          </p>
+          <div className="mt-2 flex items-center gap-3">
+            <div className="h-1 flex-1 overflow-hidden rounded-full bg-[#E5E7EB]">
+              <div
+                className="h-full rounded-full bg-[#A3A3A3]"
+                style={{ width: `${Math.max(4, (row.units / maxUnits) * 100)}%` }}
+              />
+            </div>
+            <p className="w-12 text-right text-[11px] text-[#6B7280]">{row.units} sold</p>
+          </div>
         </div>
       ))}
     </div>
@@ -1834,7 +1853,7 @@ function statusLabel(status: string) {
   return STATUS_BADGE[status]?.label ?? status;
 }
 
-function StatusBadge({ status, testId }: { status: string | null | undefined; testId: string }) {
+function StatusBadge({ status, testId }: { status: string | null | undefined; testId?: string }) {
   const s = STATUS_BADGE[normalizeOrderStatus(status)];
   return (
     <span
@@ -1868,6 +1887,66 @@ function PaymentBadge({ status, testId }: { status: string | null | undefined; t
       <span className={cn("h-1.5 w-1.5 rounded-full", isPaid ? "bg-[#111827]" : "bg-[#9CA3AF]")} />
       {isMock ? "Mock paid" : (status ?? "—")}
     </span>
+  );
+}
+
+function RecentOrdersTable({ rows }: { rows: AdminOrder[] }) {
+  if (!rows.length)
+    return <p className="py-8 text-center text-sm text-[#6B7280]">No orders yet.</p>;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[660px] text-sm">
+        <thead>
+          <tr className="border-b border-[#E5E7EB] text-left text-[11px] uppercase tracking-[0.12em] text-[#6B7280]">
+            <th className="px-2 py-2.5 font-semibold">Order</th>
+            <th className="px-2 py-2.5 font-semibold">Customer</th>
+            <th className="px-2 py-2.5 font-semibold">Product</th>
+            <th className="px-2 py-2.5 text-right font-semibold">Amount</th>
+            <th className="px-2 py-2.5 font-semibold">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((order) => {
+            const firstItem = order.items?.[0];
+            return (
+              <tr key={order.id} className="border-b border-[#E5E7EB] last:border-0">
+                <td className="px-2 py-3 font-mono text-xs">
+                  {order.order_number ?? order.id.slice(0, 8)}
+                </td>
+                <td className="max-w-32 px-2 py-3">
+                  <p className="truncate font-medium">{order.customer_name ?? "Customer"}</p>
+                </td>
+                <td className="px-2 py-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="grid h-9 w-8 shrink-0 place-items-center overflow-hidden rounded border border-[#E5E7EB] bg-[#F3F4F6]">
+                      {firstItem?.product_image_url ? (
+                        <img
+                          src={firstItem.product_image_url}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <Package className="h-3.5 w-3.5 text-[#9CA3AF]" />
+                      )}
+                    </div>
+                    <p className="max-w-64 truncate text-xs text-[#4B5563]">
+                      {firstItem?.product_name ?? "Order items"}
+                      {(order.items?.length ?? 0) > 1 ? ` +${(order.items?.length ?? 1) - 1}` : ""}
+                    </p>
+                  </div>
+                </td>
+                <td className="px-2 py-3 text-right font-semibold tabular-nums">
+                  {formatPrice(order.total_inr ?? order.total)}
+                </td>
+                <td className="px-2 py-3">
+                  <StatusBadge status={order.status} />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -2139,10 +2218,14 @@ function OrderRow({
 function ProductsTable({
   products,
   onEdit,
+  onArchive,
+  onRestore,
   onDelete,
 }: {
   products: Product[];
   onEdit: (p: Product) => void;
+  onArchive: (p: Product) => void;
+  onRestore: (p: Product) => void;
   onDelete: (p: Product) => void;
 }) {
   if (products.length === 0)
@@ -2189,7 +2272,7 @@ function ProductsTable({
                 </div>
               </div>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="mt-3 grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => onEdit(p)}
@@ -2201,12 +2284,21 @@ function ProductsTable({
               </button>
               <button
                 type="button"
-                onClick={() => onDelete(p)}
-                data-testid={`admin-mobile-delete-product-button-${p.id}`}
+                onClick={() => (p.is_active === false ? onRestore(p) : onArchive(p))}
+                data-testid={`admin-mobile-archive-product-button-${p.id}`}
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#D1D5DB] text-sm font-medium text-[#4B5563]"
               >
+                <PackageOpen className="h-4 w-4" />
+                {p.is_active === false ? "Restore" : "Archive"}
+              </button>
+              <button
+                type="button"
+                onClick={() => onDelete(p)}
+                aria-label={`Permanently delete ${p.name}`}
+                data-testid={`admin-mobile-delete-product-button-${p.id}`}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50"
+              >
                 <Trash2 className="h-4 w-4" />
-                Archive
               </button>
             </div>
           </article>
@@ -2270,10 +2362,18 @@ function ProductsTable({
                       <Edit3 className="h-4 w-4" />
                     </button>
                     <button
+                      onClick={() => (p.is_active === false ? onRestore(p) : onArchive(p))}
+                      aria-label={p.is_active === false ? "Restore" : "Archive"}
+                      data-testid={`admin-archive-product-button-${p.id}`}
+                      className="h-8 w-8 grid place-items-center rounded-md hover:bg-foreground/5"
+                    >
+                      <PackageOpen className="h-4 w-4" />
+                    </button>
+                    <button
                       onClick={() => onDelete(p)}
-                      aria-label="Delete"
+                      aria-label="Permanently delete"
                       data-testid={`admin-delete-product-button-${p.id}`}
-                      className="h-8 w-8 grid place-items-center rounded-md hover:bg-destructive/10 hover:text-destructive"
+                      className="h-8 w-8 grid place-items-center rounded-md text-rose-600 hover:bg-rose-50"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -2291,9 +2391,13 @@ function ProductsTable({
 function InventoryTable({
   products,
   onEdit,
+  onArchive,
+  onStockChange,
 }: {
   products: Product[];
   onEdit: (p: Product) => void;
+  onArchive: (p: Product) => void;
+  onStockChange: (p: Product, stock: number) => Promise<void>;
 }) {
   if (products.length === 0) {
     return <p className="text-sm text-[#6B7280]">No products available.</p>;
@@ -2301,44 +2405,41 @@ function InventoryTable({
   return (
     <>
       <div className="space-y-3 md:hidden" data-testid="admin-inventory-mobile-list">
-        {products.map((p) => {
-          const stock = p.stock_quantity ?? 0;
-          const health =
-            p.is_active === false
-              ? "Archived"
-              : stock <= 0
-                ? "Out"
-                : stock <= 5
-                  ? "Low"
-                  : "Healthy";
-          return (
-            <article key={p.id} className="rounded-lg border border-[#E5E7EB] bg-white p-3">
-              <div className="flex items-center gap-3">
-                <ProductThumb product={p} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[15px] font-semibold text-[#111827]">{p.name}</p>
-                  <p className="truncate text-xs text-[#6B7280]">
-                    {p.sku || p.category || "No SKU"}
-                  </p>
-                </div>
-                <p className="shrink-0 text-lg font-semibold tabular-nums text-[#111827]">
-                  {stock}
+        {products.map((product) => (
+          <article key={product.id} className="rounded-lg border border-[#E5E7EB] bg-white p-3">
+            <div className="flex items-center gap-3">
+              <ProductThumb product={product} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[15px] font-semibold text-[#111827]">{product.name}</p>
+                <p className="truncate text-xs text-[#6B7280]">
+                  {product.sku || product.category || "No SKU"}
                 </p>
               </div>
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <InventoryBadge health={health} testId={`admin-mobile-inventory-health-${p.id}`} />
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <StockControl product={product} onCommit={onStockChange} />
+              <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => onEdit(p)}
-                  data-testid={`admin-mobile-inventory-edit-button-${p.id}`}
-                  className="h-9 rounded-md border border-[#D1D5DB] px-3 text-xs font-medium transition-colors hover:bg-[#F3F4F6]"
+                  onClick={() => onEdit(product)}
+                  data-testid={`admin-mobile-inventory-edit-button-${product.id}`}
+                  className="h-9 rounded-md border border-[#D1D5DB] px-3 text-xs font-medium hover:bg-[#F3F4F6]"
                 >
-                  Edit stock
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onArchive(product)}
+                  disabled={product.is_active === false}
+                  data-testid={`admin-mobile-inventory-archive-button-${product.id}`}
+                  className="h-9 rounded-md border border-[#D1D5DB] px-3 text-xs font-medium hover:bg-[#F3F4F6] disabled:opacity-45"
+                >
+                  {product.is_active === false ? "Archived" : "Archive"}
                 </button>
               </div>
-            </article>
-          );
-        })}
+            </div>
+          </article>
+        ))}
       </div>
       <div className="hidden overflow-x-auto -mx-2 md:block" data-testid="admin-inventory-table">
         <table className="w-full text-sm">
@@ -2346,22 +2447,11 @@ function InventoryTable({
             <tr className="text-left text-[11px] uppercase tracking-[0.12em] text-[#6B7280] border-b border-[#E5E7EB]">
               <th className="font-semibold py-2.5 px-2">Product</th>
               <th className="font-semibold py-2.5 px-2">Stock</th>
-              <th className="font-semibold py-2.5 px-2">Health</th>
-              <th className="font-semibold py-2.5 px-2">Visibility</th>
-              <th className="font-semibold py-2.5 px-2 text-right">Action</th>
+              <th className="font-semibold py-2.5 px-2 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {products.map((p) => {
-              const stock = p.stock_quantity ?? 0;
-              const health =
-                p.is_active === false
-                  ? "Archived"
-                  : stock <= 0
-                    ? "Out"
-                    : stock <= 5
-                      ? "Low"
-                      : "Healthy";
               return (
                 <tr
                   key={p.id}
@@ -2378,22 +2468,29 @@ function InventoryTable({
                       </div>
                     </div>
                   </td>
-                  <td className="py-3 px-2 tabular-nums font-semibold text-[#111827]">{stock}</td>
                   <td className="py-3 px-2">
-                    <InventoryBadge health={health} testId={`admin-inventory-health-${p.id}`} />
-                  </td>
-                  <td className="py-3 px-2 text-[#6B7280]">
-                    {p.is_active === false ? "Hidden" : "Storefront"}
+                    <StockControl product={p} onCommit={onStockChange} />
                   </td>
                   <td className="py-3 px-2 text-right">
-                    <button
-                      type="button"
-                      onClick={() => onEdit(p)}
-                      data-testid={`admin-inventory-edit-button-${p.id}`}
-                      className="h-8 px-3 rounded-md border border-[#D1D5DB] hover:bg-[#F3F4F6] transition-colors text-xs font-medium"
-                    >
-                      Edit stock
-                    </button>
+                    <div className="inline-flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onEdit(p)}
+                        data-testid={`admin-inventory-edit-button-${p.id}`}
+                        className="h-8 px-3 rounded-md border border-[#D1D5DB] hover:bg-[#F3F4F6] text-xs font-medium"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onArchive(p)}
+                        disabled={p.is_active === false}
+                        data-testid={`admin-inventory-archive-button-${p.id}`}
+                        className="h-8 px-3 rounded-md border border-[#D1D5DB] hover:bg-[#F3F4F6] text-xs font-medium disabled:opacity-45"
+                      >
+                        {p.is_active === false ? "Archived" : "Archive"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -2402,6 +2499,67 @@ function InventoryTable({
         </table>
       </div>
     </>
+  );
+}
+
+function StockControl({
+  product,
+  onCommit,
+}: {
+  product: Product;
+  onCommit: (product: Product, stock: number) => Promise<void>;
+}) {
+  const [value, setValue] = useState(Math.max(0, product.stock_quantity ?? 0));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => setValue(Math.max(0, product.stock_quantity ?? 0)), [product.stock_quantity]);
+
+  const commit = async (nextValue: number) => {
+    const next = Math.max(0, Math.floor(Number.isFinite(nextValue) ? nextValue : 0));
+    setValue(next);
+    if (next === (product.stock_quantity ?? 0)) return;
+    setSaving(true);
+    try {
+      await onCommit(product, next);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="inline-flex h-9 items-stretch overflow-hidden rounded-md border border-[#D1D5DB] bg-white">
+      <button
+        type="button"
+        onClick={() => void commit(value - 1)}
+        disabled={saving || value <= 0}
+        aria-label={`Decrease ${product.name} stock`}
+        className="grid w-9 place-items-center hover:bg-[#F3F4F6] disabled:opacity-40"
+      >
+        <Minus className="h-3.5 w-3.5" />
+      </button>
+      <input
+        type="number"
+        min="0"
+        inputMode="numeric"
+        value={value}
+        onChange={(event) => setValue(Math.max(0, Number(event.target.value) || 0))}
+        onBlur={() => void commit(value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+        }}
+        aria-label={`${product.name} stock quantity`}
+        className="w-14 border-x border-[#D1D5DB] bg-white text-center text-sm font-semibold tabular-nums outline-none focus:bg-[#FAFAFA]"
+      />
+      <button
+        type="button"
+        onClick={() => void commit(value + 1)}
+        disabled={saving}
+        aria-label={`Increase ${product.name} stock`}
+        className="grid w-9 place-items-center hover:bg-[#F3F4F6] disabled:opacity-40"
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
+    </div>
   );
 }
 
@@ -3488,14 +3646,12 @@ function ProductDrawer({
     badge: product?.badge ?? null,
     stock_quantity: product?.stock_quantity ?? 0,
     is_active: product?.is_active ?? true,
-    is_featured: product?.is_featured ?? false,
-    is_bestseller: product?.is_bestseller ?? false,
-    is_new_arrival: product?.is_new_arrival ?? false,
     is_on_sale: product?.is_on_sale ?? false,
     tags: product?.tags ?? [],
   });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newFilterName, setNewFilterName] = useState("");
   const [addingGroup, setAddingGroup] = useState<"collection" | "filter" | null>(null);
@@ -3520,6 +3676,24 @@ function ProductDrawer({
   );
   const activeImage = selectedImage ?? drawerImages[0] ?? null;
   const coverImage = cleanImageUrl(form.cover_image_url) ?? null;
+  const requestClose = () => {
+    if (closing) return;
+    setClosing(true);
+    window.setTimeout(onClose, 180);
+  };
+  const visibilityRequirements = [
+    { label: "Product name", complete: Boolean(form.name.trim()) },
+    { label: "Category", complete: Boolean(form.category_id) },
+    { label: "Price above ₹0", complete: Number(form.price_inr) > 0 },
+    {
+      label: "Description",
+      complete: Boolean(form.short_description?.trim() || form.description?.trim()),
+    },
+    { label: "Cover image", complete: Boolean(coverImage || activeImage) },
+  ];
+  const missingVisibilityFields = visibilityRequirements
+    .filter((requirement) => !requirement.complete)
+    .map((requirement) => requirement.label);
 
   const createGroup = async (type: "collection" | "filter", rawName: string) => {
     const name = rawName.trim();
@@ -3595,6 +3769,14 @@ function ProductDrawer({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (form.is_active !== false && missingVisibilityFields.length > 0) {
+      notify({
+        title: "Complete the product before publishing",
+        description: `Still needed: ${missingVisibilityFields.join(", ")}. Turn off storefront visibility to save it as a draft.`,
+        variant: "destructive",
+      });
+      return;
+    }
     setSaving(true);
     try {
       const savedImages = Array.from(
@@ -3647,11 +3829,17 @@ function ProductDrawer({
 
   return (
     <div
-      className="admin-drawer-backdrop fixed inset-0 z-50 bg-foreground/40 backdrop-blur-sm"
-      onClick={onClose}
+      className={cn(
+        "admin-drawer-backdrop fixed inset-0 z-50 bg-foreground/40 backdrop-blur-sm",
+        closing && "is-closing",
+      )}
+      onClick={requestClose}
     >
       <aside
-        className="admin-drawer-panel absolute right-0 top-0 h-full w-full max-w-[560px] overflow-y-auto bg-background p-4 sm:p-6"
+        className={cn(
+          "admin-drawer-panel absolute right-0 top-0 h-full w-full max-w-[560px] overflow-y-auto bg-background p-4 sm:p-6",
+          closing && "is-closing",
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-6">
@@ -3659,7 +3847,7 @@ function ProductDrawer({
             {product ? "Edit product" : "New product"}
           </h2>
           <button
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="Close"
             data-testid="admin-product-drawer-close-button"
             className="h-9 w-9 grid place-items-center rounded-md hover:bg-foreground/5"
@@ -3879,6 +4067,10 @@ function ProductDrawer({
                 {addingGroup === "filter" ? "Adding..." : "Add filter"}
               </button>
             </div>
+            <p className="mt-2 text-[11px] leading-relaxed text-foreground/55">
+              A new filter is selected automatically. Save this product to make the filter and its
+              products appear in Shop all.
+            </p>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field
@@ -3920,7 +4112,7 @@ function ProductDrawer({
               label="Badge"
               value={form.badge ?? ""}
               onChange={(v) => setForm({ ...form, badge: v || null })}
-              placeholder="e.g. Bestseller"
+              placeholder="Optional short label"
             />
           </div>
 
@@ -3956,33 +4148,44 @@ function ProductDrawer({
             rows={5}
           />
 
-          <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-border">
-            <Toggle
-              label="Active (visible)"
-              value={form.is_active ?? true}
-              onChange={(v) => setForm({ ...form, is_active: v })}
-            />
-            <Toggle
-              label="Featured"
-              value={form.is_featured ?? false}
-              onChange={(v) => setForm({ ...form, is_featured: v })}
-            />
-            <Toggle
-              label="Bestseller"
-              value={form.is_bestseller ?? false}
-              onChange={(v) => setForm({ ...form, is_bestseller: v })}
-            />
-            <Toggle
-              label="New arrival"
-              value={form.is_new_arrival ?? false}
-              onChange={(v) => setForm({ ...form, is_new_arrival: v })}
-            />
+          <div className="rounded-lg border border-[#E5E7EB] bg-[#FAFAFA] p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[#111827]">Store visibility</p>
+                <p className="mt-0.5 text-xs text-[#6B7280]">
+                  All required details must be complete before this product can be public.
+                </p>
+              </div>
+              <Toggle
+                label="Visible"
+                value={form.is_active ?? true}
+                onChange={(v) => setForm({ ...form, is_active: v })}
+              />
+            </div>
+            <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
+              {visibilityRequirements.map((requirement) => (
+                <div
+                  key={requirement.label}
+                  className={cn(
+                    "flex items-center gap-2 text-xs",
+                    requirement.complete ? "text-emerald-700" : "text-amber-800",
+                  )}
+                >
+                  {requirement.complete ? (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  ) : (
+                    <CircleAlert className="h-3.5 w-3.5" />
+                  )}
+                  {requirement.label}
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-4 sticky bottom-0 bg-background pb-1 border-t border-border">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               data-testid="admin-product-drawer-cancel-button"
               className="rounded-md border border-border px-4 py-2 text-sm hover:bg-foreground/5"
             >

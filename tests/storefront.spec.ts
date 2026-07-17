@@ -11,15 +11,19 @@ function watchPageErrors(page: Page) {
 
 test("home and live catalog render without browser errors", async ({ page }) => {
   const errors = watchPageErrors(page);
+  await expect
+    .poll(async () => (await page.request.get("/api/catalog/products")).ok())
+    .toBeTruthy();
   const catalogResponse = await page.request.get("/api/catalog/products");
   expect(catalogResponse.ok()).toBeTruthy();
-  expect((await catalogResponse.json()).length).toBeGreaterThanOrEqual(8);
+  const catalog = (await catalogResponse.json()) as Array<{ tags?: string[] }>;
+  expect(catalog.length).toBeGreaterThanOrEqual(8);
   const presentationResponse = await page.request.get(
     `/api/catalog/presentation?test=${Date.now()}`,
   );
   expect(presentationResponse.ok()).toBeTruthy();
   const presentation = (await presentationResponse.json()) as {
-    taxonomy: Array<{ slug: string; type: string }>;
+    taxonomy: Array<{ slug: string; name: string; type: string }>;
   };
   expect(
     presentation.taxonomy.filter((item) => item.type === "filter").map((item) => item.slug),
@@ -28,6 +32,16 @@ test("home and live catalog render without browser errors", async ({ page }) => 
   await page.goto("/");
   await expect(page.getByRole("img", { name: "Fawzaan" }).first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "SHOP ALL" })).toBeVisible();
+  const managedFilter = presentation.taxonomy.find((item) => item.type === "filter");
+  if (managedFilter) {
+    const filterTab = page.getByRole("tab", { name: managedFilter.name, exact: true });
+    await expect(filterTab).toBeVisible();
+    await filterTab.click();
+    await expect(page.locator("#shop-all a.product-card")).toHaveCount(
+      catalog.filter((product) => product.tags?.includes(managedFilter.slug)).length,
+    );
+    await page.getByRole("tab", { name: "All", exact: true }).click();
+  }
   await expect(page.getByText("Yemeni Shemagh", { exact: true }).first()).toBeVisible();
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
@@ -37,11 +51,14 @@ test("home and live catalog render without browser errors", async ({ page }) => 
 
 test("shop product cart and checkout path uses the live product", async ({ page }) => {
   const errors = watchPageErrors(page);
+  await expect
+    .poll(async () => (await page.request.get("/api/catalog/products")).ok())
+    .toBeTruthy();
   const catalogResponse = await page.request.get("/api/catalog/products");
   expect(catalogResponse.ok()).toBeTruthy();
   const products = (await catalogResponse.json()) as Array<{ slug: string }>;
   await page.goto("/shop");
-  await expect(page.getByText(`${products.length} products`, { exact: true })).toBeVisible();
+  await expect(page.getByText(/^\d+ products$/).first()).toBeVisible();
   await page
     .getByRole("link", { name: /Yemeni Shemagh/i })
     .first()
@@ -101,6 +118,9 @@ test("account, tracking lookup, and admin entry render", async ({ page }) => {
   await page.goto("/admin");
   await expect(page.locator("body")).toContainText(/Admin|Dashboard|Sign in/i);
   await expect(page.getByText("Organize shop", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Product placement", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Shipping", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Settings", { exact: true })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ChevronRight, Menu, Minus, Plus, Search, ShoppingBag, Star, X } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { StoreFooter, StoreHeader } from "@/components/store/store-chrome";
 import { merchandiseProducts, type StoreProduct, useStoreProducts } from "@/data/store";
@@ -1069,19 +1069,32 @@ function KufiCollection() {
 
 function ShopAllProducts() {
   const { products: catalog } = useStoreProducts();
-  const filters: Array<"All" | CollectionName> = [
-    "All",
-    "Shemaghs",
-    "Niqabs",
-    "Kufis",
-    "Honey",
-    "Watches",
-  ];
-  const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("All");
+  const { taxonomy } = useCatalogPresentation();
+  const filters = useMemo(() => {
+    const seen = new Set<string>();
+    const managed = taxonomy
+      .filter((item) => item.is_active !== false && ["collection", "filter"].includes(item.type))
+      .filter((item) => {
+        const key = `${item.type}:${item.slug}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((item) => ({ key: `${item.type}:${item.slug}`, ...item }));
+    return [{ key: "all", slug: "all", name: "All", type: "all" }, ...managed];
+  }, [taxonomy]);
+  const [activeFilter, setActiveFilter] = useState("all");
+  const selectedFilter = filters.find((filter) => filter.key === activeFilter) ?? filters[0];
   const visibleProducts =
-    activeFilter === "All"
+    selectedFilter.type === "all"
       ? merchandiseProducts(catalog)
-      : catalog.filter((product) => product.collection === activeFilter);
+      : selectedFilter.type === "filter"
+        ? catalog.filter((product) => product.filterTags?.includes(selectedFilter.slug))
+        : catalog.filter(
+            (product) =>
+              product.collection.toLowerCase() === selectedFilter.name.toLowerCase() ||
+              product.collection.toLowerCase().replace(/\s+/g, "-") === selectedFilter.slug,
+          );
 
   useEffect(() => {
     const hashFilters: Record<string, CollectionName> = {
@@ -1095,8 +1108,12 @@ function ShopAllProducts() {
     const applyHashFilter = () => {
       const nextFilter = hashFilters[window.location.hash];
       if (!nextFilter) return;
+      const match = filters.find(
+        (filter) => filter.type === "collection" && filter.name === nextFilter,
+      );
+      if (!match) return;
 
-      setActiveFilter(nextFilter);
+      setActiveFilter(match.key);
       window.requestAnimationFrame(() =>
         document.getElementById("shop-all")?.scrollIntoView({ behavior: "smooth" }),
       );
@@ -1105,7 +1122,7 @@ function ShopAllProducts() {
     applyHashFilter();
     window.addEventListener("hashchange", applyHashFilter);
     return () => window.removeEventListener("hashchange", applyHashFilter);
-  }, []);
+  }, [filters]);
 
   return (
     <section id="shop-all" className="scroll-mt-[76px] bg-white px-[22px] py-16 md:px-8 md:py-24">
@@ -1127,15 +1144,15 @@ function ShopAllProducts() {
         >
           {filters.map((filter) => (
             <button
-              key={filter}
+              key={filter.key}
               type="button"
               role="tab"
-              aria-selected={activeFilter === filter}
-              onClick={() => setActiveFilter(filter)}
-              className={`relative shrink-0 pb-3 text-[11px] font-bold uppercase transition-colors ${activeFilter === filter ? "text-black" : "text-black/40"}`}
+              aria-selected={selectedFilter.key === filter.key}
+              onClick={() => setActiveFilter(filter.key)}
+              className={`relative shrink-0 pb-3 text-[11px] font-bold uppercase transition-colors ${selectedFilter.key === filter.key ? "text-black" : "text-black/40"}`}
             >
-              {filter}
-              {activeFilter === filter ? (
+              {filter.name}
+              {selectedFilter.key === filter.key ? (
                 <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#f4b400]" />
               ) : null}
             </button>

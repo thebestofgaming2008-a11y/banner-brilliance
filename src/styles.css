@@ -3,8 +3,12 @@
 @import "tw-animate-css";
 
 @keyframes marquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(-33.333%); }
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-33.333%);
+  }
 }
 
 @custom-variant dark (&:is(.dark *));
@@ -475,6 +479,121 @@
     }
   }
 
+  .admin-vibe {
+    --vibe-page: 250 250 250;
+    --vibe-background: 250 250 250;
+    --vibe-foreground: 23 23 23;
+    --vibe-muted: 82 82 82;
+    --vibe-border: 229 229 229;
+    --vibe-soft: 245 245 245;
+    --vibe-surface: 244 244 245;
+    --vibe-accent: 250 250 250;
+    font-family: var(--font-sans-ui);
+  }
+
+  .vibe-card {
+    border: 1px solid rgb(var(--vibe-border));
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.035);
+  }
+
+  .admin-tab-content {
+    animation: admin-tab-enter 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .admin-mobile-nav-backdrop,
+  .admin-drawer-backdrop {
+    animation: admin-fade-in 180ms ease-out both;
+  }
+
+  .admin-mobile-nav-panel {
+    animation: admin-menu-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .admin-drawer-panel {
+    animation: admin-drawer-enter 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    box-shadow: -18px 0 46px rgb(0 0 0 / 0.12);
+  }
+
+  .admin-mobile-nav-backdrop.is-closing,
+  .admin-drawer-backdrop.is-closing {
+    animation: admin-fade-out 180ms ease-in both;
+  }
+
+  .admin-mobile-nav-panel.is-closing {
+    animation: admin-menu-exit 180ms ease-in both;
+  }
+
+  .admin-drawer-panel.is-closing {
+    animation: admin-drawer-exit 180ms ease-in both;
+  }
+
+  @keyframes admin-tab-enter {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 5px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @keyframes admin-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes admin-fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes admin-menu-enter {
+    from {
+      transform: translate3d(-100%, 0, 0);
+    }
+    to {
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @keyframes admin-menu-exit {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
+    to {
+      transform: translate3d(-100%, 0, 0);
+    }
+  }
+
+  @keyframes admin-drawer-enter {
+    from {
+      transform: translate3d(100%, 0, 0);
+    }
+    to {
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @keyframes admin-drawer-exit {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
+    to {
+      transform: translate3d(100%, 0, 0);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .site-header,
     .site-header__logo,
@@ -491,8 +610,14 @@
     .product-card__media img,
     .collection-banner,
     .collection-banner > img,
-    .collection-banner span {
+    .collection-banner span,
+    .admin-tab-content,
+    .admin-mobile-nav-backdrop,
+    .admin-mobile-nav-panel,
+    .admin-drawer-backdrop,
+    .admin-drawer-panel {
       transition: none;
+      animation: none;
     }
 
     [data-reveal] {
