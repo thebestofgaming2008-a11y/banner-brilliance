@@ -3582,6 +3582,12 @@ function cleanImageUrl(value: string | null | undefined) {
   return raw.split("#")[0] || null;
 }
 
+function imageUrlsMatch(a: string | null | undefined, b: string | null | undefined) {
+  const left = cleanImageUrl(a);
+  const right = cleanImageUrl(b);
+  return Boolean(left && right && left === right);
+}
+
 async function croppedImageFile(src: string, crop: CropArea, fileStem: string) {
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
     const next = new Image();
@@ -3789,6 +3795,30 @@ function ProductDrawer({
     setCropPixels(null);
     setCropAsCover(true);
   };
+  const setCoverImage = (src: string | null | undefined) => {
+    const cleanUrl = cleanImageUrl(src);
+    if (!cleanUrl) {
+      setForm((current) => ({ ...current, cover_image_url: null }));
+      setSelectedImage(null);
+      return;
+    }
+    setForm((current) => ({
+      ...current,
+      cover_image_url: cleanUrl,
+      images: Array.from(
+        new Set(
+          [
+            cleanUrl,
+            ...(Array.isArray(current.images) ? current.images.map(cleanImageUrl) : []),
+          ].filter(Boolean) as string[],
+        ),
+      ),
+      hidden_image_urls: (current.hidden_image_urls ?? []).filter(
+        (image) => !imageUrlsMatch(image, cleanUrl),
+      ),
+    }));
+    setSelectedImage(cleanUrl);
+  };
   const visibilityRequirements = [
     { label: "Product name", complete: Boolean(form.name.trim()) },
     { label: "Category", complete: Boolean(form.category_id) },
@@ -3994,8 +4024,8 @@ function ProductDrawer({
       const savedImages = Array.from(
         new Set(
           [
-            activeImage,
             form.cover_image_url,
+            activeImage,
             ...(Array.isArray(form.images) ? form.images : []),
             ...fallbackImagesForProduct({ ...product, ...form }),
           ]
@@ -4107,22 +4137,22 @@ function ProductDrawer({
                       <div key={url} className="relative aspect-square">
                         <button
                           type="button"
-                          onClick={() => setSelectedImage(url)}
+                          onClick={() => setCoverImage(url)}
                           className={cn(
                             "h-full w-full overflow-hidden rounded-md border bg-white",
-                            activeImage === url
+                            imageUrlsMatch(activeImage, url)
                               ? "border-[#111827] ring-2 ring-[#111827]/10"
                               : "border-border",
                           )}
                           aria-label={
-                            coverImage === url
+                            imageUrlsMatch(coverImage, url)
                               ? "Current cover image"
-                              : "Preview this product image"
+                              : "Set this product image as the cover"
                           }
                         >
                           <img src={url} alt="" className="h-full w-full object-cover" />
                         </button>
-                        {coverImage === url && (
+                        {imageUrlsMatch(coverImage, url) && (
                           <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-[#111827] px-1.5 py-0.5 text-[9px] font-semibold text-white shadow-sm">
                             Cover
                           </span>
@@ -4162,40 +4192,21 @@ function ProductDrawer({
                   data-testid="admin-product-image-url-input"
                   onChange={(e) => {
                     const url = cleanImageUrl(e.target.value);
-                    setForm({
-                      ...form,
-                      cover_image_url: url,
-                      images: url
-                        ? Array.from(new Set([url, ...(form.images ?? [])]))
-                        : form.images,
-                      hidden_image_urls: url
-                        ? (form.hidden_image_urls ?? []).filter(
-                            (image) => cleanImageUrl(image) !== url,
-                          )
-                        : form.hidden_image_urls,
-                    });
-                    setSelectedImage(url);
+                    setCoverImage(url);
                   }}
                   placeholder="…or paste image URL"
                   className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-brand"
                 />
                 <button
                   type="button"
-                  disabled={!activeImage || coverImage === activeImage}
+                  disabled={!activeImage || imageUrlsMatch(coverImage, activeImage)}
                   onClick={() => {
                     if (!activeImage) return;
-                    setForm((f) => ({
-                      ...f,
-                      cover_image_url: activeImage,
-                      images: Array.from(new Set([activeImage, ...(f.images ?? [])])),
-                      hidden_image_urls: (f.hidden_image_urls ?? []).filter(
-                        (image) => cleanImageUrl(image) !== activeImage,
-                      ),
-                    }));
+                    setCoverImage(activeImage);
                   }}
                   className="mt-2 inline-flex h-9 items-center justify-center rounded-md bg-[#111827] px-3 text-xs font-semibold text-white transition-colors hover:bg-[#1F2937] disabled:cursor-not-allowed disabled:bg-[#E5E7EB] disabled:text-[#6B7280]"
                 >
-                  {activeImage && coverImage === activeImage
+                  {activeImage && imageUrlsMatch(coverImage, activeImage)
                     ? "Selected as cover"
                     : "Set selected as cover"}
                 </button>
