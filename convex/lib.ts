@@ -102,6 +102,9 @@ export function publicProductCard(doc: Record<string, any>): Record<string, any>
     category_id: product.category_id ?? null,
     tags,
     cover_image_url: product.cover_image_url ?? null,
+    hidden_image_urls: Array.isArray(product.hidden_image_urls)
+      ? product.hidden_image_urls.slice(0, 48)
+      : [],
     color_options: Array.isArray(product.color_options) ? product.color_options.slice(0, 30) : [],
     size_options: Array.isArray(product.size_options) ? product.size_options.slice(0, 30) : [],
     option_types: Array.isArray(product.option_types) ? product.option_types.slice(0, 3) : [],

@@ -78,6 +78,7 @@ export default defineSchema({
     tags: optionalStringArray,
     cover_image_url: optionalString,
     images: optionalStringArray,
+    hidden_image_urls: optionalStringArray,
     linked_product_ids: optionalStringArray,
     cross_sell_product_ids: optionalStringArray,
     upsell_product_ids: optionalStringArray,

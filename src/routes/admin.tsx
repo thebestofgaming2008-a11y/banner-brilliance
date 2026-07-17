@@ -3626,7 +3626,9 @@ async function croppedImageFile(src: string, crop: CropArea, fileStem: string) {
   return new File([blob], `${safeStem}-crop-${Date.now()}.webp`, { type: "image/webp" });
 }
 
-function fallbackImagesForProduct(product: Partial<Pick<Product, "slug" | "name">>) {
+function fallbackImagesForProduct(
+  product: Partial<Pick<Product, "slug" | "name" | "hidden_image_urls">>,
+) {
   const rawSlug = String(product.slug ?? "").toLowerCase();
   const slug = rawSlug === "yemeni-shemagh" ? "yemeni-shemagh-red" : rawSlug;
   const name = String(product.name ?? "").toLowerCase();
@@ -3634,12 +3636,20 @@ function fallbackImagesForProduct(product: Partial<Pick<Product, "slug" | "name"
     if (slug && item.slug.toLowerCase() === slug) return true;
     return Boolean(name && item.name.toLowerCase() === name);
   });
-  return fallback?.images ?? [];
+  const hidden = new Set(
+    (product.hidden_image_urls ?? []).map(cleanImageUrl).filter(Boolean) as string[],
+  );
+  return (fallback?.images ?? []).filter((url) => !hidden.has(cleanImageUrl(url) ?? url));
 }
 
 function productImageUrls(
-  product: Partial<Pick<Product, "cover_image_url" | "images" | "slug" | "name">>,
+  product: Partial<
+    Pick<Product, "cover_image_url" | "images" | "hidden_image_urls" | "slug" | "name">
+  >,
 ) {
+  const hidden = new Set(
+    (product.hidden_image_urls ?? []).map(cleanImageUrl).filter(Boolean) as string[],
+  );
   return Array.from(
     new Set(
       [
@@ -3648,7 +3658,7 @@ function productImageUrls(
         ...fallbackImagesForProduct(product),
       ]
         .map(cleanImageUrl)
-        .filter(Boolean) as string[],
+        .filter((url): url is string => Boolean(url) && !hidden.has(url as string)),
     ),
   );
 }
@@ -3721,6 +3731,7 @@ function ProductDrawer({
     category_id: product?.category_id ?? defaultCollection.slug,
     cover_image_url: product?.cover_image_url ?? null,
     images: product?.images ?? [],
+    hidden_image_urls: product?.hidden_image_urls ?? [],
     linked_product_ids: product?.linked_product_ids ?? [],
     variant_label: product?.variant_label ?? "",
     badge: product?.badge ?? null,
@@ -3744,21 +3755,22 @@ function ProductDrawer({
   const [addingGroup, setAddingGroup] = useState<"collection" | "filter" | null>(null);
   const [removingGroup, setRemovingGroup] = useState<string | null>(null);
   const [linkedIds, setLinkedIds] = useState((product?.linked_product_ids ?? []).join(", "));
-  const drawerImages = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          [
-            form.cover_image_url,
-            ...(Array.isArray(form.images) ? form.images : []),
-            ...fallbackImagesForProduct(product ?? form),
-          ]
-            .map(cleanImageUrl)
-            .filter(Boolean) as string[],
-        ),
+  const drawerImages = useMemo(() => {
+    const hidden = new Set(
+      (form.hidden_image_urls ?? []).map(cleanImageUrl).filter(Boolean) as string[],
+    );
+    return Array.from(
+      new Set(
+        [
+          form.cover_image_url,
+          ...(Array.isArray(form.images) ? form.images : []),
+          ...fallbackImagesForProduct({ ...product, ...form }),
+        ]
+          .map(cleanImageUrl)
+          .filter((url): url is string => Boolean(url) && !hidden.has(url as string)),
       ),
-    [form, product],
-  );
+    );
+  }, [form, product]);
   const [selectedImage, setSelectedImage] = useState<string | null>(
     product ? (productImageUrls(product)[0] ?? null) : null,
   );
@@ -3880,6 +3892,9 @@ function ProductDrawer({
           ...f,
           cover_image_url: cleanUrl,
           images: Array.from(new Set([cleanUrl, ...(f.images ?? [])])),
+          hidden_image_urls: (f.hidden_image_urls ?? []).filter(
+            (url) => cleanImageUrl(url) !== cleanUrl,
+          ),
         }));
         setSelectedImage(cleanUrl);
         notify({ title: "Image uploaded" });
@@ -3917,6 +3932,9 @@ function ProductDrawer({
         ...current,
         cover_image_url: cropAsCover ? cleanUrl : current.cover_image_url,
         images: Array.from(new Set([cleanUrl, ...(current.images ?? [])])),
+        hidden_image_urls: (current.hidden_image_urls ?? []).filter(
+          (url) => cleanImageUrl(url) !== cleanUrl,
+        ),
       }));
       setSelectedImage(cleanUrl);
       setEditingImage(null);
@@ -3937,6 +3955,30 @@ function ProductDrawer({
     }
   };
 
+  const removeProductImage = (url: string) => {
+    const removedUrl = cleanImageUrl(url);
+    if (!removedUrl) return;
+    const remaining = drawerImages.filter((image) => cleanImageUrl(image) !== removedUrl);
+    const nextImage = remaining[0] ?? null;
+    setForm((current) => ({
+      ...current,
+      cover_image_url:
+        cleanImageUrl(current.cover_image_url) === removedUrl ? nextImage : current.cover_image_url,
+      images: (current.images ?? []).filter((image) => cleanImageUrl(image) !== removedUrl),
+      hidden_image_urls: Array.from(
+        new Set(
+          [...(current.hidden_image_urls ?? []).map(cleanImageUrl), removedUrl].filter(Boolean),
+        ),
+      ) as string[],
+    }));
+    if (cleanImageUrl(selectedImage) === removedUrl) setSelectedImage(nextImage);
+    if (cleanImageUrl(editingImage) === removedUrl) setEditingImage(null);
+    notify({
+      title: "Image removed from product",
+      description: "Save the product to apply this change.",
+    });
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (form.is_active !== false && missingVisibilityFields.length > 0) {
@@ -3955,10 +3997,17 @@ function ProductDrawer({
             activeImage,
             form.cover_image_url,
             ...(Array.isArray(form.images) ? form.images : []),
-            ...fallbackImagesForProduct(product ?? form),
+            ...fallbackImagesForProduct({ ...product, ...form }),
           ]
             .map(cleanImageUrl)
-            .filter(Boolean) as string[],
+            .filter(
+              (url): url is string =>
+                Boolean(url) &&
+                !(form.hidden_image_urls ?? [])
+                  .map(cleanImageUrl)
+                  .filter(Boolean)
+                  .includes(url as string),
+            ),
         ),
       );
       const payload = {
@@ -4055,29 +4104,39 @@ function ProductDrawer({
                 {drawerImages.length > 0 && (
                   <div className="mt-2 grid max-h-44 grid-cols-4 gap-1.5 overflow-y-auto pr-1">
                     {drawerImages.map((url) => (
-                      <button
-                        key={url}
-                        type="button"
-                        onClick={() => {
-                          setSelectedImage(url);
-                        }}
-                        className={cn(
-                          "relative aspect-square overflow-hidden rounded-md border bg-white",
-                          activeImage === url
-                            ? "border-[#111827] ring-2 ring-[#111827]/10"
-                            : "border-border",
-                        )}
-                        aria-label={
-                          coverImage === url ? "Current cover image" : "Preview this product image"
-                        }
-                      >
-                        <img src={url} alt="" className="h-full w-full object-cover" />
+                      <div key={url} className="relative aspect-square">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedImage(url)}
+                          className={cn(
+                            "h-full w-full overflow-hidden rounded-md border bg-white",
+                            activeImage === url
+                              ? "border-[#111827] ring-2 ring-[#111827]/10"
+                              : "border-border",
+                          )}
+                          aria-label={
+                            coverImage === url
+                              ? "Current cover image"
+                              : "Preview this product image"
+                          }
+                        >
+                          <img src={url} alt="" className="h-full w-full object-cover" />
+                        </button>
                         {coverImage === url && (
-                          <span className="absolute left-1 top-1 rounded bg-[#111827] px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm">
+                          <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-[#111827] px-1.5 py-0.5 text-[9px] font-semibold text-white shadow-sm">
                             Cover
                           </span>
                         )}
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => removeProductImage(url)}
+                          aria-label="Remove image from product"
+                          title="Remove image"
+                          className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded bg-white/95 text-rose-700 shadow-sm transition-colors hover:bg-rose-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -4109,6 +4168,11 @@ function ProductDrawer({
                       images: url
                         ? Array.from(new Set([url, ...(form.images ?? [])]))
                         : form.images,
+                      hidden_image_urls: url
+                        ? (form.hidden_image_urls ?? []).filter(
+                            (image) => cleanImageUrl(image) !== url,
+                          )
+                        : form.hidden_image_urls,
                     });
                     setSelectedImage(url);
                   }}
@@ -4124,6 +4188,9 @@ function ProductDrawer({
                       ...f,
                       cover_image_url: activeImage,
                       images: Array.from(new Set([activeImage, ...(f.images ?? [])])),
+                      hidden_image_urls: (f.hidden_image_urls ?? []).filter(
+                        (image) => cleanImageUrl(image) !== activeImage,
+                      ),
                     }));
                   }}
                   className="mt-2 inline-flex h-9 items-center justify-center rounded-md bg-[#111827] px-3 text-xs font-semibold text-white transition-colors hover:bg-[#1F2937] disabled:cursor-not-allowed disabled:bg-[#E5E7EB] disabled:text-[#6B7280]"

@@ -40,6 +40,7 @@ const productInput = {
   tags: v.optional(v.union(v.array(v.string()), v.null())),
   cover_image_url: v.optional(v.union(v.string(), v.null())),
   images: v.optional(v.union(v.array(v.string()), v.null())),
+  hidden_image_urls: v.optional(v.union(v.array(v.string()), v.null())),
   linked_product_ids: v.optional(v.union(v.array(v.string()), v.null())),
   variant_label: v.optional(v.union(v.string(), v.null())),
   color_options: v.optional(v.union(v.array(v.string()), v.null())),
@@ -87,6 +88,7 @@ const productPatch = {
   tags: v.optional(v.union(v.array(v.string()), v.null())),
   cover_image_url: v.optional(v.union(v.string(), v.null())),
   images: v.optional(v.union(v.array(v.string()), v.null())),
+  hidden_image_urls: v.optional(v.union(v.array(v.string()), v.null())),
   linked_product_ids: v.optional(v.union(v.array(v.string()), v.null())),
   variant_label: v.optional(v.union(v.string(), v.null())),
   color_options: v.optional(v.union(v.array(v.string()), v.null())),
@@ -235,7 +237,15 @@ function normalize(input: any, isPatch = false, existingPrice?: number) {
       ? input.images
           .map((url: string) => cleanUrl(url))
           .filter(Boolean)
-          .slice(0, 8)
+          .slice(0, 24)
+      : [];
+  }
+  if (input.hidden_image_urls !== undefined || !isPatch) {
+    output.hidden_image_urls = Array.isArray(input.hidden_image_urls)
+      ? input.hidden_image_urls
+          .map((url: string) => cleanUrl(url))
+          .filter(Boolean)
+          .slice(0, 48)
       : [];
   }
   if (input.linked_product_ids !== undefined || !isPatch) {

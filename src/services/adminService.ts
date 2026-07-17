@@ -34,6 +34,7 @@ export interface ProductInput {
   category_id?: string | null;
   cover_image_url?: string | null;
   images?: string[];
+  hidden_image_urls?: string[];
   linked_product_ids?: string[];
   variant_label?: string | null;
   color_options?: string[] | null;

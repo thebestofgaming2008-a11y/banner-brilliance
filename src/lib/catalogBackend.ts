@@ -16,6 +16,7 @@ export type BackendProduct = {
   tags?: string[] | null;
   cover_image_url?: string | null;
   images?: string[] | null;
+  hidden_image_urls?: string[] | null;
   color_options?: string[] | null;
   size_options?: string[] | null;
   option_types?: Array<{ name?: string; values?: string[] }> | null;
@@ -130,10 +131,16 @@ export function backendProductToProduct(product: BackendProduct): Product {
   const regular = Number(product.price_inr ?? product.price ?? fallback?.price ?? 0);
   const sale = Number(product.sale_price_inr ?? product.sale_price ?? 0);
   const hasSale = sale > 0 && sale < regular;
+  const hiddenImages = new Set(
+    (product.hidden_image_urls ?? []).map((src) => String(src).split("#")[0]).filter(Boolean),
+  );
   const images = [
     product.cover_image_url,
     ...(Array.isArray(product.images) ? product.images : []),
-  ].filter((src): src is string => Boolean(src));
+  ].filter((src): src is string => Boolean(src) && !hiddenImages.has(String(src).split("#")[0]));
+  const fallbackImages = (fallback?.images ?? []).filter(
+    (src) => !hiddenImages.has(String(src).split("#")[0]),
+  );
 
   return {
     id: product.id,
@@ -150,7 +157,7 @@ export function backendProductToProduct(product: BackendProduct): Product {
     compareAt: hasSale ? regular : fallback?.compareAt,
     rating: Number(product.rating ?? (product.id ? 0 : fallback?.rating) ?? 0),
     reviews: Number(product.reviews_count ?? (product.id ? 0 : fallback?.reviews) ?? 0),
-    images: images.length ? Array.from(new Set(images)) : (fallback?.images ?? []),
+    images: images.length ? Array.from(new Set(images)) : fallbackImages,
     colors:
       product.color_options?.map((name) => ({
         name,
