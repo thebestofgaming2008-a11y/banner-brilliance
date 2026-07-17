@@ -20,7 +20,6 @@ import {
   Sparkles,
   Package,
   PackageOpen,
-  Tag,
   ShoppingBag,
   Users,
   Settings,
@@ -73,12 +72,8 @@ import {
   updateShippingRate,
   updateReviewStatus,
   upsertCategory,
-  seedDefaultCategories,
-  listStorefrontBanners,
   listPaymentRecoveries,
   retryPaymentRecovery,
-  upsertStorefrontBanner,
-  archiveStorefrontBanner,
   type ProductInput,
   type AdminOrder,
   type AdminCustomer,
@@ -164,11 +159,10 @@ function notify({
 
 const NAV = [
   { key: "dash", label: "Dashboard", Icon: LayoutDashboard },
-  { key: "homepage", label: "Storefront", Icon: Store },
+  { key: "homepage", label: "Product placement", Icon: Store },
   { key: "orders", label: "Orders", Icon: ShoppingBag },
   { key: "products", label: "Products", Icon: Package },
   { key: "inventory", label: "Inventory", Icon: Boxes },
-  { key: "categories", label: "Organize shop", Icon: Tag },
   { key: "shipping", label: "Shipping", Icon: Truck },
   { key: "reviews", label: "Reviews", Icon: MessageSquare },
   { key: "customers", label: "Customers", Icon: Users },
@@ -177,11 +171,10 @@ const NAV = [
 
 const PAGE_DESCRIPTIONS: Record<TabKey, string> = {
   dash: "See what needs attention today.",
-  homepage: "Choose what customers see on the home and shop pages.",
+  homepage: "Choose which current products are featured on the storefront.",
   orders: "Confirm, pack, ship, and track customer orders.",
   products: "Add products and manage their details, images, and visibility.",
   inventory: "Keep stock accurate and find low-stock products.",
-  categories: "Group products into collections and storefront filters.",
   shipping: "Manage shipping methods and delivery rates.",
   reviews: "Approve or hide customer reviews.",
   customers: "View customer accounts and order activity.",
@@ -299,7 +292,6 @@ const Admin = () => {
   const [reviews, setReviews] = useState<AdminReview[]>([]);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [shippingRates, setShippingRates] = useState<ShippingRate[]>([]);
-  const [banners, setBanners] = useState<StorefrontBanner[]>([]);
   const [paymentRecoveries, setPaymentRecoveries] = useState<PaymentRecovery[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Product | null>(null);
@@ -331,10 +323,9 @@ const Admin = () => {
       listAllReviews(200),
       listCategories(),
       listShippingRates(),
-      listStorefrontBanners(),
       listPaymentRecoveries(),
     ])
-      .then(([p, o, c, r, cats, rates, bannerRows, recoveries]) => {
+      .then(([p, o, c, r, cats, rates, recoveries]) => {
         if (cancelled) return;
         setProducts(p);
         setOrders(o);
@@ -342,7 +333,6 @@ const Admin = () => {
         setReviews(r);
         setCategories(cats);
         setShippingRates(rates);
-        setBanners(bannerRows);
         setPaymentRecoveries(recoveries);
         setLoading(false);
       })
@@ -363,9 +353,7 @@ const Admin = () => {
   const refreshProducts = async () => setProducts(await listAllProducts());
   const refreshOrders = async () => setOrders(await listAllOrders(200));
   const refreshReviews = async () => setReviews(await listAllReviews(200));
-  const refreshCategories = async () => setCategories(await listCategories());
   const refreshShippingRates = async () => setShippingRates(await listShippingRates());
-  const refreshBanners = async () => setBanners(await listStorefrontBanners());
   const refreshPaymentRecoveries = async () => setPaymentRecoveries(await listPaymentRecoveries());
 
   const handleSaveTracking = async (
@@ -594,7 +582,7 @@ const Admin = () => {
     {
       label: "Commerce",
       items: NAV.filter((item) =>
-        ["orders", "products", "inventory", "categories", "shipping"].includes(item.key),
+        ["orders", "products", "inventory", "shipping"].includes(item.key),
       ),
     },
     { label: "People", items: NAV.filter((item) => ["customers", "reviews"].includes(item.key)) },
@@ -976,7 +964,6 @@ const Admin = () => {
             {!loading && !adminLoadError && tab === "homepage" && (
               <HomepageAdminPanel
                 products={products}
-                banners={banners}
                 onEdit={setEditing}
                 onPatch={async (product, patch) => {
                   const saved = await updateProduct(product.id, patch);
@@ -985,16 +972,6 @@ const Admin = () => {
                     notify({ title: "Homepage placement updated" });
                     await refreshProducts();
                   }
-                }}
-                onSaveBanner={async (input) => {
-                  await upsertStorefrontBanner(input);
-                  notify({ title: "Storefront banner saved" });
-                  await refreshBanners();
-                }}
-                onArchiveBanner={async (id) => {
-                  await archiveStorefrontBanner(id);
-                  notify({ title: "Storefront banner archived" });
-                  await refreshBanners();
                 }}
               />
             )}
@@ -1180,29 +1157,6 @@ const Admin = () => {
               </Section>
             )}
 
-            {!loading && !adminLoadError && tab === "categories" && (
-              <CategoriesAdminPanel
-                categories={categories}
-                products={products}
-                onSeed={async () => {
-                  if (
-                    !confirm(
-                      "Reset collections and filters to the Fawzaan defaults? Custom entries will be archived.",
-                    )
-                  )
-                    return;
-                  await seedDefaultCategories();
-                  notify({ title: "Catalog organization reset" });
-                  await refreshCategories();
-                }}
-                onSave={async (input) => {
-                  await upsertCategory(input);
-                  notify({ title: "Category saved" });
-                  await refreshCategories();
-                }}
-              />
-            )}
-
             {!loading && !adminLoadError && tab === "shipping" && (
               <ShippingAdminPanel
                 rates={shippingRates}
@@ -1278,9 +1232,9 @@ const Admin = () => {
                     title="Payments"
                     Icon={BadgeCheck}
                     lines={[
-                      "Razorpay is intentionally MOCKED for now.",
-                      "Mock orders are labeled MOCKED_PAID and RAZORPAY_MOCKED.",
-                      "Switch to real payment orders only after Razorpay keys are provided.",
+                      "India checkout uses server-verified Razorpay orders and captured payments.",
+                      "Signed webhooks and automatic reconciliation recover interrupted checkouts.",
+                      "International checkout opens WhatsApp and does not create an unconfirmed order.",
                     ]}
                   />
                 </div>
@@ -1294,6 +1248,15 @@ const Admin = () => {
         <ProductDrawer
           product={editing ?? undefined}
           categories={categories}
+          onCreateGroup={async (name, type) => {
+            const saved = await upsertCategory({ name, type, is_active: true });
+            if (!saved) throw new Error(`Could not create ${type}.`);
+            setCategories((current) => [
+              ...current.filter((category) => category.id !== saved.id),
+              saved,
+            ]);
+            return saved;
+          }}
           onClose={() => {
             setCreating(false);
             setEditing(null);
@@ -1339,7 +1302,7 @@ function AdminLogin({
     {
       label: "Commerce",
       items: NAV.filter((item) =>
-        ["orders", "products", "inventory", "categories", "shipping"].includes(item.key),
+        ["orders", "products", "inventory", "shipping"].includes(item.key),
       ),
     },
     { label: "People", items: NAV.filter((item) => ["customers", "reviews"].includes(item.key)) },
@@ -2589,20 +2552,12 @@ function ReviewsTable({
 
 function HomepageAdminPanel({
   products,
-  banners,
   onEdit,
   onPatch,
-  onSaveBanner,
-  onArchiveBanner,
 }: {
   products: Product[];
-  banners: StorefrontBanner[];
   onEdit: (product: Product) => void;
   onPatch: (product: Product, patch: Partial<ProductInput>) => Promise<void>;
-  onSaveBanner: (
-    input: Omit<StorefrontBanner, "id" | "created_at" | "updated_at"> & { id?: string },
-  ) => Promise<void>;
-  onArchiveBanner: (id: string) => Promise<void>;
 }) {
   const featured = products.filter((product) => product.is_featured);
   const newArrivals = products.filter((product) => product.is_new_arrival);
@@ -2633,11 +2588,9 @@ function HomepageAdminPanel({
         />
       </div>
 
-      <BannerAdminPanel banners={banners} onSave={onSaveBanner} onArchive={onArchiveBanner} />
-
       <Section
-        title="Homepage placement"
-        subtitle="Choose what appears in the storefront sections."
+        title="Product placement"
+        subtitle="Feature products inside the storefront layout that already exists."
       >
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm" data-testid="admin-homepage-placement-table">
@@ -3497,11 +3450,13 @@ function ProductThumb({ product }: { product: Product }) {
 function ProductDrawer({
   product,
   categories,
+  onCreateGroup,
   onClose,
   onSaved,
 }: {
   product?: Product;
   categories: AdminCategory[];
+  onCreateGroup: (name: string, type: "collection" | "filter") => Promise<AdminCategory>;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -3541,6 +3496,9 @@ function ProductDrawer({
   });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newFilterName, setNewFilterName] = useState("");
+  const [addingGroup, setAddingGroup] = useState<"collection" | "filter" | null>(null);
   const [linkedIds, setLinkedIds] = useState((product?.linked_product_ids ?? []).join(", "));
   const drawerImages = useMemo(
     () =>
@@ -3562,6 +3520,40 @@ function ProductDrawer({
   );
   const activeImage = selectedImage ?? drawerImages[0] ?? null;
   const coverImage = cleanImageUrl(form.cover_image_url) ?? null;
+
+  const createGroup = async (type: "collection" | "filter", rawName: string) => {
+    const name = rawName.trim();
+    if (!name) {
+      notify({
+        title: `Enter a ${type === "collection" ? "category" : "filter"} name`,
+        variant: "destructive",
+      });
+      return;
+    }
+    setAddingGroup(type);
+    try {
+      const saved = await onCreateGroup(name, type);
+      if (type === "collection") {
+        setForm((current) => ({ ...current, category_id: saved.slug, category: saved.name }));
+        setNewCategoryName("");
+      } else {
+        setForm((current) => ({
+          ...current,
+          tags: Array.from(new Set([...(current.tags ?? []), saved.slug])),
+        }));
+        setNewFilterName("");
+      }
+      notify({ title: `${type === "collection" ? "Category" : "Filter"} added` });
+    } catch (error) {
+      notify({
+        title: `Could not add ${type === "collection" ? "category" : "filter"}`,
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setAddingGroup(null);
+    }
+  };
 
   useEffect(() => {
     if (!selectedImage && drawerImages[0]) setSelectedImage(drawerImages[0]);
@@ -3805,21 +3797,41 @@ function ProductDrawer({
               onChange={(v) => setForm({ ...form, slug: v || null })}
               placeholder="auto"
             />
-            <SelectField
-              label="Category"
-              value={form.category_id ?? defaultCollection.slug}
-              onChange={(v) =>
-                setForm({
-                  ...form,
-                  category_id: v,
-                  category: collectionCategories.find((category) => category.slug === v)?.name ?? v,
-                })
-              }
-              options={collectionCategories.map((category) => ({
-                value: category.slug,
-                label: category.name,
-              }))}
-            />
+            <div>
+              <SelectField
+                label="Category"
+                value={form.category_id ?? defaultCollection.slug}
+                onChange={(v) =>
+                  setForm({
+                    ...form,
+                    category_id: v,
+                    category:
+                      collectionCategories.find((category) => category.slug === v)?.name ?? v,
+                  })
+                }
+                options={collectionCategories.map((category) => ({
+                  value: category.slug,
+                  label: category.name,
+                }))}
+              />
+              <div className="mt-2 flex gap-2">
+                <input
+                  value={newCategoryName}
+                  onChange={(event) => setNewCategoryName(event.target.value)}
+                  placeholder="New category name"
+                  aria-label="New category name"
+                  className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-brand"
+                />
+                <button
+                  type="button"
+                  disabled={addingGroup !== null || !newCategoryName.trim()}
+                  onClick={() => void createGroup("collection", newCategoryName)}
+                  className="shrink-0 rounded-md border border-border px-3 text-xs font-semibold hover:bg-foreground/5 disabled:opacity-50"
+                >
+                  {addingGroup === "collection" ? "Adding..." : "Add"}
+                </button>
+              </div>
+            </div>
           </div>
           <div className="rounded-lg border border-border bg-foreground/[0.015] p-3">
             <p className="text-xs font-medium text-foreground/70">Storefront filters</p>
@@ -3850,23 +3862,23 @@ function ProductDrawer({
                 );
               })}
             </div>
-            <Field
-              label="Additional labels"
-              value={(form.tags ?? [])
-                .filter((tag) => !filterCategories.some((filter) => filter.slug === tag))
-                .join(", ")}
-              onChange={(value) => {
-                const managedTags = (form.tags ?? []).filter((tag) =>
-                  filterCategories.some((filter) => filter.slug === tag),
-                );
-                const customTags = value
-                  .split(",")
-                  .map((tag) => tag.trim().toLowerCase())
-                  .filter(Boolean);
-                setForm({ ...form, tags: Array.from(new Set([...managedTags, ...customTags])) });
-              }}
-              placeholder="e.g. ramadan, gift-ready"
-            />
+            <div className="mt-3 flex gap-2">
+              <input
+                value={newFilterName}
+                onChange={(event) => setNewFilterName(event.target.value)}
+                placeholder="New filter name"
+                aria-label="New filter name"
+                className="min-w-0 flex-1 rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-brand"
+              />
+              <button
+                type="button"
+                disabled={addingGroup !== null || !newFilterName.trim()}
+                onClick={() => void createGroup("filter", newFilterName)}
+                className="shrink-0 rounded-md border border-border bg-white px-3 text-xs font-semibold hover:bg-foreground/5 disabled:opacity-50"
+              >
+                {addingGroup === "filter" ? "Adding..." : "Add filter"}
+              </button>
+            </div>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field

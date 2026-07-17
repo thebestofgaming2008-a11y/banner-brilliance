@@ -42,15 +42,25 @@ export const fallbackTaxonomy: CatalogTaxonomyItem[] = [
 
 let cachedPresentation: CatalogPresentation | null = null;
 let cachedPresentationAt = 0;
+let cachedCatalogVersion = "";
 let presentationRequest: Promise<CatalogPresentation> | null = null;
 const PRESENTATION_MEMORY_TTL_MS = 5 * 60 * 1000;
+
+function catalogVersion() {
+  return typeof window === "undefined"
+    ? "server"
+    : (window.localStorage.getItem("fawzaan.catalogVersion") ?? "default");
+}
 
 async function fetchCatalogPresentation(): Promise<CatalogPresentation> {
   try {
     if (typeof window !== "undefined") {
-      const response = await fetch("/api/catalog/presentation", {
-        headers: { accept: "application/json" },
-      });
+      const response = await fetch(
+        `/api/catalog/presentation?version=${encodeURIComponent(catalogVersion())}`,
+        {
+          headers: { accept: "application/json" },
+        },
+      );
       if (!response.ok) throw new Error(`Catalog presentation failed with ${response.status}`);
       return (await response.json()) as CatalogPresentation;
     }
@@ -70,8 +80,11 @@ async function fetchCatalogPresentation(): Promise<CatalogPresentation> {
 export async function listCatalogPresentation(
   options: { force?: boolean } = {},
 ): Promise<CatalogPresentation> {
+  const version = catalogVersion();
   const fresh =
-    cachedPresentation && Date.now() - cachedPresentationAt < PRESENTATION_MEMORY_TTL_MS;
+    cachedPresentation &&
+    cachedCatalogVersion === version &&
+    Date.now() - cachedPresentationAt < PRESENTATION_MEMORY_TTL_MS;
   if (!options.force && fresh) return cachedPresentation;
   if (!options.force && presentationRequest) return presentationRequest;
 
@@ -79,6 +92,7 @@ export async function listCatalogPresentation(
     .then((presentation) => {
       cachedPresentation = presentation;
       cachedPresentationAt = Date.now();
+      cachedCatalogVersion = version;
       return presentation;
     })
     .finally(() => {

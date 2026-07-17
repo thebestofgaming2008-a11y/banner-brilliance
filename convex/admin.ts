@@ -240,7 +240,16 @@ export const listCategories = query({
           .withIndex("by_type", (q) => q.eq("type", cleanText(args.type, 40)))
           .collect()
       : await ctx.db.query("categories").collect();
+    const retiredDefaultFilters = new Set([
+      "men",
+      "women",
+      "unisex",
+      "bestseller",
+      "new",
+      "limited",
+    ]);
     return rows
+      .filter((row) => !(row.type === "filter" && retiredDefaultFilters.has(String(row.slug))))
       .map(publicDoc)
       .sort(
         (a, b) =>
@@ -307,12 +316,6 @@ export const seedDefaultCategories = mutation({
       { slug: "honey", name: "Honey", type: "collection", sort_order: 40 },
       { slug: "watches", name: "Watches", type: "collection", sort_order: 50 },
       { slug: "gloves", name: "Gloves", type: "collection", sort_order: 60 },
-      { slug: "men", name: "Men", type: "filter", sort_order: 110 },
-      { slug: "women", name: "Women", type: "filter", sort_order: 120 },
-      { slug: "unisex", name: "Unisex", type: "filter", sort_order: 130 },
-      { slug: "bestseller", name: "Bestsellers", type: "filter", sort_order: 140 },
-      { slug: "new", name: "New arrivals", type: "filter", sort_order: 150 },
-      { slug: "limited", name: "Limited", type: "filter", sort_order: 160 },
     ];
     const timestamp = nowIso();
     const existingRows = await ctx.db.query("categories").collect();

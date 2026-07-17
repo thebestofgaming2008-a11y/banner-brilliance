@@ -86,7 +86,11 @@ export async function deleteProduct(id: string): Promise<boolean> {
 export async function refreshPublicCatalog(product?: Pick<Product, "id" | "slug"> | null) {
   if (typeof window === "undefined") return;
   const version = Date.now().toString();
-  const requests = [`/api/catalog/products?refresh=${encodeURIComponent(version)}`];
+  window.localStorage.setItem("fawzaan.catalogVersion", version);
+  const requests = [
+    `/api/catalog/products?refresh=${encodeURIComponent(version)}`,
+    `/api/catalog/presentation?refresh=${encodeURIComponent(version)}`,
+  ];
   if (product?.id)
     requests.push(
       `/api/catalog/product?id=${encodeURIComponent(product.id)}&refresh=${encodeURIComponent(version)}`,

@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 
+const RETIRED_DEFAULT_FILTERS = new Set(["men", "women", "unisex", "bestseller", "new", "limited"]);
+
 function publicDoc<T extends { _id: unknown; _creationTime: number }>(doc: T) {
   const { _id, _creationTime, ...rest } = doc;
   return { id: _id, ...rest };
@@ -14,7 +16,11 @@ export const listActiveTaxonomy = query({
       .withIndex("by_active", (q) => q.eq("is_active", true))
       .collect();
     return rows
-      .filter((row) => row.type === "collection" || row.type === "filter")
+      .filter(
+        (row) =>
+          (row.type === "collection" || row.type === "filter") &&
+          !(row.type === "filter" && RETIRED_DEFAULT_FILTERS.has(row.slug)),
+      )
       .map(publicDoc)
       .sort(
         (a, b) =>

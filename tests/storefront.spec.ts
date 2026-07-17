@@ -14,6 +14,16 @@ test("home and live catalog render without browser errors", async ({ page }) => 
   const catalogResponse = await page.request.get("/api/catalog/products");
   expect(catalogResponse.ok()).toBeTruthy();
   expect((await catalogResponse.json()).length).toBeGreaterThanOrEqual(8);
+  const presentationResponse = await page.request.get(
+    `/api/catalog/presentation?test=${Date.now()}`,
+  );
+  expect(presentationResponse.ok()).toBeTruthy();
+  const presentation = (await presentationResponse.json()) as {
+    taxonomy: Array<{ slug: string; type: string }>;
+  };
+  expect(
+    presentation.taxonomy.filter((item) => item.type === "filter").map((item) => item.slug),
+  ).not.toEqual(expect.arrayContaining(["unisex", "bestseller", "new", "limited"]));
 
   await page.goto("/");
   await expect(page.getByRole("img", { name: "Fawzaan" }).first()).toBeVisible();
@@ -65,7 +75,7 @@ test("mobile shop controls scroll and menu search filters the live catalog", asy
   await expect.poll(() => tabs.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
 
   await expect(page.getByLabel("Sort products")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Bestsellers" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Bestsellers" })).toHaveCount(0);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
   ).toBeTruthy();
@@ -90,6 +100,7 @@ test("account, tracking lookup, and admin entry render", async ({ page }) => {
 
   await page.goto("/admin");
   await expect(page.locator("body")).toContainText(/Admin|Dashboard|Sign in/i);
+  await expect(page.getByText("Organize shop", { exact: true })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
