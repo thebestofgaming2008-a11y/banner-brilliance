@@ -303,12 +303,12 @@ async function restoreReservedStock(ctx: any, cart: Array<any>) {
 }
 
 async function releaseExpiredReservations(ctx: any) {
+  const now = Date.now();
   const expired = await ctx.db
     .query("checkout_intents")
-    .withIndex("by_status", (q: any) => q.eq("status", "pending"))
+    .withIndex("by_status_expires_at", (q: any) => q.eq("status", "pending").lt("expires_at", now))
     .collect();
-  const now = Date.now();
-  for (const intent of expired.filter((item: any) => item.expires_at <= now)) {
+  for (const intent of expired) {
     if (intent.stock_reserved !== false) await restoreReservedStock(ctx, intent.cart);
     await ctx.db.patch(intent._id, {
       status: "released",
@@ -515,128 +515,6 @@ export const quoteCheckout = query({
   args: { cart: v.array(cartItem) },
   handler: async (ctx, args) => {
     return await checkoutQuote(ctx, args.cart);
-  },
-});
-
-export const createWhatsAppOrderRequest = mutation({
-  args: {
-    cart: v.array(cartItem),
-    customer: checkoutCustomer,
-    whatsappMessage: v.string(),
-  },
-  handler: async (ctx, args) => {
-    if (!args.cart.length) throw new Error("Cart is empty.");
-    const customer = {
-      email: cleanEmail(args.customer.email),
-      phone: cleanPhone(args.customer.phone),
-      name: cleanText(args.customer.name, 120),
-      address_line_1: cleanText(args.customer.address_line_1, 180),
-      address_line_2: cleanNullable(args.customer.address_line_2, 180) ?? undefined,
-      city: cleanText(args.customer.city, 80),
-      state: cleanNullable(args.customer.state, 80) ?? undefined,
-      postal_code: cleanText(args.customer.postal_code, 24),
-      country: cleanText(args.customer.country, 80),
-    };
-    if (
-      !customer.name ||
-      !customer.address_line_1 ||
-      !customer.city ||
-      !customer.postal_code ||
-      !customer.country
-    ) {
-      throw new Error("Complete shipping details are required.");
-    }
-
-    const normalizedItems = [];
-    let subtotal = 0;
-    for (const item of args.cart) {
-      const qty = Math.floor(item.qty);
-      if (!Number.isFinite(qty) || qty < 1 || qty > 99)
-        throw new Error("Cart quantity is invalid.");
-      const product = (await getCheckoutProduct(ctx, item.productId)) as any;
-      if (!product || product.is_active === false)
-        throw new Error(`Product is no longer available: ${cleanText(item.name, 80)}`);
-      const stock = Number(product.stock_quantity ?? 0);
-      if (stock < qty || product.in_stock === false)
-        throw new Error(`Not enough stock for ${product.name}.`);
-      const unitPrice = product.sale_price_inr ?? product.price_inr ?? product.price;
-      if (!Number.isFinite(unitPrice) || unitPrice < 0)
-        throw new Error(`Invalid price for ${product.name}.`);
-      const selectedColor = cleanVariantSelection(
-        item.selectedColor,
-        product.color_options,
-        "Colour",
-        product.name,
-      );
-      const selectedSize = cleanVariantSelection(
-        item.selectedSize,
-        product.size_options,
-        "Size",
-        product.name,
-      );
-      subtotal += unitPrice * qty;
-      normalizedItems.push({ product, qty, unitPrice, selectedColor, selectedSize });
-    }
-
-    const timestamp = nowIso();
-    const orderNumber = await nextOrderNumber(ctx);
-    const savedWhatsAppMessage = messageWithOrderNumber(args.whatsappMessage, orderNumber);
-    const identity = await ctx.auth.getUserIdentity();
-    const userId = identity ? await getAuthUserId(ctx) : null;
-    const orderId = await ctx.db.insert("orders", {
-      order_number: orderNumber,
-      user_id: userId ?? null,
-      customer_email: customer.email,
-      customer_name: customer.name,
-      customer_phone: customer.phone,
-      status: "whatsapp_pending",
-      payment_status: "unconfirmed",
-      subtotal,
-      tax: 0,
-      shipping_cost: 0,
-      shipping_payment_status: "pending_whatsapp",
-      shipping_payment_note: "WhatsApp order request. Confirm customer/payment before fulfilling.",
-      customer_country_type: "international",
-      discount: 0,
-      total: subtotal,
-      total_inr: subtotal,
-      currency: "INR",
-      shipping_address: customer,
-      payment_provider: "WHATSAPP",
-      payment_method: "whatsapp",
-      payment_order_id: null,
-      payment_id: null,
-      whatsapp_message: savedWhatsAppMessage,
-      items: [
-        {
-          type: "whatsapp_message",
-          whatsapp_message: savedWhatsAppMessage,
-        },
-      ],
-      created_at: timestamp,
-      updated_at: timestamp,
-    });
-
-    for (const item of normalizedItems) {
-      await ctx.db.insert("order_items", {
-        order_id: orderId,
-        product_id: item.product._id,
-        product_name: productNameWithOptions(
-          item.product.name,
-          item.selectedColor,
-          item.selectedSize,
-        ),
-        product_image_url: item.product.cover_image_url ?? null,
-        selected_color: item.selectedColor,
-        selected_size: item.selectedSize,
-        quantity: item.qty,
-        unit_price: item.unitPrice,
-        subtotal: item.unitPrice * item.qty,
-      });
-    }
-
-    const order = await ctx.db.get(orderId);
-    return order ? await orderWithItems(ctx, order) : null;
   },
 });
 
