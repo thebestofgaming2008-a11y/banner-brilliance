@@ -1,10 +1,10 @@
 import { Truck, ShieldCheck, RotateCcw, Star } from "lucide-react";
 
 const items = [
-  { Icon: Truck, label: "Free shipping over $75" },
+  { Icon: Truck, label: "India shipping included" },
   { Icon: ShieldCheck, label: "Secure checkout" },
   { Icon: RotateCcw, label: "30-day returns" },
-  { Icon: Star, label: "4.9/5 from 2,300+ reviews" },
+  { Icon: Star, label: "Verified purchase reviews" },
 ];
 
 export function TrustBar({ tone = "cream" }: { tone?: "cream" | "ink" }) {

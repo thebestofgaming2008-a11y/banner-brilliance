@@ -1,49 +1,64 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Heart } from "lucide-react";
-import { SiteHeader } from "@/components/brand/SiteHeader";
-import { SiteFooter } from "@/components/brand/SiteFooter";
-import { ProductCard } from "@/components/brand/ProductCard";
+
+import { StoreProductCard } from "@/components/store/product-card";
+import { StorePage } from "@/components/store/store-chrome";
+import { toStoreProduct } from "@/data/store";
 import { useWishlist } from "@/lib/wishlist";
 import { useCatalogProducts } from "@/services/productService";
 
 export const Route = createFileRoute("/wishlist")({
-  head: () => ({ meta: [{ title: "Wishlist — Fawzaan.store" }] }),
+  head: () => ({ meta: [{ title: "Wishlist | Fawzaan" }] }),
   component: WishlistPage,
 });
 
 function WishlistPage() {
-  const { items } = useWishlist();
+  const { items, isAuthenticated } = useWishlist();
   const { products: catalogProducts } = useCatalogProducts();
-  const products = catalogProducts.filter((p) => items.includes(p.slug));
+  const products = catalogProducts.filter((product) => items.includes(product.slug));
 
   return (
-    <div className="min-h-screen bg-ivory text-ink">
-      <SiteHeader />
-      <div className="mx-auto max-w-7xl px-4 md:px-8 py-10 md:py-14">
-        <p className="eyebrow text-gold-deep">Saved</p>
-        <h1 className="mt-1 font-display text-4xl md:text-5xl">Your wishlist</h1>
+    <StorePage>
+      <main className="mx-auto max-w-[1180px] px-[22px] py-12 md:px-8 md:py-20">
+        <p className="section-kicker text-black/45">Saved products</p>
+        <h1 className="section-heading mt-2 text-[42px] md:text-[58px]">YOUR WISHLIST</h1>
 
-        {products.length === 0 ? (
-          <div className="mt-16 text-center py-20 border-y border-ink/10">
-            <Heart className="mx-auto h-10 w-10 text-gold-deep" />
-            <p className="mt-4 font-display text-3xl">Nothing saved yet.</p>
-            <p className="mt-2 text-ink/60">Tap the heart on any product to save it here.</p>
+        {!isAuthenticated ? (
+          <div className="mt-12 border-y border-black/10 py-16 text-center">
+            <Heart className="mx-auto h-9 w-9" strokeWidth={1.4} />
+            <h2 className="mt-5 text-[22px] font-bold uppercase">Sign in to use your wishlist</h2>
+            <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-black/55">
+              Saved products are tied to your account so they remain available across devices.
+            </p>
             <Link
-              to="/"
-              className="mt-8 inline-flex items-center bg-ink text-ivory px-6 py-3 text-xs uppercase tracking-[0.22em]"
+              to="/account"
+              className="mt-7 inline-flex h-12 items-center bg-[#f4b400] px-7 text-[11px] font-bold uppercase"
+            >
+              Sign in or create account
+            </Link>
+          </div>
+        ) : products.length === 0 ? (
+          <div className="mt-12 border-y border-black/10 py-16 text-center">
+            <Heart className="mx-auto h-9 w-9" strokeWidth={1.4} />
+            <h2 className="mt-5 text-[22px] font-bold uppercase">Nothing saved yet</h2>
+            <p className="mt-2 text-sm text-black/55">
+              Use the heart on a product to save it here.
+            </p>
+            <Link
+              to="/shop"
+              className="mt-7 inline-flex h-12 items-center bg-black px-7 text-[11px] font-bold uppercase text-white"
             >
               Explore the store
             </Link>
           </div>
         ) : (
-          <div className="mt-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-10 md:gap-x-6 md:gap-y-14">
-            {products.map((p) => (
-              <ProductCard key={p.slug} p={p} />
+          <div className="mt-9 grid grid-cols-2 gap-x-3 gap-y-10 md:grid-cols-3 md:gap-x-5 lg:grid-cols-4">
+            {products.map((product) => (
+              <StoreProductCard key={product.slug} product={toStoreProduct(product)} />
             ))}
           </div>
         )}
-      </div>
-      <SiteFooter />
-    </div>
+      </main>
+    </StorePage>
   );
 }

@@ -25,7 +25,7 @@ export function StoreProductCard({
   };
 
   return (
-    <article className="store-product-card group min-w-0" data-store-reveal>
+    <article className="store-product-card group min-w-0">
       <div className="relative aspect-[3/4] overflow-hidden bg-white">
         <a href={`/products/${product.slug}`} aria-label={`View ${product.name}`}>
           <img

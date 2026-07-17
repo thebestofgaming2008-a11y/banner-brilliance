@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { LogOut, MapPin, Package, Trash2 } from "lucide-react";
+import { LogOut, Mail, MapPin, Package, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -13,7 +13,17 @@ export const Route = createFileRoute("/account")({
 });
 
 function AccountPage() {
-  const { account, isLoading, signIn, signUp, signOut, removeAddress } = useAccount();
+  const {
+    account,
+    isLoading,
+    signIn,
+    signUp,
+    signOut,
+    requestPasswordReset,
+    resetPassword,
+    setMarketingConsent,
+    removeAddress,
+  } = useAccount();
   const { formatPrice } = useCurrency();
   const navigate = useNavigate();
 
@@ -26,7 +36,15 @@ function AccountPage() {
       </StorePage>
     );
   }
-  if (!account) return <AuthPanel signIn={signIn} signUp={signUp} />;
+  if (!account)
+    return (
+      <AuthPanel
+        signIn={signIn}
+        signUp={signUp}
+        requestPasswordReset={requestPasswordReset}
+        resetPassword={resetPassword}
+      />
+    );
 
   return (
     <StorePage>
@@ -159,6 +177,42 @@ function AccountPage() {
                 Contact support
               </a>
             </div>
+            <div className="mt-7 border-t border-black/10 pt-5">
+              <div className="flex items-start gap-3">
+                <Mail size={17} className="mt-0.5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-semibold">Offers by email</p>
+                  <p className="mt-1 text-[11px] leading-5 text-black/50">
+                    Get occasional sales and new collection announcements. Unsubscribe any time.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={account.marketingConsent}
+                  aria-label="Email offers"
+                  onClick={async () => {
+                    try {
+                      await setMarketingConsent(!account.marketingConsent);
+                      toast.success(
+                        account.marketingConsent
+                          ? "Email offers turned off"
+                          : "Email offers turned on",
+                      );
+                    } catch (error) {
+                      toast.error(
+                        error instanceof Error ? error.message : "Could not save preference.",
+                      );
+                    }
+                  }}
+                  className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${account.marketingConsent ? "bg-[#f4b400]" : "bg-black/15"}`}
+                >
+                  <span
+                    className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${account.marketingConsent ? "translate-x-6" : "translate-x-1"}`}
+                  />
+                </button>
+              </div>
+            </div>
           </aside>
         </div>
       </main>
@@ -169,15 +223,27 @@ function AccountPage() {
 function AuthPanel({
   signIn,
   signUp,
+  requestPasswordReset,
+  resetPassword,
 }: {
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, first: string, last: string) => Promise<void>;
+  signUp: (
+    email: string,
+    password: string,
+    first: string,
+    last: string,
+    marketingConsent?: boolean,
+  ) => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<void>;
+  resetPassword: (email: string, code: string, newPassword: string) => Promise<void>;
 }) {
-  const [mode, setMode] = useState<"in" | "up">("in");
+  const [mode, setMode] = useState<"in" | "up" | "reset" | "verify">("in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
   const [first, setFirst] = useState("");
   const [last, setLast] = useState("");
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   return (
@@ -185,22 +251,47 @@ function AuthPanel({
       <main className="mx-auto max-w-md px-[22px] py-14 md:py-20">
         <p className="section-kicker text-center text-black/45">Fawzaan account</p>
         <h1 className="section-heading mt-3 text-center text-[42px]">
-          {mode === "in" ? "SIGN IN" : "CREATE ACCOUNT"}
+          {mode === "in"
+            ? "SIGN IN"
+            : mode === "up"
+              ? "CREATE ACCOUNT"
+              : mode === "reset"
+                ? "RESET PASSWORD"
+                : "ENTER RESET CODE"}
         </h1>
         <p className="mt-3 text-center text-sm text-black/55">
           {mode === "in"
             ? "Access your orders, addresses, and wishlist."
-            : "Create an account for faster checkout and order history."}
+            : mode === "up"
+              ? "Create an account for faster checkout and order history."
+              : mode === "reset"
+                ? "We will email a one-time reset code."
+                : `Enter the code sent to ${email}.`}
         </p>
         <form
           className="mt-8 space-y-4"
           onSubmit={async (event) => {
             event.preventDefault();
-            if (password.length < 6) return toast.error("Password must be at least 6 characters.");
+            if (mode === "in" && password.length < 6) return toast.error("Enter your password.");
+            if ((mode === "up" || mode === "verify") && password.length < 8)
+              return toast.error("Password must be at least 8 characters.");
             setSubmitting(true);
             try {
               if (mode === "in") await signIn(email, password);
-              else await signUp(email, password, first, last);
+              else if (mode === "up") await signUp(email, password, first, last, marketingConsent);
+              else if (mode === "reset") {
+                await requestPasswordReset(email);
+                setMode("verify");
+                toast.success("Reset code sent");
+                return;
+              } else {
+                await resetPassword(email, code, password);
+                setMode("in");
+                setCode("");
+                setPassword("");
+                toast.success("Password changed. Sign in with your new password.");
+                return;
+              }
               toast.success(mode === "in" ? "Signed in" : "Account created");
             } catch (error) {
               toast.error(
@@ -231,36 +322,81 @@ function AuthPanel({
               />
             </div>
           ) : null}
-          <Field
-            label="Email"
-            type="email"
-            value={email}
-            onChange={setEmail}
-            autoComplete="email"
-            required
-          />
-          <Field
-            label="Password"
-            type="password"
-            value={password}
-            onChange={setPassword}
-            autoComplete={mode === "in" ? "current-password" : "new-password"}
-            required
-          />
+          {mode !== "verify" ? (
+            <Field
+              label="Email"
+              type="email"
+              value={email}
+              onChange={setEmail}
+              autoComplete="email"
+              required
+            />
+          ) : null}
+          {mode === "verify" ? (
+            <Field
+              label="Reset code"
+              value={code}
+              onChange={setCode}
+              autoComplete="one-time-code"
+              inputMode="numeric"
+              required
+            />
+          ) : null}
+          {mode !== "reset" ? (
+            <Field
+              label={mode === "verify" ? "New password" : "Password"}
+              type="password"
+              value={password}
+              onChange={setPassword}
+              autoComplete={mode === "in" ? "current-password" : "new-password"}
+              required
+            />
+          ) : null}
+          {mode === "up" ? (
+            <label className="flex cursor-pointer items-start gap-3 text-[12px] leading-5 text-black/60">
+              <input
+                type="checkbox"
+                checked={marketingConsent}
+                onChange={(event) => setMarketingConsent(event.target.checked)}
+                className="mt-1 h-4 w-4 accent-[#f4b400]"
+              />
+              Email me occasional sales and new collection announcements. Optional and easy to
+              unsubscribe.
+            </label>
+          ) : null}
           <button
             disabled={submitting}
             className="h-12 w-full bg-[#f4b400] text-[11px] font-bold uppercase disabled:opacity-50"
           >
-            {submitting ? "Please wait..." : mode === "in" ? "Sign in" : "Create account"}
+            {submitting
+              ? "Please wait..."
+              : mode === "in"
+                ? "Sign in"
+                : mode === "up"
+                  ? "Create account"
+                  : mode === "reset"
+                    ? "Send reset code"
+                    : "Change password"}
           </button>
         </form>
-        <button
-          type="button"
-          onClick={() => setMode(mode === "in" ? "up" : "in")}
-          className="mt-6 w-full text-center text-[12px] underline underline-offset-4"
-        >
-          {mode === "in" ? "New here? Create an account" : "Already have an account? Sign in"}
-        </button>
+        <div className="mt-6 space-y-3 text-center text-[12px]">
+          {mode === "in" ? (
+            <button
+              type="button"
+              onClick={() => setMode("reset")}
+              className="block w-full underline underline-offset-4"
+            >
+              Forgot password?
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setMode(mode === "in" ? "up" : "in")}
+            className="block w-full underline underline-offset-4"
+          >
+            {mode === "in" ? "New here? Create an account" : "Back to sign in"}
+          </button>
+        </div>
       </main>
     </StorePage>
   );

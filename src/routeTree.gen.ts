@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WishlistRouteImport } from './routes/wishlist'
+import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ShopRouteImport } from './routes/shop'
 import { Route as SearchRouteImport } from './routes/search'
@@ -30,6 +31,11 @@ import { Route as OrderIdRouteImport } from './routes/order.$id'
 const WishlistRoute = WishlistRouteImport.update({
   id: '/wishlist',
   path: '/wishlist',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UnsubscribeRoute = UnsubscribeRouteImport.update({
+  id: '/unsubscribe',
+  path: '/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TermsRoute = TermsRouteImport.update({
@@ -124,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/shop': typeof ShopRoute
   '/terms': typeof TermsRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/wishlist': typeof WishlistRoute
   '/order/$id': typeof OrderIdRoute
   '/pages/contact': typeof PagesContactRoute
@@ -143,6 +150,7 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/shop': typeof ShopRoute
   '/terms': typeof TermsRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/wishlist': typeof WishlistRoute
   '/order/$id': typeof OrderIdRoute
   '/pages/contact': typeof PagesContactRoute
@@ -163,6 +171,7 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/shop': typeof ShopRoute
   '/terms': typeof TermsRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/wishlist': typeof WishlistRoute
   '/order/$id': typeof OrderIdRoute
   '/pages/contact': typeof PagesContactRoute
@@ -184,6 +193,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/shop'
     | '/terms'
+    | '/unsubscribe'
     | '/wishlist'
     | '/order/$id'
     | '/pages/contact'
@@ -203,6 +213,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/shop'
     | '/terms'
+    | '/unsubscribe'
     | '/wishlist'
     | '/order/$id'
     | '/pages/contact'
@@ -222,6 +233,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/shop'
     | '/terms'
+    | '/unsubscribe'
     | '/wishlist'
     | '/order/$id'
     | '/pages/contact'
@@ -242,6 +254,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   ShopRoute: typeof ShopRoute
   TermsRoute: typeof TermsRoute
+  UnsubscribeRoute: typeof UnsubscribeRoute
   WishlistRoute: typeof WishlistRoute
   OrderIdRoute: typeof OrderIdRoute
   PagesContactRoute: typeof PagesContactRoute
@@ -258,6 +271,13 @@ declare module '@tanstack/react-router' {
       path: '/wishlist'
       fullPath: '/wishlist'
       preLoaderRoute: typeof WishlistRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/unsubscribe': {
+      id: '/unsubscribe'
+      path: '/unsubscribe'
+      fullPath: '/unsubscribe'
+      preLoaderRoute: typeof UnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/terms': {
@@ -386,6 +406,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   ShopRoute: ShopRoute,
   TermsRoute: TermsRoute,
+  UnsubscribeRoute: UnsubscribeRoute,
   WishlistRoute: WishlistRoute,
   OrderIdRoute: OrderIdRoute,
   PagesContactRoute: PagesContactRoute,

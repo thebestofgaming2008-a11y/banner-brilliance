@@ -3,6 +3,7 @@ import type { Product } from "@/lib/products";
 import { listActiveProducts } from "@/services/productService";
 import { api } from "../../convex/_generated/api";
 import { convex } from "@/integrations/convex/client";
+import { whatsappUrl } from "@/lib/store-config";
 
 type CheckoutCustomer = {
   email: string;
@@ -175,9 +176,7 @@ function buildWhatsAppMessage(cart: CartItem[], customer: CheckoutCustomer, tota
 }
 
 function configuredWhatsAppUrl(message: string) {
-  const phone = String(import.meta.env.VITE_WHATSAPP_ORDER_PHONE ?? "").replace(/\D/g, "");
-  const text = encodeURIComponent(message);
-  return phone ? `https://wa.me/${phone}?text=${text}` : `https://wa.me/?text=${text}`;
+  return whatsappUrl(message);
 }
 
 export async function createBackendWhatsAppOrder(args: {

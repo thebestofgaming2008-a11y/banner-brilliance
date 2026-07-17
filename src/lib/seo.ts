@@ -1,9 +1,8 @@
-export const SITE_URL = (import.meta.env.VITE_PUBLIC_SITE_URL || "https://example.com").replace(
-  /\/+$/,
-  "",
-);
+export const SITE_URL = (
+  import.meta.env.VITE_PUBLIC_SITE_URL || "https://fawzaanstore.pages.dev"
+).replace(/\/+$/, "");
 
-export const BRAND_NAME = import.meta.env.VITE_STORE_NAME || "Webshop";
+export const BRAND_NAME = import.meta.env.VITE_STORE_NAME || "Fawzaan";
 export const BRAND_SEARCH_NAME = BRAND_NAME;
 export const BRAND_ALTERNATE_NAMES = [BRAND_NAME];
 
@@ -12,7 +11,7 @@ export const DEFAULT_TITLE = `${BRAND_SEARCH_NAME} - Online Store`;
 export const DEFAULT_DESCRIPTION =
   "Shop products online with clear product details, customer accounts, order tracking and WhatsApp order support.";
 
-export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
+export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.jpg`;
 
 export function absoluteUrl(path = "/") {
   if (/^https?:\/\//i.test(path)) return path;

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SiteHeader } from "@/components/brand/SiteHeader";
-import { SiteFooter } from "@/components/brand/SiteFooter";
+import { StorePage } from "@/components/store/store-chrome";
+import { STORE_WHATSAPP_DISPLAY, whatsappUrl } from "@/lib/store-config";
 
 export const Route = createFileRoute("/terms")({
   head: () => ({
@@ -14,8 +14,7 @@ export const Route = createFileRoute("/terms")({
 
 function TermsPage() {
   return (
-    <div className="min-h-screen bg-ivory text-ink">
-      <SiteHeader />
+    <StorePage>
       <main className="mx-auto max-w-3xl px-5 md:px-8 py-16 md:py-24">
         <p className="eyebrow text-gold-deep mb-3">Legal</p>
         <h1 className="font-display text-4xl md:text-5xl mb-2">Terms & Conditions</h1>
@@ -43,17 +42,19 @@ function TermsPage() {
             <p>
               We strive to display product colours, sizes, and details as accurately as possible.
               Slight variations may occur due to monitor settings or the handmade nature of certain
-              items. Prices are listed in USD and are subject to change without notice. We reserve
-              the right to cancel any order if a pricing error has occurred.
+              items. Base prices are listed in INR; displayed currency conversions are estimates.
+              Prices may change without notice. We reserve the right to cancel and refund an order
+              if a pricing or stock error has occurred.
             </p>
           </section>
 
           <section>
             <h2 className="font-display text-2xl mt-8 mb-3">4. Orders & Payment</h2>
             <p>
-              All orders are subject to acceptance and availability. Payment is processed securely
-              via Razorpay. You agree to provide a valid payment method and authorise us to charge
-              the total amount including shipping and applicable taxes.
+              All orders are subject to acceptance and availability. India checkout payment is
+              processed through Razorpay. International orders are confirmed through WhatsApp,
+              including shipping and payment instructions, before they proceed. You agree to provide
+              accurate customer and delivery information.
             </p>
           </section>
 
@@ -111,16 +112,20 @@ function TermsPage() {
           <section>
             <h2 className="font-display text-2xl mt-8 mb-3">10. Contact</h2>
             <p>
-              Questions? Email{" "}
-              <a href="mailto:support@fawzaan.store" className="text-gold-deep underline">
-                support@fawzaan.store
+              Questions? Contact Fawzaan on{" "}
+              <a
+                href={whatsappUrl("Assalamu alaikum. I have a question about the Fawzaan terms.")}
+                target="_blank"
+                rel="noreferrer"
+                className="text-gold-deep underline"
+              >
+                WhatsApp at {STORE_WHATSAPP_DISPLAY}
               </a>
               .
             </p>
           </section>
         </div>
       </main>
-      <SiteFooter />
-    </div>
+    </StorePage>
   );
 }

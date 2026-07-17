@@ -1,6 +1,6 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
 
 import { api } from "../../convex/_generated/api";
 import { convex } from "@/lib/backend";
@@ -44,6 +44,7 @@ export type Account = {
   email: string;
   firstName: string;
   lastName: string;
+  marketingConsent: boolean;
   addresses: Address[];
   orders: Order[];
 };
@@ -53,13 +54,23 @@ type ContextValue = {
   isAuthenticated: boolean;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
+  signUp: (
+    email: string,
+    password: string,
+    firstName: string,
+    lastName: string,
+    marketingConsent?: boolean,
+  ) => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<void>;
+  resetPassword: (email: string, code: string, newPassword: string) => Promise<void>;
   signOut: () => Promise<void>;
+  setMarketingConsent: (consent: boolean) => Promise<void>;
   addAddress: (address: Omit<Address, "id">) => Promise<void>;
   removeAddress: (id: string) => Promise<void>;
 };
 
 const AccountContext = createContext<ContextValue | null>(null);
+const PENDING_PROFILE_KEY = "fawzaan.pendingProfile";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -136,6 +147,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         throw new Error("Customer accounts are not configured.");
       },
       signOut: async () => undefined,
+      requestPasswordReset: async () => {
+        throw new Error("Password reset is not configured.");
+      },
+      resetPassword: async () => {
+        throw new Error("Password reset is not configured.");
+      },
+      setMarketingConsent: async () => undefined,
       addAddress: async () => undefined,
       removeAddress: async () => undefined,
     };
@@ -151,8 +169,25 @@ function ConvexAccountProvider({ children }: { children: ReactNode }) {
   const addresses = useQuery(api.addresses.listMine, isAuthenticated ? {} : "skip");
   const orders = useQuery(api.orders.listMine, isAuthenticated ? {} : "skip");
   const ensureProfile = useMutation(api.users.ensureCurrentProfile);
+  const updateProfile = useMutation(api.users.updateProfile);
   const createAddress = useMutation(api.addresses.create);
   const deleteAddress = useMutation(api.addresses.remove);
+
+  useEffect(() => {
+    if (!isAuthenticated || typeof window === "undefined") return;
+    const pending = window.sessionStorage.getItem(PENDING_PROFILE_KEY);
+    if (!pending) return;
+    let details: { fullName?: string; marketingConsent?: boolean } = {};
+    try {
+      details = JSON.parse(pending) as typeof details;
+    } catch {
+      window.sessionStorage.removeItem(PENDING_PROFILE_KEY);
+      return;
+    }
+    void ensureProfile(details)
+      .then(() => window.sessionStorage.removeItem(PENDING_PROFILE_KEY))
+      .catch(() => undefined);
+  }, [ensureProfile, isAuthenticated]);
 
   const account = useMemo<Account | null>(() => {
     if (!isAuthenticated || !profile) return null;
@@ -164,6 +199,7 @@ function ConvexAccountProvider({ children }: { children: ReactNode }) {
       email: String(profile.email ?? ""),
       firstName: name[0] ?? "",
       lastName: name.slice(1).join(" "),
+      marketingConsent: Boolean(profile.marketing_consent),
       addresses: Array.isArray(addresses) ? addresses.map(mapAddress) : [],
       orders: Array.isArray(orders) ? orders.map(mapOrder) : [],
     };
@@ -184,15 +220,47 @@ function ConvexAccountProvider({ children }: { children: ReactNode }) {
           flow: "signIn",
         });
       },
-      signUp: async (email, password, firstName, lastName) => {
+      signUp: async (email, password, firstName, lastName, marketingConsent = false) => {
+        if (typeof window !== "undefined") {
+          window.sessionStorage.setItem(
+            PENDING_PROFILE_KEY,
+            JSON.stringify({
+              fullName: `${firstName} ${lastName}`.trim(),
+              marketingConsent,
+            }),
+          );
+        }
+        try {
+          await authSignIn("password", {
+            email: email.trim().toLowerCase(),
+            password,
+            flow: "signUp",
+          });
+        } catch (error) {
+          if (typeof window !== "undefined") {
+            window.sessionStorage.removeItem(PENDING_PROFILE_KEY);
+          }
+          throw error;
+        }
+      },
+      requestPasswordReset: async (email) => {
         await authSignIn("password", {
           email: email.trim().toLowerCase(),
-          password,
-          flow: "signUp",
+          flow: "reset",
         });
-        await ensureProfile({ fullName: `${firstName} ${lastName}`.trim() });
+      },
+      resetPassword: async (email, code, newPassword) => {
+        await authSignIn("password", {
+          email: email.trim().toLowerCase(),
+          code: code.trim(),
+          newPassword,
+          flow: "reset-verification",
+        });
       },
       signOut: async () => authSignOut(),
+      setMarketingConsent: async (consent) => {
+        await updateProfile({ marketing_consent: consent });
+      },
       addAddress: async (address) => {
         await createAddress({
           payload: {
@@ -221,10 +289,10 @@ function ConvexAccountProvider({ children }: { children: ReactNode }) {
       authSignOut,
       createAddress,
       deleteAddress,
-      ensureProfile,
       isAuthenticated,
       orders,
       profile,
+      updateProfile,
     ],
   );
 

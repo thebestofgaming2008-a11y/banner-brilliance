@@ -421,6 +421,7 @@ export interface AdminCustomer {
   email: string | null;
   full_name: string | null;
   phone: string | null;
+  marketing_consent?: boolean | null;
   total_orders: number | null;
   total_spent: number | null;
   created_at: string | null;
@@ -428,6 +429,80 @@ export interface AdminCustomer {
 
 export async function listAllCustomers(limit = 200): Promise<AdminCustomer[]> {
   return (await convex.query(api.users.listCustomers, { limit })) as AdminCustomer[];
+}
+
+export interface MarketingCampaignInput {
+  name: string;
+  subject: string;
+  preheader?: string | null;
+  body: string;
+  buttonLabel?: string | null;
+  buttonUrl?: string | null;
+}
+
+export interface MarketingCampaign {
+  id: string;
+  name: string;
+  subject: string;
+  preheader?: string | null;
+  body: string;
+  button_label?: string | null;
+  button_url?: string | null;
+  status: "draft" | "sending" | "sent" | "failed";
+  recipient_count: number;
+  sent_count: number;
+  failed_count: number;
+  error?: string | null;
+  created_at: string;
+  updated_at: string;
+  sent_at?: string | null;
+}
+
+export type MarketingConfiguration = {
+  ready: boolean;
+  hasApiKey: boolean;
+  hasSender: boolean;
+  hasPublicSiteUrl: boolean;
+  recipientCount: number;
+};
+
+export async function listMarketingCampaigns(): Promise<MarketingCampaign[]> {
+  return (await convex.query(api.marketing.listCampaigns, {})) as MarketingCampaign[];
+}
+
+export async function getMarketingConfiguration(): Promise<MarketingConfiguration> {
+  return (await convex.query(api.marketing.configuration, {})) as MarketingConfiguration;
+}
+
+export async function saveMarketingCampaign(
+  input: MarketingCampaignInput,
+  id?: string,
+): Promise<string> {
+  return String(
+    await convex.mutation(api.marketing.saveCampaign, {
+      ...input,
+      id: id ? (id as Id<"marketing_campaigns">) : undefined,
+    }),
+  );
+}
+
+export async function deleteMarketingDraft(id: string): Promise<boolean> {
+  return await convex.mutation(api.marketing.removeDraft, {
+    id: id as Id<"marketing_campaigns">,
+  });
+}
+
+export async function sendMarketingTest(
+  email: string,
+  input: MarketingCampaignInput,
+): Promise<{ sent: boolean }> {
+  return await convex.action(api.marketing.sendTest, { email, ...input });
+}
+
+export async function sendMarketingCampaign(id: string): Promise<{ sent: number }> {
+  return await convex.action(api.marketing.sendCampaign, {
+    id: id as Id<"marketing_campaigns">,
+  });
 }
 
 export interface AdminReview {

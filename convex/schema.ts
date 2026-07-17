@@ -24,7 +24,8 @@ export default defineSchema({
     updated_at: optionalString,
   })
     .index("by_user_id", ["userId"])
-    .index("by_email", ["email"]),
+    .index("by_email", ["email"])
+    .index("by_marketing_consent", ["marketing_consent"]),
   addresses: defineTable({
     user_id: v.string(),
     type: optionalString,
@@ -280,4 +281,23 @@ export default defineSchema({
   })
     .index("by_placement", ["placement"])
     .index("by_active", ["is_active"]),
+  marketing_campaigns: defineTable({
+    name: v.string(),
+    subject: v.string(),
+    preheader: optionalString,
+    body: v.string(),
+    button_label: optionalString,
+    button_url: optionalString,
+    status: v.string(),
+    recipient_count: v.number(),
+    sent_count: v.number(),
+    failed_count: v.number(),
+    error: optionalString,
+    created_by: optionalString,
+    created_at: v.string(),
+    updated_at: v.string(),
+    sent_at: optionalString,
+  })
+    .index("by_status", ["status"])
+    .index("by_created_at", ["created_at"]),
 });

@@ -15,6 +15,7 @@ import type * as catalog from "../catalog.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as lib from "../lib.js";
+import type * as marketing from "../marketing.js";
 import type * as media from "../media.js";
 import type * as orders from "../orders.js";
 import type * as products from "../products.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   http: typeof http;
   lib: typeof lib;
+  marketing: typeof marketing;
   media: typeof media;
   orders: typeof orders;
   products: typeof products;

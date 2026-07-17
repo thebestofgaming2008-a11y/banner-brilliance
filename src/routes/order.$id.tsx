@@ -121,8 +121,7 @@ function OrderLookup({ orderNumber, email }: { orderNumber: string; email: strin
 
   const trackedOrder = order as unknown as TrackedOrder;
   const address = trackedOrder.shipping_address ?? {};
-  const paid =
-    trackedOrder.payment_status === "paid" || trackedOrder.payment_status === "MOCKED_PAID";
+  const paid = trackedOrder.payment_status === "paid";
   return (
     <StorePage>
       <main className="mx-auto max-w-4xl px-[22px] py-10 md:px-8 md:py-16">

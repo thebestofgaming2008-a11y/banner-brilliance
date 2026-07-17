@@ -49,6 +49,7 @@ import {
   Store,
   Star,
   MessageSquare,
+  Mail,
   TrendingUp,
   RotateCcw,
   Menu,
@@ -78,6 +79,12 @@ import {
   removeCategory,
   listPaymentRecoveries,
   retryPaymentRecovery,
+  listMarketingCampaigns,
+  getMarketingConfiguration,
+  saveMarketingCampaign,
+  deleteMarketingDraft,
+  sendMarketingTest,
+  sendMarketingCampaign,
   type ProductInput,
   type AdminOrder,
   type AdminCustomer,
@@ -86,6 +93,9 @@ import {
   type ShippingRate,
   type StorefrontBanner,
   type PaymentRecovery,
+  type MarketingCampaign,
+  type MarketingCampaignInput,
+  type MarketingConfiguration,
 } from "@/services/adminService";
 import type { Product } from "@/services/productService";
 import { catalog as storefrontCatalog } from "@/lib/products";
@@ -168,6 +178,7 @@ const NAV = [
   { key: "inventory", label: "Inventory", Icon: Boxes },
   { key: "reviews", label: "Reviews", Icon: MessageSquare },
   { key: "customers", label: "Customers", Icon: Users },
+  { key: "marketing", label: "Email offers", Icon: Mail },
 ] as const;
 
 const PAGE_DESCRIPTIONS: Record<TabKey, string> = {
@@ -177,6 +188,7 @@ const PAGE_DESCRIPTIONS: Record<TabKey, string> = {
   inventory: "Keep stock accurate and find low-stock products.",
   reviews: "Approve or hide customer reviews.",
   customers: "View customer accounts and order activity.",
+  marketing: "Create and send offers to customers who opted in.",
 };
 
 type TabKey = (typeof NAV)[number]["key"];
@@ -228,9 +240,7 @@ function dateKey(date: Date) {
 }
 
 function buildDashboardAnalytics(orders: AdminOrder[], customers: AdminCustomer[], daysCount = 7) {
-  const paidOrders = orders.filter(
-    (o) => o.payment_status === "paid" || o.payment_status === "MOCKED_PAID",
-  );
+  const paidOrders = orders.filter((o) => o.payment_status === "paid");
   const days = Array.from({ length: daysCount }, (_, index) => {
     const d = new Date();
     d.setDate(d.getDate() - (daysCount - 1 - index));
@@ -299,6 +309,8 @@ const Admin = () => {
   const [reviews, setReviews] = useState<AdminReview[]>([]);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [paymentRecoveries, setPaymentRecoveries] = useState<PaymentRecovery[]>([]);
+  const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([]);
+  const [marketingConfig, setMarketingConfig] = useState<MarketingConfiguration | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Product | null>(null);
   const [creating, setCreating] = useState(false);
@@ -329,8 +341,10 @@ const Admin = () => {
       listAllReviews(200),
       listCategories(),
       listPaymentRecoveries(),
+      listMarketingCampaigns(),
+      getMarketingConfiguration(),
     ])
-      .then(([p, o, c, r, cats, recoveries]) => {
+      .then(([p, o, c, r, cats, recoveries, emailCampaigns, emailConfig]) => {
         if (cancelled) return;
         setProducts(p);
         setOrders(o);
@@ -338,6 +352,8 @@ const Admin = () => {
         setReviews(r);
         setCategories(cats);
         setPaymentRecoveries(recoveries);
+        setCampaigns(emailCampaigns);
+        setMarketingConfig(emailConfig);
         setLoading(false);
       })
       .catch((error) => {
@@ -358,6 +374,7 @@ const Admin = () => {
   const refreshOrders = async () => setOrders(await listAllOrders(200));
   const refreshReviews = async () => setReviews(await listAllReviews(200));
   const refreshPaymentRecoveries = async () => setPaymentRecoveries(await listPaymentRecoveries());
+  const refreshCampaigns = async () => setCampaigns(await listMarketingCampaigns());
 
   const setProductArchived = async (product: Product, archived: boolean) => {
     const saved = await updateProduct(product.id, { is_active: !archived });
@@ -520,9 +537,7 @@ const Admin = () => {
   );
 
   const stats = useMemo(() => {
-    const paid = orders.filter(
-      (o) => o.payment_status === "paid" || o.payment_status === "MOCKED_PAID",
-    );
+    const paid = orders.filter((o) => o.payment_status === "paid");
     const revenue = paid.reduce((s, o) => s + (o.total_inr ?? o.total ?? 0), 0);
     const today = new Date();
     const yesterday = new Date(today);
@@ -597,9 +612,7 @@ const Admin = () => {
   const deliveredOrders = orders.filter(
     (o) => normalizeOrderStatus(o.status) === "delivered",
   ).length;
-  const paidOrders = orders.filter(
-    (o) => o.payment_status === "paid" || o.payment_status === "MOCKED_PAID",
-  );
+  const paidOrders = orders.filter((o) => o.payment_status === "paid");
   const revenueTotal = paidOrders.reduce(
     (sum, order) => sum + (order.total_inr ?? order.total ?? 0),
     0,
@@ -623,7 +636,10 @@ const Admin = () => {
       label: "Commerce",
       items: NAV.filter((item) => ["orders", "products", "inventory"].includes(item.key)),
     },
-    { label: "People", items: NAV.filter((item) => ["customers", "reviews"].includes(item.key)) },
+    {
+      label: "People",
+      items: NAV.filter((item) => ["customers", "reviews", "marketing"].includes(item.key)),
+    },
   ];
   const navBadges: Partial<Record<TabKey, number>> = {
     orders: processingOrders.length + shippedMissingTracking.length + paymentRecoveries.length,
@@ -646,8 +662,13 @@ const Admin = () => {
       notify({ title: "Enter a valid admin email", variant: "destructive" });
       return;
     }
-    if (adminPassword.length < 6) {
-      notify({ title: "Password must be at least 6 characters", variant: "destructive" });
+    const minimumPasswordLength = authMode === "signUp" ? 8 : 6;
+    if (adminPassword.length < minimumPasswordLength) {
+      notify({
+        title:
+          authMode === "signUp" ? "Password must be at least 8 characters" : "Enter your password",
+        variant: "destructive",
+      });
       return;
     }
     setAuthSaving(true);
@@ -1256,6 +1277,29 @@ const Admin = () => {
               </Section>
             )}
 
+            {!loading && !adminLoadError && tab === "marketing" && (
+              <MarketingPanel
+                campaigns={campaigns}
+                customers={customers}
+                configuration={marketingConfig}
+                onSave={async (input, id) => {
+                  const savedId = await saveMarketingCampaign(input, id);
+                  await refreshCampaigns();
+                  return savedId;
+                }}
+                onDelete={async (id) => {
+                  await deleteMarketingDraft(id);
+                  await refreshCampaigns();
+                }}
+                onTest={sendMarketingTest}
+                onSend={async (id) => {
+                  const result = await sendMarketingCampaign(id);
+                  await refreshCampaigns();
+                  return result;
+                }}
+              />
+            )}
+
             {!loading && !adminLoadError && tab === "reviews" && (
               <Section
                 title="Reviews"
@@ -1346,7 +1390,10 @@ function AdminLogin({
       label: "Commerce",
       items: NAV.filter((item) => ["orders", "products", "inventory"].includes(item.key)),
     },
-    { label: "People", items: NAV.filter((item) => ["customers", "reviews"].includes(item.key)) },
+    {
+      label: "People",
+      items: NAV.filter((item) => ["customers", "reviews", "marketing"].includes(item.key)),
+    },
   ];
 
   return (
@@ -1899,8 +1946,7 @@ function StatusBadge({ status, testId }: { status: string | null | undefined; te
 }
 
 function PaymentBadge({ status, testId }: { status: string | null | undefined; testId: string }) {
-  const isPaid = status === "paid" || status === "MOCKED_PAID";
-  const isMock = status === "MOCKED_PAID";
+  const isPaid = status === "paid";
   return (
     <span
       data-testid={testId}
@@ -1912,7 +1958,7 @@ function PaymentBadge({ status, testId }: { status: string | null | undefined; t
       )}
     >
       <span className={cn("h-1.5 w-1.5 rounded-full", isPaid ? "bg-[#111827]" : "bg-[#9CA3AF]")} />
-      {isMock ? "Mock paid" : (status ?? "—")}
+      {status ?? "—"}
     </span>
   );
 }
@@ -2615,6 +2661,335 @@ function InventoryBadge({ health, testId }: { health: string; testId: string }) 
   );
 }
 
+const EMPTY_CAMPAIGN: MarketingCampaignInput = {
+  name: "",
+  subject: "",
+  preheader: "",
+  body: "",
+  buttonLabel: "Shop now",
+  buttonUrl: "https://fawzaanstore.pages.dev/shop",
+};
+
+function MarketingPanel({
+  campaigns,
+  customers,
+  configuration,
+  onSave,
+  onDelete,
+  onTest,
+  onSend,
+}: {
+  campaigns: MarketingCampaign[];
+  customers: AdminCustomer[];
+  configuration: MarketingConfiguration | null;
+  onSave: (input: MarketingCampaignInput, id?: string) => Promise<string>;
+  onDelete: (id: string) => Promise<void>;
+  onTest: (email: string, input: MarketingCampaignInput) => Promise<{ sent: boolean }>;
+  onSend: (id: string) => Promise<{ sent: number }>;
+}) {
+  const [draft, setDraft] = useState<MarketingCampaignInput>(EMPTY_CAMPAIGN);
+  const [campaignId, setCampaignId] = useState<string | undefined>();
+  const [testEmail, setTestEmail] = useState("");
+  const [busy, setBusy] = useState<"save" | "test" | "send" | null>(null);
+  const optedIn =
+    configuration?.recipientCount ??
+    customers.filter((customer) => customer.marketing_consent).length;
+
+  const selectCampaign = (campaign: MarketingCampaign) => {
+    setCampaignId(campaign.id);
+    setDraft({
+      name: campaign.name,
+      subject: campaign.subject,
+      preheader: campaign.preheader ?? "",
+      body: campaign.body,
+      buttonLabel: campaign.button_label ?? "",
+      buttonUrl: campaign.button_url ?? "",
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const resetDraft = () => {
+    setCampaignId(undefined);
+    setDraft(EMPTY_CAMPAIGN);
+  };
+
+  const save = async () => {
+    setBusy("save");
+    try {
+      const id = await onSave(draft, campaignId);
+      setCampaignId(id);
+      notify({ title: "Campaign draft saved" });
+    } catch (error) {
+      notify({
+        title: error instanceof Error ? error.message : "Could not save campaign",
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Section
+        title="Email offers"
+        subtitle={`${optedIn} customer account${optedIn === 1 ? "" : "s"} opted in`}
+        action={
+          <button
+            type="button"
+            onClick={resetDraft}
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#171717] px-3 text-xs font-medium text-white"
+          >
+            <Plus className="h-4 w-4" /> New campaign
+          </button>
+        }
+      >
+        {!configuration?.ready ? (
+          <div className="mb-5 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+            <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+            <div>
+              <p className="font-semibold">Email sending is not configured yet</p>
+              <p className="mt-1 text-xs leading-5 text-amber-900/75">
+                Drafts and previews work now. Sending unlocks after RESEND_API_KEY and a verified
+                MARKETING_FROM_EMAIL are added to Convex.
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)]">
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void save();
+            }}
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Internal campaign name"
+                value={draft.name}
+                onChange={(name) => setDraft((current) => ({ ...current, name }))}
+                placeholder="End of season sale"
+                required
+              />
+              <Field
+                label="Email subject"
+                value={draft.subject}
+                onChange={(subject) => setDraft((current) => ({ ...current, subject }))}
+                placeholder="A special offer from Fawzaan"
+                required
+              />
+            </div>
+            <Field
+              label="Preview text"
+              value={draft.preheader ?? ""}
+              onChange={(preheader) => setDraft((current) => ({ ...current, preheader }))}
+              placeholder="Shown beside the subject in the inbox"
+            />
+            <label className="block text-xs font-medium text-[rgb(var(--vibe-muted))]">
+              Message
+              <textarea
+                value={draft.body}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, body: event.target.value }))
+                }
+                rows={8}
+                required
+                placeholder="Tell customers about the offer. Keep it short and clear."
+                className="mt-1.5 w-full rounded-lg border border-[rgb(var(--vibe-border))] bg-white px-3 py-2.5 text-sm leading-6 text-[rgb(var(--vibe-foreground))] outline-none transition-colors focus:border-[#171717]"
+              />
+            </label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Button text (optional)"
+                value={draft.buttonLabel ?? ""}
+                onChange={(buttonLabel) => setDraft((current) => ({ ...current, buttonLabel }))}
+                placeholder="Shop now"
+              />
+              <Field
+                label="Button link (optional)"
+                value={draft.buttonUrl ?? ""}
+                onChange={(buttonUrl) => setDraft((current) => ({ ...current, buttonUrl }))}
+                placeholder="https://yourstore.com/shop"
+                inputMode="url"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="submit"
+                disabled={busy !== null}
+                className="h-10 rounded-lg bg-[#171717] px-4 text-xs font-medium text-white disabled:opacity-50"
+              >
+                {busy === "save" ? "Saving..." : "Save draft"}
+              </button>
+              <div className="flex min-w-[260px] flex-1 gap-2 sm:max-w-md">
+                <input
+                  type="email"
+                  value={testEmail}
+                  onChange={(event) => setTestEmail(event.target.value)}
+                  placeholder="Test recipient email"
+                  aria-label="Test recipient email"
+                  className="h-10 min-w-0 flex-1 rounded-lg border border-[rgb(var(--vibe-border))] px-3 text-sm outline-none focus:border-[#171717]"
+                />
+                <button
+                  type="button"
+                  disabled={!configuration?.ready || busy !== null || !testEmail.includes("@")}
+                  onClick={async () => {
+                    setBusy("test");
+                    try {
+                      await onTest(testEmail, draft);
+                      notify({ title: "Test email sent", description: testEmail });
+                    } catch (error) {
+                      notify({
+                        title: error instanceof Error ? error.message : "Could not send test",
+                        variant: "destructive",
+                      });
+                    } finally {
+                      setBusy(null);
+                    }
+                  }}
+                  className="h-10 rounded-lg border border-[rgb(var(--vibe-border))] bg-white px-3 text-xs font-medium disabled:opacity-40"
+                >
+                  {busy === "test" ? "Sending..." : "Send test"}
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <div className="overflow-hidden rounded-lg border border-[rgb(var(--vibe-border))] bg-[#f6f6f4] p-4">
+            <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.14em] text-[rgb(var(--vibe-muted))]">
+              Customer preview
+            </p>
+            <div className="border-t-[5px] border-[#f4b400] bg-white p-6 shadow-sm">
+              <p className="text-center font-serif text-2xl">Fawzaan</p>
+              <h3 className="mt-8 font-serif text-2xl leading-tight">
+                {draft.subject || "Your email subject"}
+              </h3>
+              <div className="mt-5 whitespace-pre-wrap text-sm leading-6 text-[#454545]">
+                {draft.body || "Your offer message will appear here."}
+              </div>
+              {draft.buttonLabel && draft.buttonUrl ? (
+                <span className="mt-6 inline-flex bg-[#f4b400] px-5 py-3 text-[11px] font-bold uppercase">
+                  {draft.buttonLabel}
+                </span>
+              ) : null}
+              <p className="mt-8 border-t border-black/10 pt-4 text-[10px] leading-4 text-black/45">
+                Every customer email includes an unsubscribe link.
+              </p>
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Campaign history" subtitle="Sent campaigns stay here for a clear audit trail">
+        {campaigns.length ? (
+          <div className="divide-y divide-[rgb(var(--vibe-border))] overflow-hidden rounded-lg border border-[rgb(var(--vibe-border))] bg-white">
+            {campaigns.map((campaign) => (
+              <div
+                key={campaign.id}
+                className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-sm font-semibold">{campaign.name}</p>
+                    <span
+                      className={cn(
+                        "rounded px-2 py-0.5 text-[10px] font-medium uppercase",
+                        campaign.status === "sent"
+                          ? "bg-emerald-50 text-emerald-700"
+                          : campaign.status === "failed"
+                            ? "bg-red-50 text-red-700"
+                            : campaign.status === "sending"
+                              ? "bg-blue-50 text-blue-700"
+                              : "bg-[rgb(var(--vibe-soft))] text-[rgb(var(--vibe-muted))]",
+                      )}
+                    >
+                      {campaign.status}
+                    </span>
+                  </div>
+                  <p className="mt-1 truncate text-xs text-[rgb(var(--vibe-muted))]">
+                    {campaign.subject}
+                  </p>
+                  <p className="mt-1 text-[11px] text-[rgb(var(--vibe-muted))]">
+                    {campaign.status === "sent"
+                      ? `${campaign.sent_count} sent`
+                      : campaign.status === "failed"
+                        ? `${campaign.sent_count} sent · ${campaign.failed_count} failed`
+                        : new Date(campaign.created_at).toLocaleString()}
+                  </p>
+                  {campaign.error ? (
+                    <p className="mt-2 text-xs text-red-700">{campaign.error}</p>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {campaign.status !== "sent" && campaign.status !== "sending" ? (
+                    <button
+                      type="button"
+                      onClick={() => selectCampaign(campaign)}
+                      className="h-9 rounded-lg border border-[rgb(var(--vibe-border))] px-3 text-xs font-medium"
+                    >
+                      Edit
+                    </button>
+                  ) : null}
+                  {campaign.status === "draft" ||
+                  (campaign.status === "failed" && campaign.sent_count === 0) ? (
+                    <button
+                      type="button"
+                      disabled={!configuration?.ready || optedIn === 0 || busy !== null}
+                      onClick={async () => {
+                        if (
+                          !confirm(
+                            `Send "${campaign.name}" to ${optedIn} opted-in customer${optedIn === 1 ? "" : "s"}?`,
+                          )
+                        )
+                          return;
+                        setBusy("send");
+                        try {
+                          const result = await onSend(campaign.id);
+                          notify({ title: "Campaign sent", description: `${result.sent} emails` });
+                        } catch (error) {
+                          notify({
+                            title:
+                              error instanceof Error ? error.message : "Campaign could not be sent",
+                            variant: "destructive",
+                          });
+                        } finally {
+                          setBusy(null);
+                        }
+                      }}
+                      className="h-9 rounded-lg bg-[#f4b400] px-3 text-xs font-semibold disabled:opacity-40"
+                    >
+                      {busy === "send" ? "Sending..." : `Send to ${optedIn}`}
+                    </button>
+                  ) : null}
+                  {campaign.status === "draft" ? (
+                    <button
+                      type="button"
+                      aria-label={`Delete ${campaign.name}`}
+                      onClick={async () => {
+                        if (!confirm(`Delete draft "${campaign.name}"?`)) return;
+                        await onDelete(campaign.id);
+                        if (campaignId === campaign.id) resetDraft();
+                        notify({ title: "Campaign draft deleted" });
+                      }}
+                      className="grid h-9 w-9 place-items-center rounded-lg border border-red-200 text-red-600"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-[rgb(var(--vibe-muted))]">No campaigns yet.</p>
+        )}
+      </Section>
+    </div>
+  );
+}
+
 function CustomersTable({ rows }: { rows: AdminCustomer[] }) {
   if (rows.length === 0) return <p className="text-sm text-foreground/60">No customers yet.</p>;
   return (
@@ -2627,6 +3002,7 @@ function CustomersTable({ rows }: { rows: AdminCustomer[] }) {
             <th className="font-medium py-2 px-2">Phone</th>
             <th className="font-medium py-2 px-2">Orders</th>
             <th className="font-medium py-2 px-2">Spent</th>
+            <th className="font-medium py-2 px-2">Offers</th>
             <th className="font-medium py-2 px-2">Joined</th>
           </tr>
         </thead>
@@ -2638,6 +3014,9 @@ function CustomersTable({ rows }: { rows: AdminCustomer[] }) {
               <td className="py-3 px-2 text-foreground/70">{r.phone ?? "—"}</td>
               <td className="py-3 px-2">{r.total_orders ?? 0}</td>
               <td className="py-3 px-2">{formatPrice(r.total_spent ?? 0)}</td>
+              <td className="py-3 px-2 text-foreground/70">
+                {r.marketing_consent ? "Opted in" : "Not subscribed"}
+              </td>
               <td className="py-3 px-2 text-foreground/70">
                 {r.created_at ? new Date(r.created_at).toLocaleDateString() : "—"}
               </td>

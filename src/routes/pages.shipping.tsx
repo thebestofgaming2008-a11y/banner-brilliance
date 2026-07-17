@@ -20,8 +20,8 @@ function ShippingPage() {
             "Tracked delivery is available for every order. Delivery estimates begin once your parcel has been collected by the carrier.",
           ],
           bullets: [
-            "Pakistan: typically 2-5 business days",
-            "International: typically 7-14 business days",
+            "India: shipping is included in the displayed product price",
+            "International: cost and delivery timing are confirmed through WhatsApp",
             "Tracking details are sent after dispatch",
           ],
         },

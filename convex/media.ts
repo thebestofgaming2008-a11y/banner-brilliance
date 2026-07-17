@@ -49,7 +49,10 @@ export const createProductMediaUpload = action({
       throw new Error("Product media must be 25 MB or smaller.");
     }
 
-    const siteUrl = (process.env.PUBLIC_SITE_URL || "https://example.com").replace(/\/+$/, "");
+    const siteUrl = (process.env.PUBLIC_SITE_URL || "https://fawzaanstore.pages.dev").replace(
+      /\/+$/,
+      "",
+    );
     return {
       uploadUrl: `${siteUrl}/api/media/upload`,
       method: "POST",

@@ -78,6 +78,12 @@ test("shop product cart and checkout path uses the live product", async ({ page 
   await expect(
     page.locator('[data-testid="related-products-section"] article.store-product-card'),
   ).toHaveCount(Math.min(4, Math.max(0, products.length - 1)));
+  const firstRecommendation = page
+    .locator('[data-testid="related-products-section"] article.store-product-card')
+    .first();
+  await expect(firstRecommendation).toBeVisible();
+  await expect(firstRecommendation.locator("img")).toBeVisible();
+  await expect(firstRecommendation.locator("h3")).not.toBeEmpty();
   await page.getByRole("button", { name: "Add to cart" }).last().click();
   await page.goto("/cart");
   await expect(page.getByRole("article").getByText(product!.name, { exact: true })).toBeVisible();
@@ -121,6 +127,15 @@ test("account, tracking lookup, and admin entry render", async ({ page }) => {
   await page.goto("/account");
   await expect(page.getByRole("heading", { name: "SIGN IN" })).toBeVisible();
   await expect(page.getByLabel("Password")).toBeVisible();
+  await page.getByRole("button", { name: "Forgot password?" }).click();
+  await expect(page.getByRole("heading", { name: "RESET PASSWORD" })).toBeVisible();
+  await page.getByRole("button", { name: "Back to sign in" }).click();
+  await page.getByRole("button", { name: "New here? Create an account" }).click();
+  await expect(page.getByRole("heading", { name: "CREATE ACCOUNT" })).toBeVisible();
+  await expect(page.getByText(/Email me occasional sales/)).toBeVisible();
+
+  await page.goto("/wishlist");
+  await expect(page.getByRole("heading", { name: "Sign in to use your wishlist" })).toBeVisible();
 
   await page.goto("/order/FZ-TEST");
   await expect(page.getByRole("heading", { name: "TRACK FZ-TEST" })).toBeVisible();
@@ -131,6 +146,31 @@ test("account, tracking lookup, and admin entry render", async ({ page }) => {
   await expect(page.getByText("Product placement", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Shipping", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Settings", { exact: true })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("support and policy pages match the live checkout model", async ({ page }) => {
+  const errors = watchPageErrors(page);
+  const routes: Array<[string, RegExp]> = [
+    ["/about", /MODEST ESSENTIALS, CLEARLY CHOSEN/i],
+    ["/faq", /QUESTIONS AND ANSWERS/i],
+    ["/pages/shipping", /^SHIPPING$/i],
+    ["/pages/returns", /^RETURNS$/i],
+    ["/pages/privacy", /^PRIVACY$/i],
+    ["/pages/contact", /CONTACT US/i],
+    ["/terms", /Terms & Conditions/i],
+    ["/unsubscribe", /STOP OFFER EMAILS/i],
+  ];
+
+  for (const [route, heading] of routes) {
+    await page.goto(route);
+    await expect(page.getByRole("heading", { name: heading }).first()).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+    ).toBeTruthy();
+  }
+  await page.goto("/pages/contact");
+  await expect(page.getByText("+91 91529 99764")).toBeVisible();
   expect(errors).toEqual([]);
 });
 

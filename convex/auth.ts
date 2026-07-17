@@ -5,7 +5,7 @@ import { Password } from "@convex-dev/auth/providers/Password";
 const resetEmailProvider = Email({
   id: "password-reset",
   name: "Password reset",
-  from: process.env.AUTH_EMAIL_FROM ?? "Webshop <no-reply@example.com>",
+  from: process.env.AUTH_EMAIL_FROM ?? "Fawzaan <no-reply@invalid.local>",
   maxAge: 30 * 60,
   generateVerificationToken() {
     const values = new Uint32Array(1);
@@ -14,10 +14,10 @@ const resetEmailProvider = Email({
   },
   async sendVerificationRequest({ identifier, token }) {
     const apiKey = process.env.RESEND_API_KEY ?? process.env.AUTH_RESEND_KEY;
-    const from = process.env.AUTH_EMAIL_FROM ?? "Webshop <no-reply@example.com>";
-    if (!apiKey) {
+    const from = process.env.AUTH_EMAIL_FROM;
+    if (!apiKey || !from) {
       throw new Error(
-        "Password reset email is not configured. Add RESEND_API_KEY or AUTH_RESEND_KEY in Convex environment variables.",
+        "Password reset email is not configured. Add RESEND_API_KEY and AUTH_EMAIL_FROM in Convex environment variables.",
       );
     }
     const response = await fetch("https://api.resend.com/emails", {
@@ -60,8 +60,8 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         };
       },
       validatePasswordRequirements(password) {
-        if (password.length < 6) {
-          throw new Error("Password must be at least 6 characters.");
+        if (password.length < 8) {
+          throw new Error("Password must be at least 8 characters.");
         }
       },
     }),

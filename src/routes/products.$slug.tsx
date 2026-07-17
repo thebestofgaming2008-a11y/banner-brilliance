@@ -1,5 +1,5 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { Check, Minus, Plus, Star } from "lucide-react";
+import { Check, Heart, Minus, Plus, Star } from "lucide-react";
 import { useQuery } from "convex/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import { toStoreProduct, useStoreProducts } from "@/data/store";
 import { useCurrency } from "@/hooks/use-currency";
 import { convex } from "@/lib/backend";
 import { useCart } from "@/lib/cart";
+import { useWishlist } from "@/lib/wishlist";
 import type { Product } from "@/lib/products";
 import { getProductBySlug } from "@/services/productService";
 
@@ -38,12 +39,14 @@ function ProductPage() {
   const product = toStoreProduct(catalogProduct);
   const { products } = useStoreProducts();
   const { add, isReady: isCartReady } = useCart();
+  const wishlist = useWishlist();
   const { formatPrice } = useCurrency();
   const [quantity, setQuantity] = useState(1);
   const [selected, setSelected] = useState<Record<string, string>>(() =>
     Object.fromEntries((product.optionGroups ?? []).map((group) => [group.name, group.values[0]])),
   );
   const [added, setAdded] = useState(false);
+  const wished = wishlist.has(product.slug);
 
   const related = useMemo(() => {
     const currentTags = new Set(product.filterTags ?? []);
@@ -210,6 +213,24 @@ function ProductPage() {
               {product.inStock === false ? "Out of stock" : added ? "Added to cart" : "Add to cart"}
             </button>
           </div>
+          <button
+            type="button"
+            aria-pressed={wished}
+            onClick={async () => {
+              try {
+                await wishlist.toggle(product.slug);
+                toast(wished ? "Removed from wishlist" : "Saved to wishlist");
+              } catch (error) {
+                toast.error(
+                  error instanceof Error ? error.message : "Could not update your wishlist.",
+                );
+              }
+            }}
+            className="mt-3 flex h-11 w-full items-center justify-center gap-2 border border-black/20 text-[11px] font-bold uppercase"
+          >
+            <Heart size={15} fill={wished ? "currentColor" : "none"} />
+            {wished ? "Saved to wishlist" : "Save to wishlist"}
+          </button>
           {product.details?.length ? (
             <div className="mt-8 divide-y divide-black/10 border-y border-black/10">
               {product.details.map((detail) => (

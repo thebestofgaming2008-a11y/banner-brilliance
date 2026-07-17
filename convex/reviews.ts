@@ -54,9 +54,7 @@ async function hasVerifiedPurchase(
         )
         .collect()
     : [];
-  const orders = [...byUser, ...byEmail].filter(
-    (order: any) => order.payment_status === "paid" || order.payment_status === "MOCKED_PAID",
-  );
+  const orders = [...byUser, ...byEmail].filter((order: any) => order.payment_status === "paid");
   for (const order of orders) {
     const items = await ctx.db
       .query("order_items")
@@ -178,8 +176,7 @@ export const submitForOrder = mutation({
       .first();
     if (!order || cleanEmail(order.customer_email) !== email)
       throw new Error("Order not found for this email.");
-    if (!(order.payment_status === "paid" || order.payment_status === "MOCKED_PAID"))
-      throw new Error("Only paid orders can be reviewed.");
+    if (order.payment_status !== "paid") throw new Error("Only paid orders can be reviewed.");
     const items = await ctx.db
       .query("order_items")
       .withIndex("by_order_id", (q: any) => q.eq("order_id", order._id))

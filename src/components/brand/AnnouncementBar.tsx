@@ -1,8 +1,8 @@
 const messages = [
-  "Free worldwide shipping over $75",
-  "Dispatched within 24h from our atelier",
-  "30-day easy returns · Secure checkout",
-  "New: Winter weave Shemaghs — limited run",
+  "India shipping included in product prices",
+  "International orders confirmed on WhatsApp",
+  "Secure Razorpay checkout for India",
+  "Customer accounts, wishlists, and order tracking",
 ];
 
 export function AnnouncementBar() {
@@ -10,10 +10,10 @@ export function AnnouncementBar() {
   return (
     <div className="bg-ink text-ivory overflow-hidden border-b border-white/10">
       <div className="flex whitespace-nowrap animate-marquee py-2">
-        {loop.map((m, i) => (
-          <span key={i} className="eyebrow px-6 text-ivory/90">
-            <span className="text-gold mr-2">✦</span>
-            {m}
+        {loop.map((message, index) => (
+          <span key={`${message}-${index}`} className="eyebrow px-6 text-ivory/90">
+            <span className="text-gold mr-2">*</span>
+            {message}
           </span>
         ))}
       </div>
