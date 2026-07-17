@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -11,6 +12,13 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
+import { Toaster } from "sonner";
+import { AccountProvider } from "@/lib/account";
+import { convex } from "@/lib/backend";
+import { CartProvider } from "@/lib/cart";
+import { CurrencyProvider } from "@/lib/currency";
+import { WishlistProvider } from "@/lib/wishlist";
 
 function NotFoundComponent() {
   return (
@@ -77,24 +85,27 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Al-Ikhwaan & As-Salihaat Collections" },
+      { title: "Fawzaan | Premium Modest Essentials" },
       {
         name: "description",
         content:
-          "Discover the Al-Ikhwaan shemagh and As-Salihaat niqab collections — modest, refined essentials.",
+          "Discover Fawzaan shemaghs, niqabs, kufis, gloves, and Kashmir honey: modest essentials selected for quality and everyday use.",
       },
-      { property: "og:title", content: "Al-Ikhwaan & As-Salihaat Collections" },
+      { property: "og:title", content: "Fawzaan | Premium Modest Essentials" },
       {
         property: "og:description",
-        content:
-          "Discover the Al-Ikhwaan shemagh and As-Salihaat niqab collections — modest, refined essentials.",
+        content: "Premium shemaghs, niqabs, kufis, gloves, and Kashmir honey from Fawzaan.",
       },
       { property: "og:type", content: "website" },
+      { property: "og:site_name", content: "Fawzaan" },
+      { property: "og:url", content: "https://fawzaanstore.pages.dev" },
+      { property: "og:image", content: "https://fawzaanstore.pages.dev/og-image.jpg" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "canonical", href: "https://fawzaanstore.pages.dev" },
+      { rel: "icon", href: "/fawzaan-logo.svg", type: "image/svg+xml" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
@@ -125,11 +136,25 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const isAdminRoute = pathname.startsWith("/admin");
 
-  return (
+  const app = (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <CurrencyProvider>
+        <AccountProvider>
+          <WishlistProvider>
+            <CartProvider>
+              <Outlet />
+              {!isAdminRoute ? (
+                <Toaster position="bottom-center" theme="light" richColors closeButton />
+              ) : null}
+            </CartProvider>
+          </WishlistProvider>
+        </AccountProvider>
+      </CurrencyProvider>
     </QueryClientProvider>
   );
+
+  return convex ? <ConvexAuthProvider client={convex}>{app}</ConvexAuthProvider> : app;
 }

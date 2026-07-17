@@ -1,0 +1,12 @@
+<svg width="640" height="180" viewBox="0 0 640 180" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title">
+  <title id="title">Fawzaan</title>
+  <rect width="640" height="180" fill="transparent"/>
+  <path d="M76 126V54H130V67H92V84H126V97H92V126H76Z" fill="#0D0D0D"/>
+  <path d="M137 126L167 54H184L214 126H197L191 111H160L154 126H137ZM165 98H186L176 72H175L165 98Z" fill="#0D0D0D"/>
+  <path d="M232 126L213 54H230L241 102H242L256 54H271L285 102H286L297 54H314L295 126H278L264 80H263L249 126H232Z" fill="#0D0D0D"/>
+  <path d="M319 126V115L360 67H321V54H382V65L341 113H384V126H319Z" fill="#0D0D0D"/>
+  <path d="M391 126L421 54H438L468 126H451L445 111H414L408 126H391ZM419 98H440L430 72H429L419 98Z" fill="#0D0D0D"/>
+  <path d="M478 126V54H493L527 99H528V54H544V126H529L495 81H494V126H478Z" fill="#0D0D0D"/>
+  <path d="M170 149H470" stroke="#C49A3A" stroke-width="3" stroke-linecap="round"/>
+  <path d="M296 32C303 22 314 17 320 17C326 17 337 22 344 32" stroke="#C49A3A" stroke-width="3" stroke-linecap="round"/>
+</svg>

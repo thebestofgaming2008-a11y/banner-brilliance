@@ -1,0 +1,12 @@
+name = "fawzaanstore"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-07-03"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+SITE_URL = "https://fawzaanstore.pages.dev"
+PUBLIC_SITE_URL = "https://fawzaanstore.pages.dev"
+
+[[r2_buckets]]
+bucket_name = "fawzaanstore-product-media"
+binding = "PRODUCT_MEDIA_BUCKET"
