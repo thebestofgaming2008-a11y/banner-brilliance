@@ -306,6 +306,47 @@ function useScrollReveal() {
   }, []);
 }
 
+function useHashScroll() {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const sectionHashes = new Set(["#honey", "#essentials", "#bestsellers"]);
+
+    const revealVisibleChildren = (target: HTMLElement) => {
+      target.querySelectorAll<HTMLElement>("[data-reveal]").forEach((item) => {
+        item.classList.add("is-visible");
+      });
+    };
+
+    const scrollToCurrentHash = () => {
+      const hash = window.location.hash;
+      if (!sectionHashes.has(hash)) return false;
+
+      const target = document.querySelector<HTMLElement>(hash);
+      if (!target) return false;
+
+      revealVisibleChildren(target);
+      target.scrollIntoView({ block: "start", behavior: "auto" });
+      return true;
+    };
+
+    const scrollToHash = () => {
+      if (!sectionHashes.has(window.location.hash)) return;
+
+      window.requestAnimationFrame(scrollToCurrentHash);
+      const timers = [120, 420, 900].map((delay) => window.setTimeout(scrollToCurrentHash, delay));
+      return () => timers.forEach((timer) => window.clearTimeout(timer));
+    };
+
+    const clearScheduledScroll = scrollToHash();
+    window.addEventListener("hashchange", scrollToHash);
+    return () => {
+      clearScheduledScroll?.();
+      window.removeEventListener("hashchange", scrollToHash);
+    };
+  }, []);
+}
+
 function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [openDrawer, setOpenDrawer] = useState<"menu" | "cart" | null>(null);
@@ -1185,10 +1226,10 @@ function HoneyFeature() {
       <div className="mx-auto max-w-[1180px]">
         <a
           href="/shop?collection=Honey"
-          className="collection-banner relative block overflow-hidden bg-black text-white"
+          className="collection-banner relative block min-h-[420px] overflow-hidden bg-black text-white md:min-h-[520px]"
           data-reveal
         >
-          <div className="aspect-[16/12] md:aspect-[16/7]">
+          <div className="absolute inset-0">
             <img
               src={honeyMulti}
               alt=""
@@ -1207,7 +1248,7 @@ function HoneyFeature() {
           </div>
         </a>
 
-        <div className="mt-10 grid grid-cols-2 gap-x-2 gap-y-10 md:grid-cols-3 md:gap-x-4">
+        <div className="mt-10 grid min-h-[360px] grid-cols-2 gap-x-2 gap-y-10 md:grid-cols-3 md:gap-x-4">
           {honeyProducts.map((product) => (
             <ProductTile key={product.slug} product={product} />
           ))}
@@ -1292,6 +1333,7 @@ function Footer() {
 
 function Index() {
   useScrollReveal();
+  useHashScroll();
 
   return (
     <main className="min-h-screen bg-white font-sans-ui text-black antialiased">
