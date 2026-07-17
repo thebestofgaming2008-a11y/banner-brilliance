@@ -862,19 +862,68 @@ export const assignBookSubjects = mutation({
 });
 
 export const deleteProduct = mutation({
-  args: { id: v.string() },
+  args: { id: v.id("products") },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const current = (await ctx.db.get(args.id as any)) as any;
-    await ctx.db.delete(args.id as any);
+    const current = await ctx.db.get(args.id);
+    if (!current) {
+      return { deleted: false, wishlistItems: 0, reviews: 0, linkedProducts: 0 };
+    }
+
+    const productId = String(args.id);
+    const wishlistItems = await ctx.db
+      .query("wishlist_items")
+      .withIndex("by_product_id", (q) => q.eq("product_id", productId))
+      .collect();
+    const reviews = await ctx.db
+      .query("reviews")
+      .withIndex("by_product_id", (q) => q.eq("product_id", productId))
+      .collect();
+    const products = await ctx.db.query("products").collect();
+    let linkedProducts = 0;
+    const timestamp = nowIso();
+
+    for (const item of wishlistItems) await ctx.db.delete(item._id);
+    for (const review of reviews) await ctx.db.delete(review._id);
+    for (const product of products) {
+      if (product._id === args.id) continue;
+      const patch: Record<string, string[] | string> = { updated_at: timestamp };
+      let changed = false;
+      for (const field of [
+        "linked_product_ids",
+        "cross_sell_product_ids",
+        "upsell_product_ids",
+      ] as const) {
+        const values = Array.isArray(product[field]) ? product[field] : [];
+        const next = values.filter((id) => id !== productId);
+        if (next.length === values.length) continue;
+        patch[field] = next;
+        changed = true;
+      }
+      if (!changed) continue;
+      await ctx.db.patch(product._id, patch);
+      linkedProducts += 1;
+    }
+
+    await ctx.db.delete(args.id);
     await writeAuditLog(ctx, {
       action: "product.delete",
       entityType: "product",
-      entityId: args.id,
-      summary: current?.name ?? null,
-      metadata: { slug: current?.slug ?? null },
+      entityId: productId,
+      summary: current.name,
+      metadata: {
+        slug: current.slug ?? null,
+        wishlistItems: wishlistItems.length,
+        reviews: reviews.length,
+        linkedProducts,
+      },
     });
-    return true;
+    return {
+      deleted: true,
+      wishlistItems: wishlistItems.length,
+      reviews: reviews.length,
+      linkedProducts,
+    };
   },
 });
 

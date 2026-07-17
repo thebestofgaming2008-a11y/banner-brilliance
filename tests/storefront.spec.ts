@@ -17,6 +17,8 @@ test("home and live catalog render without browser errors", async ({ page }) => 
   const catalogResponse = await page.request.get("/api/catalog/products");
   expect(catalogResponse.ok()).toBeTruthy();
   const catalog = (await catalogResponse.json()) as Array<{
+    name: string;
+    slug: string;
     category_id?: string;
     tags?: string[];
   }>;
@@ -49,7 +51,7 @@ test("home and live catalog render without browser errors", async ({ page }) => 
     );
     await page.getByRole("tab", { name: "All", exact: true }).click();
   }
-  await expect(page.getByText("Yemeni Shemagh", { exact: true }).first()).toBeVisible();
+  await expect(page.locator("#shop-all a.product-card").first()).toBeVisible();
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
   ).toBeTruthy();
@@ -63,21 +65,18 @@ test("shop product cart and checkout path uses the live product", async ({ page 
     .toBeTruthy();
   const catalogResponse = await page.request.get("/api/catalog/products");
   expect(catalogResponse.ok()).toBeTruthy();
-  const products = (await catalogResponse.json()) as Array<{ slug: string }>;
+  const products = (await catalogResponse.json()) as Array<{ name: string; slug: string }>;
+  const product = products.find((item) => item.slug && item.name);
+  expect(product).toBeTruthy();
   await page.goto("/shop");
   await expect(page.getByText(/^\d+ products$/).first()).toBeVisible();
-  await page
-    .getByRole("link", { name: /Yemeni Shemagh/i })
-    .first()
-    .click();
-  await expect(page).toHaveURL(/\/products\/yemeni-shemagh$/);
-  await expect(page.getByRole("heading", { name: "Yemeni Shemagh", exact: true })).toBeVisible();
+  await page.locator(`a[href="/products/${product!.slug}"]`).first().click();
+  await expect(page).toHaveURL(new RegExp(`/products/${product!.slug}$`));
+  await expect(page.getByRole("heading", { name: product!.name, exact: true })).toBeVisible();
   await expect(page.locator("main img, section img").first()).toBeVisible();
   await page.getByRole("button", { name: "Add to cart" }).last().click();
   await page.goto("/cart");
-  await expect(
-    page.getByRole("article").getByText("Yemeni Shemagh", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole("article").getByText(product!.name, { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Proceed to checkout" }).click();
   await expect(page).toHaveURL(/\/checkout$/);
   await expect(page.getByRole("heading", { name: "Delivery details" })).toBeVisible();

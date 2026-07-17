@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useEffect, useMemo, useState } from "react";
+import Cropper, { type Area as CropArea } from "react-easy-crop";
+import "react-easy-crop/react-easy-crop.css";
 import {
   Area,
   AreaChart,
@@ -53,6 +55,9 @@ import {
   Home,
   CircleAlert,
   ChevronRight,
+  Crop,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -376,12 +381,18 @@ const Admin = () => {
       )
     )
       return;
-    if (!(await deleteProduct(product.id))) {
+    const result = await deleteProduct(product.id);
+    if (!result.deleted) {
       notify({ title: "Could not delete product", variant: "destructive" });
+      await refreshProducts();
       return;
     }
+    setProducts((current) => current.filter((item) => item.id !== product.id));
     await refreshPublicCatalog(product);
-    notify({ title: "Product permanently deleted" });
+    notify({
+      title: "Product permanently deleted",
+      description: "The product and its saved customer references were removed.",
+    });
     await refreshProducts();
   };
 
@@ -3571,8 +3582,53 @@ function cleanImageUrl(value: string | null | undefined) {
   return raw.split("#")[0] || null;
 }
 
+async function croppedImageFile(src: string, crop: CropArea, fileStem: string) {
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const next = new Image();
+    next.crossOrigin = "anonymous";
+    next.onload = () => resolve(next);
+    next.onerror = () =>
+      reject(
+        new Error(
+          "This image host does not allow editing. Download the image and upload it again to crop it.",
+        ),
+      );
+    next.src = src;
+  });
+  const maxOutputEdge = 1800;
+  const scale = Math.min(1, maxOutputEdge / Math.max(crop.width, crop.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(crop.width * scale));
+  canvas.height = Math.max(1, Math.round(crop.height * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Image editing is not supported in this browser.");
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.drawImage(
+    image,
+    crop.x,
+    crop.y,
+    crop.width,
+    crop.height,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  );
+  const blob = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob(
+      (result) => (result ? resolve(result) : reject(new Error("Could not create the crop."))),
+      "image/webp",
+      0.9,
+    ),
+  );
+  const safeStem = normalizeTaxonomySlug(fileStem) || "product";
+  return new File([blob], `${safeStem}-crop-${Date.now()}.webp`, { type: "image/webp" });
+}
+
 function fallbackImagesForProduct(product: Partial<Pick<Product, "slug" | "name">>) {
-  const slug = String(product.slug ?? "").toLowerCase();
+  const rawSlug = String(product.slug ?? "").toLowerCase();
+  const slug = rawSlug === "yemeni-shemagh" ? "yemeni-shemagh-red" : rawSlug;
   const name = String(product.name ?? "").toLowerCase();
   const fallback = storefrontCatalog.find((item) => {
     if (slug && item.slug.toLowerCase() === slug) return true;
@@ -3598,11 +3654,13 @@ function productImageUrls(
 }
 
 function ProductThumb({ product }: { product: Product }) {
-  const [src, setSrc] = useState(productImageUrls(product)[0] ?? null);
+  const [sources, setSources] = useState(() => productImageUrls(product));
 
   useEffect(() => {
-    setSrc(productImageUrls(product)[0] ?? null);
+    setSources(productImageUrls(product));
   }, [product]);
+
+  const src = sources[0] ?? null;
 
   return (
     <div className="grid h-14 w-12 shrink-0 place-items-center overflow-hidden rounded-md border border-[rgb(var(--vibe-border))] bg-[rgb(var(--vibe-surface))]">
@@ -3612,7 +3670,7 @@ function ProductThumb({ product }: { product: Product }) {
           alt=""
           loading="lazy"
           className="h-full w-full object-cover"
-          onError={() => setSrc(null)}
+          onError={() => setSources((current) => current.slice(1))}
         />
       ) : (
         <Package className="h-4 w-4 text-[rgb(var(--vibe-muted))]" />
@@ -3673,6 +3731,13 @@ function ProductDrawer({
   });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [editingImage, setEditingImage] = useState<string | null>(null);
+  const [cropPosition, setCropPosition] = useState({ x: 0, y: 0 });
+  const [cropZoom, setCropZoom] = useState(1);
+  const [cropAspect, setCropAspect] = useState(4 / 5);
+  const [cropPixels, setCropPixels] = useState<CropArea | null>(null);
+  const [cropAsCover, setCropAsCover] = useState(true);
+  const [savingCrop, setSavingCrop] = useState(false);
   const [closing, setClosing] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newFilterName, setNewFilterName] = useState("");
@@ -3699,10 +3764,18 @@ function ProductDrawer({
   );
   const activeImage = selectedImage ?? drawerImages[0] ?? null;
   const coverImage = cleanImageUrl(form.cover_image_url) ?? null;
+  const activeImageIsEditable = Boolean(activeImage && !/\.(mp4|webm)(?:$|\?)/i.test(activeImage));
   const requestClose = () => {
     if (closing) return;
     setClosing(true);
     window.setTimeout(onClose, 180);
+  };
+  const openCropEditor = (src: string) => {
+    setEditingImage(src);
+    setCropPosition({ x: 0, y: 0 });
+    setCropZoom(1);
+    setCropPixels(null);
+    setCropAsCover(true);
   };
   const visibilityRequirements = [
     { label: "Product name", complete: Boolean(form.name.trim()) },
@@ -3788,6 +3861,15 @@ function ProductDrawer({
     }
   }, [drawerImages, selectedImage]);
 
+  useEffect(() => {
+    if (!editingImage) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !savingCrop) setEditingImage(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editingImage, savingCrop]);
+
   const handleUpload = async (file: File) => {
     setUploading(true);
     try {
@@ -3816,6 +3898,42 @@ function ProductDrawer({
       });
     } finally {
       setUploading(false);
+    }
+  };
+
+  const saveCrop = async () => {
+    if (!editingImage || !cropPixels) return;
+    setSavingCrop(true);
+    try {
+      const file = await croppedImageFile(
+        editingImage,
+        cropPixels,
+        form.slug || form.name || "product",
+      );
+      const url = await uploadProductImage(file);
+      if (!url) throw new Error("The edited image could not be uploaded.");
+      const cleanUrl = cleanImageUrl(url) ?? url;
+      setForm((current) => ({
+        ...current,
+        cover_image_url: cropAsCover ? cleanUrl : current.cover_image_url,
+        images: Array.from(new Set([cleanUrl, ...(current.images ?? [])])),
+      }));
+      setSelectedImage(cleanUrl);
+      setEditingImage(null);
+      notify({
+        title: "Edited image saved",
+        description: cropAsCover
+          ? "The crop is now the cover. The original remains in the gallery."
+          : "The crop was added to the gallery. The original remains available.",
+      });
+    } catch (error) {
+      notify({
+        title: "Could not edit image",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingCrop(false);
     }
   };
 
@@ -3919,7 +4037,11 @@ function ProductDrawer({
                       src={activeImage}
                       alt=""
                       className="h-full w-full object-cover"
-                      onError={() => setSelectedImage(null)}
+                      onError={() =>
+                        setSelectedImage(
+                          drawerImages.find((image) => image !== activeImage) ?? null,
+                        )
+                      }
                     />
                   ) : (
                     <div className="h-full w-full grid place-items-center text-foreground/30">
@@ -3931,8 +4053,8 @@ function ProductDrawer({
                   {coverImage ? "Cover image selected" : "No cover selected"}
                 </p>
                 {drawerImages.length > 0 && (
-                  <div className="mt-2 grid grid-cols-4 gap-1.5">
-                    {drawerImages.slice(0, 8).map((url) => (
+                  <div className="mt-2 grid max-h-44 grid-cols-4 gap-1.5 overflow-y-auto pr-1">
+                    {drawerImages.map((url) => (
                       <button
                         key={url}
                         type="button"
@@ -4009,6 +4131,15 @@ function ProductDrawer({
                   {activeImage && coverImage === activeImage
                     ? "Selected as cover"
                     : "Set selected as cover"}
+                </button>
+                <button
+                  type="button"
+                  disabled={!activeImageIsEditable}
+                  onClick={() => activeImage && openCropEditor(activeImage)}
+                  className="ml-2 mt-2 inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-[#D1D5DB] px-3 text-xs font-semibold text-[#374151] transition-colors hover:bg-[#F9FAFB] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Crop className="h-3.5 w-3.5" />
+                  Crop &amp; zoom
                 </button>
                 {activeImage && (
                   <a
@@ -4277,6 +4408,124 @@ function ProductDrawer({
           </div>
         </form>
       </aside>
+
+      {editingImage && (
+        <div
+          className="fixed inset-0 z-[70] grid place-items-end bg-black/70 p-0 sm:place-items-center sm:p-5"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Crop product image"
+          onClick={(event) => {
+            event.stopPropagation();
+            if (event.target === event.currentTarget && !savingCrop) setEditingImage(null);
+          }}
+        >
+          <div
+            className="flex max-h-[100dvh] w-full flex-col overflow-hidden bg-white shadow-2xl sm:max-w-[720px] sm:rounded-lg"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[#E5E7EB] px-4 py-3 sm:px-5">
+              <div>
+                <h3 className="text-base font-semibold text-[#111827]">Crop product image</h3>
+                <p className="text-xs text-[#6B7280]">Drag to position. Pinch or slide to zoom.</p>
+              </div>
+              <button
+                type="button"
+                disabled={savingCrop}
+                onClick={() => setEditingImage(null)}
+                aria-label="Close image editor"
+                className="grid h-9 w-9 place-items-center rounded-md hover:bg-[#F3F4F6] disabled:opacity-50"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="relative h-[52dvh] min-h-[320px] bg-[#111111] sm:h-[500px]">
+              <Cropper
+                image={editingImage}
+                crop={cropPosition}
+                zoom={cropZoom}
+                aspect={cropAspect}
+                onCropChange={setCropPosition}
+                onZoomChange={setCropZoom}
+                onCropComplete={(_, pixels) => setCropPixels(pixels)}
+                showGrid
+                objectFit="contain"
+              />
+            </div>
+
+            <div className="space-y-4 border-t border-[#E5E7EB] px-4 py-4 sm:px-5">
+              <div className="flex items-center gap-3">
+                <ZoomOut className="h-4 w-4 shrink-0 text-[#6B7280]" />
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.01}
+                  value={cropZoom}
+                  onChange={(event) => setCropZoom(Number(event.target.value))}
+                  aria-label="Image zoom"
+                  className="h-8 min-w-0 flex-1 accent-[#111827]"
+                />
+                <ZoomIn className="h-4 w-4 shrink-0 text-[#6B7280]" />
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="inline-flex overflow-hidden rounded-md border border-[#D1D5DB]">
+                  {[
+                    { label: "Square", value: 1 },
+                    { label: "Portrait 4:5", value: 4 / 5 },
+                    { label: "Portrait 3:4", value: 3 / 4 },
+                  ].map((option) => (
+                    <button
+                      key={option.label}
+                      type="button"
+                      onClick={() => setCropAspect(option.value)}
+                      className={cn(
+                        "h-9 border-r border-[#D1D5DB] px-3 text-xs font-semibold last:border-r-0",
+                        cropAspect === option.value
+                          ? "bg-[#111827] text-white"
+                          : "bg-white text-[#4B5563] hover:bg-[#F9FAFB]",
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <label className="inline-flex items-center gap-2 text-xs font-medium text-[#374151]">
+                  <input
+                    type="checkbox"
+                    checked={cropAsCover}
+                    onChange={(event) => setCropAsCover(event.target.checked)}
+                    className="h-4 w-4 accent-[#111827]"
+                  />
+                  Use as cover
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={savingCrop}
+                  onClick={() => setEditingImage(null)}
+                  className="h-10 rounded-md border border-[#D1D5DB] px-4 text-sm font-medium text-[#374151] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={savingCrop || !cropPixels}
+                  onClick={() => void saveCrop()}
+                  className="inline-flex h-10 items-center gap-2 rounded-md bg-[#111827] px-4 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  <Crop className="h-4 w-4" />
+                  {savingCrop ? "Saving..." : "Save crop"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

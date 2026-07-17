@@ -80,8 +80,15 @@ export async function updateProduct(
   return (await convex.mutation(api.products.updateProduct, { id, patch: next })) as Product | null;
 }
 
-export async function deleteProduct(id: string): Promise<boolean> {
-  return await convex.mutation(api.products.deleteProduct, { id });
+export interface DeleteProductResult {
+  deleted: boolean;
+  wishlistItems: number;
+  reviews: number;
+  linkedProducts: number;
+}
+
+export async function deleteProduct(id: string): Promise<DeleteProductResult> {
+  return await convex.mutation(api.products.deleteProduct, { id: id as Id<"products"> });
 }
 
 export async function refreshPublicCatalog(product?: Pick<Product, "id" | "slug"> | null) {

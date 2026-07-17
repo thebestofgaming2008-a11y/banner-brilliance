@@ -46,6 +46,7 @@ export default defineSchema({
     created_at: v.string(),
   })
     .index("by_user_id", ["user_id"])
+    .index("by_product_id", ["product_id"])
     .index("by_user_product", ["user_id", "product_id"]),
   products: defineTable({
     name: v.string(),
