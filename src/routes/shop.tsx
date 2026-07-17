@@ -13,7 +13,7 @@ type ShopSearch = { collection?: StoreCollection };
 export const Route = createFileRoute("/shop")({
   loader: async () => (await listActiveProducts()).map(toStoreProduct),
   validateSearch: (search: Record<string, unknown>): ShopSearch => ({
-    collection: ["Shemaghs", "Niqabs", "Kufis", "Honey", "Gloves"].includes(
+    collection: ["Shemaghs", "Niqabs", "Kufis", "Honey", "Watches", "Gloves"].includes(
       String(search.collection),
     )
       ? (search.collection as StoreCollection)
@@ -38,6 +38,7 @@ function ShopPage() {
     "Niqabs",
     "Kufis",
     "Honey",
+    "Watches",
     "Gloves",
   ];
 
@@ -66,7 +67,7 @@ function ShopPage() {
           <p className="section-kicker text-black/55">The complete collection</p>
           <h1 className="section-heading mt-3 text-[46px] md:text-[72px]">SHOP FAWZAAN</h1>
           <p className="mt-4 max-w-md text-[14px] leading-6 text-black/65">
-            Modest essentials, considered accessories, and pure Kashmir honey.
+            Modest essentials, SABR watches, considered accessories, and pure Kashmir honey.
           </p>
         </div>
       </section>

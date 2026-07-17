@@ -126,6 +126,7 @@ export function StoreHeader() {
               ["Niqabs", "/shop?collection=Niqabs"],
               ["Kufis", "/shop?collection=Kufis"],
               ["Honey", "/shop?collection=Honey"],
+              ["Watches", "/shop?collection=Watches"],
               ["Gloves", "/shop?collection=Gloves"],
             ].map(([label, href]) => (
               <li key={label} className="drawer-item">
@@ -302,6 +303,9 @@ export function StoreFooter() {
             </li>
             <li>
               <a href="/shop?collection=Honey">Honey</a>
+            </li>
+            <li>
+              <a href="/shop?collection=Watches">Watches</a>
             </li>
           </ul>
         </div>

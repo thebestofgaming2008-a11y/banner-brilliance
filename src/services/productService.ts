@@ -67,7 +67,7 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
 }
 
 export function useCatalogProducts() {
-  const [products, setProducts] = useState<Product[]>(cachedProducts ?? []);
+  const [products, setProducts] = useState<Product[]>(cachedProducts ?? catalog);
   const [loading, setLoading] = useState(!cachedProducts);
 
   useEffect(() => {

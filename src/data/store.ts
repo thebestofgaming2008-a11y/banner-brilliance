@@ -19,7 +19,7 @@ import shemaghRedFull from "@/assets/product-photos/shemagh-red-full.jpg";
 import type { Product } from "@/lib/products";
 import { useCatalogProduct, useCatalogProducts } from "@/services/productService";
 
-export type StoreCollection = "Shemaghs" | "Niqabs" | "Kufis" | "Honey" | "Gloves";
+export type StoreCollection = "Shemaghs" | "Niqabs" | "Kufis" | "Honey" | "Watches" | "Gloves";
 
 export type StoreProduct = {
   id?: string;
@@ -207,6 +207,7 @@ const collectionLabels: Record<Product["collection"], StoreCollection> = {
   kufis: "Kufis",
   gloves: "Gloves",
   honey: "Honey",
+  watches: "Watches",
 };
 
 export function toStoreProduct(product: Product): StoreProduct {
@@ -238,7 +239,7 @@ export function toStoreProduct(product: Product): StoreProduct {
     optionGroups,
     badge: product.tag,
     imageClassName: visualFallback?.imageClassName,
-    mediaFit: visualFallback?.mediaFit,
+    mediaFit: product.collection === "watches" ? "contain" : visualFallback?.mediaFit,
     inStock: product.inStock !== false,
   };
 }

@@ -122,6 +122,13 @@ const CATEGORIES = [
     parent: "unisex",
     Icon: PackageCheck,
   },
+  {
+    key: "watches",
+    label: "Watches",
+    blurb: "SABR Arabic-dial watches and timepieces.",
+    parent: "unisex",
+    Icon: Clock,
+  },
 ];
 
 function formatPrice(value: number | null | undefined) {

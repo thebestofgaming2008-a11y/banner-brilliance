@@ -19,8 +19,12 @@ import heroGloves from "@/assets/hero-gloves.jpg";
 import honeyMulti from "@/assets/honey-kashmir-multiflora.jpg";
 import honeyAcacia from "@/assets/honey-kashmir-acacia.jpg";
 import honeyBlack from "@/assets/honey-kashmir-black.jpg";
+import sabrWatchBlack from "@/assets/collection-banners/sabr-watch-black.jpg";
+import sabrWatchBlue from "@/assets/collection-banners/sabr-watch-blue.jpg";
+import sabrWatchGreen from "@/assets/collection-banners/sabr-watch-green.jpg";
+import sabrWatchWhite from "@/assets/collection-banners/sabr-watch-white.jpg";
 
-export type Collection = "shemaghs" | "niqabs" | "kufis" | "gloves" | "honey";
+export type Collection = "shemaghs" | "niqabs" | "kufis" | "gloves" | "honey" | "watches";
 export type Gender = "men" | "women" | "unisex";
 
 export type Variant = { name: string; swatch?: string };
@@ -256,6 +260,81 @@ export const catalog: Product[] = [
     materials: "Raw wild honey.",
     care: "Store cool and dry.",
     tag: "Limited",
+  },
+  {
+    slug: "sabr-watch-green",
+    name: "SABR Green Dial Watch",
+    collection: "watches",
+    gender: "unisex",
+    price: 3500,
+    rating: 0,
+    reviews: 0,
+    images: [sabrWatchGreen],
+    colors: [{ name: "Green Dial", swatch: "#174d3b" }],
+    sizes: ["Standard"],
+    short: "A brushed steel everyday watch with a deep green Arabic numeral dial.",
+    description:
+      "A brushed steel everyday watch with a deep green dial, Eastern Arabic numerals, and a compact square case.",
+    features: ["Arabic numeral dial", "Brushed steel bracelet", "Quartz movement", "Date window"],
+    materials: "Brushed metal case and adjustable steel bracelet.",
+    care: "Keep dry and wipe with a soft cloth after wear.",
+  },
+  {
+    slug: "sabr-watch-blue",
+    name: "SABR Blue Dial Watch",
+    collection: "watches",
+    gender: "unisex",
+    price: 3500,
+    rating: 0,
+    reviews: 0,
+    images: [sabrWatchBlue],
+    colors: [{ name: "Blue Dial", swatch: "#426879" }],
+    sizes: ["Standard"],
+    short: "A brushed steel everyday watch with a blue Arabic numeral dial.",
+    description:
+      "A brushed steel everyday watch with a muted blue dial, Eastern Arabic numerals, and a compact square case.",
+    features: ["Arabic numeral dial", "Brushed steel bracelet", "Quartz movement", "Date window"],
+    materials: "Brushed metal case and adjustable steel bracelet.",
+    care: "Keep dry and wipe with a soft cloth after wear.",
+    tag: "New",
+  },
+  {
+    slug: "sabr-watch-black",
+    name: "SABR Black Dial Watch",
+    collection: "watches",
+    gender: "unisex",
+    price: 3500,
+    rating: 0,
+    reviews: 0,
+    images: [sabrWatchBlack],
+    colors: [{ name: "Black Dial", swatch: "#111111" }],
+    sizes: ["Standard"],
+    short: "A brushed steel everyday watch with a black Arabic numeral dial.",
+    description:
+      "A brushed steel everyday watch with a black dial, Eastern Arabic numerals, and a compact square case.",
+    features: ["Arabic numeral dial", "Brushed steel bracelet", "Quartz movement", "Date window"],
+    materials: "Brushed metal case and adjustable steel bracelet.",
+    care: "Keep dry and wipe with a soft cloth after wear.",
+    tag: "Bestseller",
+  },
+  {
+    slug: "sabr-watch-white",
+    name: "SABR White Dial Watch",
+    collection: "watches",
+    gender: "unisex",
+    price: 3500,
+    rating: 0,
+    reviews: 0,
+    images: [sabrWatchWhite],
+    colors: [{ name: "White Dial", swatch: "#f1eee7" }],
+    sizes: ["Standard"],
+    short: "A brushed steel everyday watch with a white Arabic numeral dial.",
+    description:
+      "A brushed steel everyday watch with a clean white dial, Eastern Arabic numerals, and a compact square case.",
+    features: ["Arabic numeral dial", "Brushed steel bracelet", "Quartz movement", "Date window"],
+    materials: "Brushed metal case and adjustable steel bracelet.",
+    care: "Keep dry and wipe with a soft cloth after wear.",
+    tag: "New",
   },
 ];
 

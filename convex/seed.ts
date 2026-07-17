@@ -8,9 +8,10 @@ const starterCategories = [
   { slug: "kufis", name: "Kufis", type: "collection", sort_order: 30 },
   { slug: "gloves", name: "Gloves", type: "collection", sort_order: 40 },
   { slug: "honey", name: "Honey", type: "collection", sort_order: 50 },
-  { slug: "men", name: "Men", type: "audience", sort_order: 60 },
-  { slug: "women", name: "Women", type: "audience", sort_order: 70 },
-  { slug: "unisex", name: "Unisex", type: "audience", sort_order: 80 },
+  { slug: "watches", name: "Watches", type: "collection", sort_order: 60 },
+  { slug: "men", name: "Men", type: "audience", sort_order: 70 },
+  { slug: "women", name: "Women", type: "audience", sort_order: 80 },
+  { slug: "unisex", name: "Unisex", type: "audience", sort_order: 90 },
 ];
 
 const starterSettings = [
@@ -153,6 +154,74 @@ const starterProducts = [
     reviews_count: 92,
     stock_quantity: 50,
   },
+  {
+    slug: "sabr-watch-green",
+    name: "SABR Green Dial Watch",
+    short_description: "A brushed steel everyday watch with a deep green Arabic numeral dial.",
+    description:
+      "A brushed steel everyday watch with a deep green dial, Eastern Arabic numerals, and a compact square case.",
+    price_inr: 3500,
+    category: "Watches",
+    category_id: "watches",
+    tags: ["unisex", "sabr"],
+    color_options: ["Green Dial"],
+    size_options: ["Standard"],
+    badge: null,
+    rating: 0,
+    reviews_count: 0,
+    stock_quantity: 50,
+  },
+  {
+    slug: "sabr-watch-blue",
+    name: "SABR Blue Dial Watch",
+    short_description: "A brushed steel everyday watch with a blue Arabic numeral dial.",
+    description:
+      "A brushed steel everyday watch with a muted blue dial, Eastern Arabic numerals, and a compact square case.",
+    price_inr: 3500,
+    category: "Watches",
+    category_id: "watches",
+    tags: ["unisex", "sabr", "new"],
+    color_options: ["Blue Dial"],
+    size_options: ["Standard"],
+    badge: "New",
+    rating: 0,
+    reviews_count: 0,
+    stock_quantity: 50,
+  },
+  {
+    slug: "sabr-watch-black",
+    name: "SABR Black Dial Watch",
+    short_description: "A brushed steel everyday watch with a black Arabic numeral dial.",
+    description:
+      "A brushed steel everyday watch with a black dial, Eastern Arabic numerals, and a compact square case.",
+    price_inr: 3500,
+    category: "Watches",
+    category_id: "watches",
+    tags: ["unisex", "sabr", "bestseller"],
+    color_options: ["Black Dial"],
+    size_options: ["Standard"],
+    badge: "Bestseller",
+    rating: 0,
+    reviews_count: 0,
+    stock_quantity: 50,
+  },
+  {
+    slug: "sabr-watch-white",
+    name: "SABR White Dial Watch",
+    short_description: "A brushed steel everyday watch with a white Arabic numeral dial.",
+    description:
+      "A brushed steel everyday watch with a clean white dial, Eastern Arabic numerals, and a compact square case.",
+    price_inr: 3500,
+    category: "Watches",
+    category_id: "watches",
+    tags: ["unisex", "sabr", "new"],
+    color_options: ["White Dial"],
+    size_options: ["Standard"],
+    badge: "New",
+    rating: 0,
+    reviews_count: 0,
+    stock_quantity: 50,
+  },
 ];
 
 function optionTypes(product: (typeof starterProducts)[number]) {
@@ -237,5 +306,79 @@ export const seedStarterStore = mutation({
     }
 
     return { categoriesInserted, settingsUpserted, productsUpserted };
+  },
+});
+
+export const seedWatchCollection = mutation({
+  args: { token: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const setupToken = process.env.ADMIN_UPLOAD_TOKEN;
+    if (!setupToken || args.token !== setupToken) await requireAdmin(ctx);
+    const timestamp = nowIso();
+    const category = starterCategories.find((item) => item.slug === "watches")!;
+    const existingCategory = await ctx.db
+      .query("categories")
+      .withIndex("by_slug", (q) => q.eq("slug", category.slug))
+      .first();
+
+    if (existingCategory) {
+      await ctx.db.patch(existingCategory._id, {
+        ...category,
+        is_active: true,
+        updated_at: timestamp,
+      });
+    } else {
+      await ctx.db.insert("categories", {
+        ...category,
+        is_active: true,
+        created_at: timestamp,
+        updated_at: timestamp,
+      });
+    }
+
+    let inserted = 0;
+    let updated = 0;
+    for (const product of starterProducts.filter((item) => item.category_id === "watches")) {
+      const existing = await ctx.db
+        .query("products")
+        .withIndex("by_slug", (q) => q.eq("slug", product.slug))
+        .first();
+      const payload = {
+        ...product,
+        price: product.price_inr,
+        sale_price: null,
+        sale_price_inr: null,
+        sku: `FZ-${product.slug.toUpperCase()}`,
+        variant_label: null,
+        option_types: optionTypes(product),
+        is_active: true,
+        is_featured: product.tags.includes("bestseller"),
+        show_in_category_section: true,
+        is_new_arrival: product.tags.includes("new"),
+        is_bestseller: product.tags.includes("bestseller"),
+        is_on_sale: false,
+        in_stock: true,
+        updated_at: timestamp,
+      };
+
+      if (existing) {
+        await ctx.db.patch(existing._id, payload);
+        updated += 1;
+      } else {
+        await ctx.db.insert("products", {
+          ...payload,
+          cover_image_url: null,
+          images: [],
+          linked_product_ids: [],
+          cross_sell_product_ids: [],
+          upsell_product_ids: [],
+          variants: [],
+          created_at: timestamp,
+        });
+        inserted += 1;
+      }
+    }
+
+    return { inserted, updated };
   },
 });

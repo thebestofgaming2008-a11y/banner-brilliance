@@ -8,6 +8,7 @@ import { useCurrency } from "@/hooks/use-currency";
 
 import logoGold from "@/assets/fawzaan-logo-gold.png";
 import makkahGloves from "@/assets/collection-banners/makkah-gloves.jpg";
+import sabrWatchBlack from "@/assets/collection-banners/sabr-watch-black.jpg";
 import heroBg from "@/assets/figma-hero-bg.png";
 import heroNiqabFull from "@/assets/hero-products/hero-niqab-full.png";
 import heroShemaghFull from "@/assets/hero-products/hero-shemagh-full.png";
@@ -310,7 +311,7 @@ function useHashScroll() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const sectionHashes = new Set(["#honey", "#essentials", "#bestsellers"]);
+    const sectionHashes = new Set(["#honey", "#watch-collection", "#essentials", "#bestsellers"]);
 
     const revealVisibleChildren = (target: HTMLElement) => {
       target.querySelectorAll<HTMLElement>("[data-reveal]").forEach((item) => {
@@ -1052,7 +1053,14 @@ function KufiCollection() {
 
 function ShopAllProducts() {
   const { products: catalog } = useStoreProducts();
-  const filters: Array<"All" | CollectionName> = ["All", "Shemaghs", "Niqabs", "Kufis", "Honey"];
+  const filters: Array<"All" | CollectionName> = [
+    "All",
+    "Shemaghs",
+    "Niqabs",
+    "Kufis",
+    "Honey",
+    "Watches",
+  ];
   const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("All");
   const visibleProducts =
     activeFilter === "All"
@@ -1065,6 +1073,7 @@ function ShopAllProducts() {
       "#shop-niqabs": "Niqabs",
       "#shop-kufis": "Kufis",
       "#shop-honey": "Honey",
+      "#shop-watches": "Watches",
     };
 
     const applyHashFilter = () => {
@@ -1258,6 +1267,80 @@ function HoneyFeature() {
   );
 }
 
+function WatchCollection() {
+  const { products: catalog } = useStoreProducts();
+  const { formatPrice } = useCurrency();
+  const watchOrder = [
+    "sabr-watch-green",
+    "sabr-watch-blue",
+    "sabr-watch-black",
+    "sabr-watch-white",
+  ];
+  const watches = watchOrder
+    .map((slug) => catalog.find((product) => product.slug === slug))
+    .filter((product): product is Product => Boolean(product));
+
+  return (
+    <section
+      id="watch-collection"
+      className="scroll-mt-[76px] bg-[#f4b400] px-[18px] py-12 md:px-8 md:py-20"
+    >
+      <div className="mx-auto grid max-w-[1120px] gap-5 md:grid-cols-[0.9fr_1.1fr]">
+        <a
+          href="/shop?collection=Watches"
+          className="collection-banner relative block min-h-[540px] overflow-hidden bg-black text-white md:min-h-[720px]"
+          data-reveal
+        >
+          <img
+            src={sabrWatchBlack}
+            alt=""
+            aria-hidden
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 p-6 md:p-8">
+            <p className="section-kicker text-white/70">Arabic dial watches</p>
+            <h2 className="banner-heading mt-3 text-[48px] md:text-[72px]">SABR WATCHES</h2>
+            <p className="commerce-copy mt-4 max-w-xs text-white/74">
+              Arabic numerals, brushed steel, clean daily polish.
+            </p>
+          </div>
+        </a>
+
+        <div className="grid grid-cols-2 gap-2 md:gap-4">
+          {watches.map((watch) => (
+            <a
+              key={watch.slug}
+              href={`/products/${watch.slug}`}
+              className="product-card group block bg-white p-2 md:p-3"
+              data-reveal
+            >
+              <div className="product-card__media aspect-[4/5] overflow-hidden bg-[#f4f1eb]">
+                <img
+                  src={watch.images[0]}
+                  alt={watch.name.replace(" Watch", "")}
+                  loading="lazy"
+                  className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-[1.018]"
+                />
+              </div>
+              <div className="pb-2 pt-3 text-center">
+                <p className="section-kicker text-black/45">SABR</p>
+                <h3 className="mt-1 text-[13px] leading-tight text-black md:text-[14px]">
+                  {watch.name.replace(" Watch", "")}
+                </h3>
+                <p className="mt-1 text-[12px] leading-tight text-black/55">
+                  {formatPrice(watch.price)}
+                </p>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Footer() {
   return (
     <footer className="border-t-[6px] border-[#f4b400] bg-black px-[22px] pb-7 pt-12 text-white md:px-8 md:pt-16">
@@ -1342,6 +1425,7 @@ function Index() {
       <CollectionBanners />
       <ShopAllProducts />
       <ModestEssentials />
+      <WatchCollection />
       <HoneyFeature />
       <StoreFooter />
     </main>

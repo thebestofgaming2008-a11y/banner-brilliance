@@ -38,6 +38,7 @@ const collectionLabels: Record<Collection, string> = {
   kufis: "Kufis",
   gloves: "Gloves",
   honey: "Honey",
+  watches: "Watches",
 };
 
 function tagForProduct(product: Product) {
@@ -93,6 +94,7 @@ function collectionFromBackend(product: BackendProduct, fallback?: Product): Col
   if (raw.includes("kufi")) return "kufis";
   if (raw.includes("glove")) return "gloves";
   if (raw.includes("honey")) return "honey";
+  if (raw.includes("watch")) return "watches";
   return fallback?.collection ?? "shemaghs";
 }
 

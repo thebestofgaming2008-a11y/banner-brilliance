@@ -89,12 +89,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "Discover Fawzaan shemaghs, niqabs, kufis, gloves, and Kashmir honey: modest essentials selected for quality and everyday use.",
+          "Discover Fawzaan shemaghs, niqabs, kufis, SABR watches, gloves, and Kashmir honey: modest essentials selected for quality and everyday use.",
       },
       { property: "og:title", content: "Fawzaan | Premium Modest Essentials" },
       {
         property: "og:description",
-        content: "Premium shemaghs, niqabs, kufis, gloves, and Kashmir honey from Fawzaan.",
+        content:
+          "Premium shemaghs, niqabs, kufis, SABR watches, gloves, and Kashmir honey from Fawzaan.",
       },
       { property: "og:type", content: "website" },
       { property: "og:site_name", content: "Fawzaan" },
