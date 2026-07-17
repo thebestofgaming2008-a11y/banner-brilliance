@@ -244,6 +244,7 @@ export default defineSchema({
     slug: v.string(),
     name: v.string(),
     type: v.string(),
+    description: optionalString,
     parent_slug: optionalString,
     sort_order: optionalNumber,
     is_active: optionalBoolean,
@@ -252,5 +253,20 @@ export default defineSchema({
   })
     .index("by_slug", ["slug"])
     .index("by_type", ["type"])
+    .index("by_active", ["is_active"]),
+  storefront_banners: defineTable({
+    placement: v.string(),
+    eyebrow: optionalString,
+    title: v.string(),
+    body: optionalString,
+    button_label: optionalString,
+    button_url: optionalString,
+    image_url: v.string(),
+    sort_order: optionalNumber,
+    is_active: optionalBoolean,
+    created_at: v.string(),
+    updated_at: v.string(),
+  })
+    .index("by_placement", ["placement"])
     .index("by_active", ["is_active"]),
 });

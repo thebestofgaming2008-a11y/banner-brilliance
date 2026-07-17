@@ -33,6 +33,9 @@ export type Product = {
   slug: string;
   name: string;
   collection: Collection;
+  collectionSlug?: string;
+  collectionLabel?: string;
+  filterTags?: string[];
   gender: Gender;
   price: number; // INR base
   compareAt?: number; // INR base

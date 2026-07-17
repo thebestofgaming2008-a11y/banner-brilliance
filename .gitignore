@@ -26,6 +26,7 @@ work/
 test-results/
 playwright-report/
 artifacts-*.png
+.artifacts/
 
 # Editor directories and files
 .vscode/*

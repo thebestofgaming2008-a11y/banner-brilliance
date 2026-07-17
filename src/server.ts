@@ -193,8 +193,22 @@ function mergeLocalCatalogProducts(liveProducts: unknown[] | null | undefined) {
 async function handleCatalogRequest(request: Request, env: unknown): Promise<Response | null> {
   const url = new URL(request.url);
   if (request.method !== "GET") return null;
-  if (url.pathname !== "/api/catalog/products" && url.pathname !== "/api/catalog/product") {
+  if (
+    url.pathname !== "/api/catalog/products" &&
+    url.pathname !== "/api/catalog/product" &&
+    url.pathname !== "/api/catalog/presentation"
+  ) {
     return null;
+  }
+
+  if (url.pathname === "/api/catalog/presentation") {
+    const client = convexClient(env, request);
+    if (!client) return jsonResponse({ taxonomy: [], banners: [] }, 200, CATALOG_CACHE_HEADERS);
+    const [taxonomy, banners] = await Promise.all([
+      client.query(api.catalog.listActiveTaxonomy, {}),
+      client.query(api.catalog.listActiveBanners, {}),
+    ]);
+    return jsonResponse({ taxonomy, banners }, 200, CATALOG_CACHE_HEADERS);
   }
 
   if (url.pathname === "/api/catalog/products") {

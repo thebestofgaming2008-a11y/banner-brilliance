@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ChevronRight, Menu, Minus, Plus, ShoppingBag, Star, X } from "lucide-react";
+import { ChevronRight, Menu, Minus, Plus, Search, ShoppingBag, Star, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { StoreFooter, StoreHeader } from "@/components/store/store-chrome";
 import { merchandiseProducts, type StoreProduct, useStoreProducts } from "@/data/store";
 import { useCurrency } from "@/hooks/use-currency";
+import { useCatalogPresentation } from "@/services/catalogPresentation";
 
 import logoGold from "@/assets/fawzaan-logo-gold.png";
 import makkahGloves from "@/assets/collection-banners/makkah-gloves.jpg";
@@ -465,6 +466,21 @@ function Header() {
           </IconButton>
         </div>
         <nav className="flex-1 overflow-y-auto px-6 py-8" aria-label="Main navigation">
+          <form action="/shop" method="get" className="mb-7 border-b border-black/25">
+            <label className="flex h-12 items-center gap-3">
+              <Search size={18} className="shrink-0 text-black/55" />
+              <input
+                type="search"
+                name="q"
+                placeholder="Search products"
+                aria-label="Search products"
+                className="min-w-0 flex-1 bg-transparent text-[14px] outline-none"
+              />
+              <button type="submit" className="text-[10px] font-bold uppercase">
+                Search
+              </button>
+            </label>
+          </form>
           <p className="section-kicker text-black/45">Shop</p>
           <ul className="mt-5 divide-y divide-black/10">
             {[
@@ -1427,7 +1443,56 @@ function Index() {
       <ModestEssentials />
       <WatchCollection />
       <HoneyFeature />
+      <ManagedHomepageBanners />
       <StoreFooter />
     </main>
+  );
+}
+
+function ManagedHomepageBanners() {
+  const { banners: managedBanners } = useCatalogPresentation();
+  const homepageBanners = managedBanners.filter((banner) => banner.placement === "homepage_promo");
+
+  if (!homepageBanners.length) return null;
+
+  return (
+    <section className="space-y-4 px-4 py-12 md:px-8 md:py-20">
+      {homepageBanners.map((banner) => (
+        <article
+          key={banner.id || `${banner.placement}-${banner.title}`}
+          className="relative mx-auto min-h-[440px] max-w-[1180px] overflow-hidden bg-black text-white md:min-h-[560px]"
+          data-store-reveal
+        >
+          <img
+            src={banner.image_url}
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-black/45" />
+          <div className="relative flex min-h-[440px] items-end p-7 md:min-h-[560px] md:p-12">
+            <div className="max-w-lg">
+              {banner.eyebrow ? (
+                <p className="section-kicker text-white/65">{banner.eyebrow}</p>
+              ) : null}
+              <h2 className="banner-heading mt-3 text-[42px] leading-none md:text-[68px]">
+                {banner.title}
+              </h2>
+              {banner.body ? (
+                <p className="mt-4 max-w-md text-[14px] leading-6 text-white/75">{banner.body}</p>
+              ) : null}
+              {banner.button_label && banner.button_url ? (
+                <a
+                  href={banner.button_url}
+                  className="mt-6 inline-flex h-11 items-center bg-white px-6 text-[11px] font-bold uppercase text-black"
+                >
+                  {banner.button_label}
+                </a>
+              ) : null}
+            </div>
+          </div>
+        </article>
+      ))}
+    </section>
   );
 }

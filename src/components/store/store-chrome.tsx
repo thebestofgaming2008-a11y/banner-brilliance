@@ -1,9 +1,10 @@
-import { ChevronRight, Menu, Minus, Plus, ShoppingBag, Trash2, X } from "lucide-react";
+import { ChevronRight, Menu, Minus, Plus, Search, ShoppingBag, Trash2, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import logoGold from "@/assets/fawzaan-logo-gold.png";
 import { useCart } from "@/lib/cart";
 import { storeCurrencies, type StoreCurrency, useCurrency } from "@/hooks/use-currency";
+import { useCatalogPresentation } from "@/services/catalogPresentation";
 
 function ChromeButton({
   label,
@@ -55,6 +56,8 @@ export function StoreHeader() {
   const [drawer, setDrawer] = useState<"menu" | "cart" | null>(null);
   const { items: cartLines, count, subtotal, setQty, remove } = useCart();
   const { formatPrice } = useCurrency();
+  const { taxonomy } = useCatalogPresentation();
+  const collections = taxonomy.filter((item) => item.type === "collection");
 
   useEffect(() => {
     if (!drawer) return;
@@ -118,16 +121,29 @@ export function StoreHeader() {
           className="drawer-reveal flex-1 overscroll-contain overflow-y-auto px-5 py-5 sm:px-6 sm:py-7"
           aria-label="Main navigation"
         >
+          <form action="/shop" method="get" className="mb-7 border-b border-black/25">
+            <label className="flex h-12 items-center gap-3">
+              <Search size={18} className="shrink-0 text-black/55" />
+              <input
+                type="search"
+                name="q"
+                placeholder="Search products"
+                aria-label="Search products"
+                className="min-w-0 flex-1 bg-transparent text-[14px] outline-none"
+              />
+              <button type="submit" className="text-[10px] font-bold uppercase">
+                Search
+              </button>
+            </label>
+          </form>
           <p className="section-kicker text-black/45">Shop</p>
           <ul className="mt-5 divide-y divide-black/10">
             {[
               ["Shop all", "/shop"],
-              ["Shemaghs", "/shop?collection=Shemaghs"],
-              ["Niqabs", "/shop?collection=Niqabs"],
-              ["Kufis", "/shop?collection=Kufis"],
-              ["Honey", "/shop?collection=Honey"],
-              ["Watches", "/shop?collection=Watches"],
-              ["Gloves", "/shop?collection=Gloves"],
+              ...collections.map((item) => [
+                item.name,
+                `/shop?collection=${encodeURIComponent(item.slug)}`,
+              ]),
             ].map(([label, href]) => (
               <li key={label} className="drawer-item">
                 <a
@@ -277,6 +293,8 @@ export function StoreHeader() {
 }
 
 export function StoreFooter() {
+  const { taxonomy } = useCatalogPresentation();
+  const collections = taxonomy.filter((item) => item.type === "collection");
   return (
     <footer className="border-t-[6px] border-[#f4b400] bg-black px-[22px] pb-7 pt-12 text-white md:px-8 md:pt-16">
       <div className="mx-auto grid max-w-[1120px] gap-11 md:grid-cols-[1.3fr_0.7fr_0.7fr_0.65fr] md:gap-12">
@@ -292,21 +310,11 @@ export function StoreFooter() {
             <li>
               <a href="/shop">Shop all</a>
             </li>
-            <li>
-              <a href="/shop?collection=Shemaghs">Shemaghs</a>
-            </li>
-            <li>
-              <a href="/shop?collection=Niqabs">Niqabs</a>
-            </li>
-            <li>
-              <a href="/shop?collection=Kufis">Kufis</a>
-            </li>
-            <li>
-              <a href="/shop?collection=Honey">Honey</a>
-            </li>
-            <li>
-              <a href="/shop?collection=Watches">Watches</a>
-            </li>
+            {collections.map((item) => (
+              <li key={item.slug}>
+                <a href={`/shop?collection=${encodeURIComponent(item.slug)}`}>{item.name}</a>
+              </li>
+            ))}
           </ul>
         </div>
         <div>

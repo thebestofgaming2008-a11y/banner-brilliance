@@ -27,14 +27,17 @@ test("home and live catalog render without browser errors", async ({ page }) => 
 
 test("shop product cart and checkout path uses the live product", async ({ page }) => {
   const errors = watchPageErrors(page);
+  const catalogResponse = await page.request.get("/api/catalog/products");
+  expect(catalogResponse.ok()).toBeTruthy();
+  const products = (await catalogResponse.json()) as Array<{ slug: string }>;
   await page.goto("/shop");
-  await expect(page.getByText("8 products", { exact: true })).toBeVisible();
+  await expect(page.getByText(`${products.length} products`, { exact: true })).toBeVisible();
   await page
     .getByRole("link", { name: /Yemeni Shemagh/i })
     .first()
     .click();
   await expect(page).toHaveURL(/\/products\/yemeni-shemagh$/);
-  await expect(page.getByRole("heading", { name: "Yemeni Shemagh" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Yemeni Shemagh", exact: true })).toBeVisible();
   await expect(page.locator("main img, section img").first()).toBeVisible();
   await page.getByRole("button", { name: "Add to cart" }).last().click();
   await page.goto("/cart");
@@ -44,6 +47,34 @@ test("shop product cart and checkout path uses the live product", async ({ page 
   await page.getByRole("link", { name: "Proceed to checkout" }).click();
   await expect(page).toHaveURL(/\/checkout$/);
   await expect(page.getByRole("heading", { name: "Delivery details" })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("mobile shop controls scroll and menu search filters the live catalog", async ({ page }) => {
+  const errors = watchPageErrors(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/shop");
+
+  const tabs = page.getByRole("tablist", { name: "Product collections" });
+  await expect(tabs.getByRole("tab", { name: "Watches" })).toBeVisible();
+  const initialScroll = await tabs.evaluate((element) => element.scrollLeft);
+  await page.getByRole("button", { name: "More collections" }).click();
+  await expect
+    .poll(() => tabs.evaluate((element) => element.scrollLeft))
+    .toBeGreaterThan(initialScroll);
+
+  await expect(page.getByLabel("Sort products")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Bestsellers" })).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+  ).toBeTruthy();
+
+  await page.getByRole("button", { name: "Open menu" }).click();
+  const menuSearch = page.getByRole("searchbox", { name: "Search products" });
+  await menuSearch.fill("honey");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page).toHaveURL(/\/shop\?q=honey$/);
+  await expect(page.locator("article.store-product-card")).toHaveCount(3);
   expect(errors).toEqual([]);
 });
 

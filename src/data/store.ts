@@ -19,13 +19,15 @@ import shemaghRedFull from "@/assets/product-photos/shemagh-red-full.jpg";
 import type { Product } from "@/lib/products";
 import { useCatalogProduct, useCatalogProducts } from "@/services/productService";
 
-export type StoreCollection = "Shemaghs" | "Niqabs" | "Kufis" | "Honey" | "Watches" | "Gloves";
+export type StoreCollection = string;
 
 export type StoreProduct = {
   id?: string;
   slug: string;
   name: string;
   collection: StoreCollection;
+  collectionSlug?: string;
+  filterTags?: string[];
   price: number;
   compareAt?: number;
   rating: number;
@@ -252,7 +254,9 @@ export function toStoreProduct(product: Product): StoreProduct {
     id: product.id,
     slug: product.slug,
     name: product.name,
-    collection: collectionLabels[product.collection],
+    collection: product.collectionLabel || collectionLabels[product.collection],
+    collectionSlug: product.collectionSlug || product.collection,
+    filterTags: product.filterTags ?? [],
     price: product.price,
     compareAt: product.compareAt,
     rating: hasVerifiedRating ? product.rating : 0,

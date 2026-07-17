@@ -11,6 +11,7 @@
 import type * as addresses from "../addresses.js";
 import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
+import type * as catalog from "../catalog.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as lib from "../lib.js";
@@ -33,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   addresses: typeof addresses;
   admin: typeof admin;
   auth: typeof auth;
+  catalog: typeof catalog;
   crons: typeof crons;
   http: typeof http;
   lib: typeof lib;

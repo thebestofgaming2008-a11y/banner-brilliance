@@ -9,9 +9,12 @@ const starterCategories = [
   { slug: "gloves", name: "Gloves", type: "collection", sort_order: 40 },
   { slug: "honey", name: "Honey", type: "collection", sort_order: 50 },
   { slug: "watches", name: "Watches", type: "collection", sort_order: 60 },
-  { slug: "men", name: "Men", type: "audience", sort_order: 70 },
-  { slug: "women", name: "Women", type: "audience", sort_order: 80 },
-  { slug: "unisex", name: "Unisex", type: "audience", sort_order: 90 },
+  { slug: "men", name: "Men", type: "filter", sort_order: 110 },
+  { slug: "women", name: "Women", type: "filter", sort_order: 120 },
+  { slug: "unisex", name: "Unisex", type: "filter", sort_order: 130 },
+  { slug: "bestseller", name: "Bestsellers", type: "filter", sort_order: 140 },
+  { slug: "new", name: "New arrivals", type: "filter", sort_order: 150 },
+  { slug: "limited", name: "Limited", type: "filter", sort_order: 160 },
 ];
 
 const starterSettings = [
@@ -290,6 +293,34 @@ export const seedStarterStore = mutation({
     }
 
     return { categoriesInserted, settingsUpserted, productsUpserted };
+  },
+});
+
+export const ensureCatalogFilters = mutation({
+  args: { token: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const setupToken = process.env.ADMIN_UPLOAD_TOKEN;
+    if (!setupToken || args.token !== setupToken) await requireAdmin(ctx);
+    const timestamp = nowIso();
+    let inserted = 0;
+    let updated = 0;
+
+    for (const filter of starterCategories.filter((item) => item.type === "filter")) {
+      const existing = await ctx.db
+        .query("categories")
+        .withIndex("by_slug", (q) => q.eq("slug", filter.slug))
+        .first();
+      const payload = { ...filter, is_active: true, updated_at: timestamp };
+      if (existing) {
+        await ctx.db.patch(existing._id, payload);
+        updated += 1;
+      } else {
+        await ctx.db.insert("categories", { ...payload, created_at: timestamp });
+        inserted += 1;
+      }
+    }
+
+    return { inserted, updated };
   },
 });
 

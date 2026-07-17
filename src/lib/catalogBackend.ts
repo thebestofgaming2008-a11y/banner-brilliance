@@ -138,6 +138,11 @@ export function backendProductToProduct(product: BackendProduct): Product {
     slug: product.slug || fallback?.slug || product.id || "",
     name: product.name || fallback?.name || "Product",
     collection,
+    collectionSlug: String(product.category_id || collection).toLowerCase(),
+    collectionLabel: product.category || collectionLabels[collection],
+    filterTags: Array.isArray(product.tags)
+      ? product.tags.map((tag) => String(tag).trim().toLowerCase()).filter(Boolean)
+      : [],
     gender,
     price: hasSale ? sale : regular,
     compareAt: hasSale ? regular : fallback?.compareAt,

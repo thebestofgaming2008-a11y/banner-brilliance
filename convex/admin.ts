@@ -255,6 +255,7 @@ export const upsertCategory = mutation({
     slug: v.optional(v.union(v.string(), v.null())),
     name: v.string(),
     type: v.optional(v.string()),
+    description: v.optional(v.union(v.string(), v.null())),
     parent_slug: v.optional(v.union(v.string(), v.null())),
     sort_order: v.optional(v.union(v.number(), v.null())),
     is_active: v.optional(v.boolean()),
@@ -270,6 +271,7 @@ export const upsertCategory = mutation({
       slug,
       name,
       type: cleanText(args.type, 40) || "category",
+      description: cleanText(args.description, 240) || null,
       parent_slug: cleanText(args.parent_slug, 80) || null,
       sort_order: args.sort_order ?? null,
       is_active: args.is_active ?? true,
@@ -299,68 +301,136 @@ export const seedDefaultCategories = mutation({
   handler: async (ctx) => {
     await requireAdmin(ctx);
     const defaults = [
-      { slug: "books", name: "Books", type: "category", sort_order: 1 },
-      { slug: "clothing", name: "Clothing", type: "category", sort_order: 2 },
-      { slug: "children", name: "Extras", type: "category", sort_order: 3 },
-      { slug: "sets", name: "Combos", type: "category", sort_order: 4 },
-      { slug: "aqeedah", name: "Aqeedah", type: "subject", parent_slug: "books", sort_order: 10 },
-      { slug: "arabic", name: "Arabic", type: "subject", parent_slug: "books", sort_order: 20 },
-      { slug: "quran", name: "Qur'an", type: "subject", parent_slug: "books", sort_order: 30 },
-      { slug: "fiqh", name: "Fiqh", type: "subject", parent_slug: "books", sort_order: 40 },
-      { slug: "hadith", name: "Hadith", type: "subject", parent_slug: "books", sort_order: 50 },
-      {
-        slug: "purification",
-        name: "Purification",
-        type: "subject",
-        parent_slug: "books",
-        sort_order: 60,
-      },
-      { slug: "seerah", name: "Seerah", type: "subject", parent_slug: "books", sort_order: 70 },
-      { slug: "tafsir", name: "Tafsir", type: "subject", parent_slug: "books", sort_order: 80 },
-      { slug: "urdu", name: "Urdu", type: "subject", parent_slug: "books", sort_order: 90 },
-      {
-        slug: "character-development",
-        name: "Character Development",
-        type: "subject",
-        parent_slug: "books",
-        sort_order: 100,
-      },
-      {
-        slug: "womens-issues",
-        name: "Women's Issues",
-        type: "subject",
-        parent_slug: "books",
-        sort_order: 110,
-      },
-      {
-        slug: "islamic-history",
-        name: "Islamic History",
-        type: "subject",
-        parent_slug: "books",
-        sort_order: 120,
-      },
-      {
-        slug: "family-marriage",
-        name: "Family & Marriage",
-        type: "subject",
-        parent_slug: "books",
-        sort_order: 130,
-      },
+      { slug: "shemaghs", name: "Shemaghs", type: "collection", sort_order: 10 },
+      { slug: "niqabs", name: "Niqabs", type: "collection", sort_order: 20 },
+      { slug: "kufis", name: "Kufis", type: "collection", sort_order: 30 },
+      { slug: "honey", name: "Honey", type: "collection", sort_order: 40 },
+      { slug: "watches", name: "Watches", type: "collection", sort_order: 50 },
+      { slug: "gloves", name: "Gloves", type: "collection", sort_order: 60 },
+      { slug: "men", name: "Men", type: "filter", sort_order: 110 },
+      { slug: "women", name: "Women", type: "filter", sort_order: 120 },
+      { slug: "unisex", name: "Unisex", type: "filter", sort_order: 130 },
+      { slug: "bestseller", name: "Bestsellers", type: "filter", sort_order: 140 },
+      { slug: "new", name: "New arrivals", type: "filter", sort_order: 150 },
+      { slug: "limited", name: "Limited", type: "filter", sort_order: 160 },
     ];
+    const timestamp = nowIso();
+    const existingRows = await ctx.db.query("categories").collect();
+    for (const row of existingRows) {
+      await ctx.db.patch(row._id, { is_active: false, updated_at: timestamp });
+    }
     for (const item of defaults) {
       const existing = await ctx.db
         .query("categories")
         .withIndex("by_slug", (q) => q.eq("slug", item.slug))
         .first();
-      const payload = { ...item, is_active: true, updated_at: nowIso() };
+      const payload = {
+        ...item,
+        description: null,
+        parent_slug: null,
+        is_active: true,
+        updated_at: timestamp,
+      };
       if (existing) await ctx.db.patch(existing._id, payload);
-      else await ctx.db.insert("categories", { ...payload, created_at: nowIso() });
+      else await ctx.db.insert("categories", { ...payload, created_at: timestamp });
     }
     await writeAuditLog(ctx, {
       action: "category.seed_defaults",
       entityType: "category",
-      summary: "Seeded default categories and subjects",
+      summary: "Reset Fawzaan collections and filters",
       metadata: { count: defaults.length },
+    });
+    return true;
+  },
+});
+
+export const listStorefrontBanners = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const rows = await ctx.db.query("storefront_banners").collect();
+    return rows
+      .map(publicDoc)
+      .sort(
+        (a, b) =>
+          Number(a.sort_order ?? 999) - Number(b.sort_order ?? 999) ||
+          String(b.created_at).localeCompare(String(a.created_at)),
+      );
+  },
+});
+
+export const upsertStorefrontBanner = mutation({
+  args: {
+    id: v.optional(v.string()),
+    placement: v.string(),
+    eyebrow: v.optional(v.union(v.string(), v.null())),
+    title: v.string(),
+    body: v.optional(v.union(v.string(), v.null())),
+    button_label: v.optional(v.union(v.string(), v.null())),
+    button_url: v.optional(v.union(v.string(), v.null())),
+    image_url: v.string(),
+    sort_order: v.optional(v.union(v.number(), v.null())),
+    is_active: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const title = cleanText(args.title, 100);
+    const placement = cleanText(args.placement, 40);
+    const imageUrl = cleanText(args.image_url, 1000);
+    const buttonUrl = cleanText(args.button_url, 500) || null;
+    if (!title) throw new Error("Banner title is required.");
+    if (!placement) throw new Error("Banner placement is required.");
+    if (!/^https?:\/\//i.test(imageUrl) && !imageUrl.startsWith("/")) {
+      throw new Error("Banner image must be an HTTPS or site-relative URL.");
+    }
+    if (buttonUrl && !/^https?:\/\//i.test(buttonUrl) && !buttonUrl.startsWith("/")) {
+      throw new Error("Banner link must be an HTTPS or site-relative URL.");
+    }
+    const timestamp = nowIso();
+    const payload = {
+      placement,
+      eyebrow: cleanText(args.eyebrow, 60) || null,
+      title,
+      body: cleanText(args.body, 320) || null,
+      button_label: cleanText(args.button_label, 50) || null,
+      button_url: buttonUrl,
+      image_url: imageUrl,
+      sort_order: args.sort_order ?? null,
+      is_active: args.is_active ?? true,
+      updated_at: timestamp,
+    };
+    const bannerId = args.id ? ctx.db.normalizeId("storefront_banners", args.id) : null;
+    if (args.id && !bannerId) throw new Error("Invalid banner ID.");
+    const existing = bannerId ? await ctx.db.get(bannerId) : null;
+    const id = existing
+      ? (await ctx.db.patch(existing._id, payload), existing._id)
+      : await ctx.db.insert("storefront_banners", { ...payload, created_at: timestamp });
+    await writeAuditLog(ctx, {
+      action: existing ? "banner.update" : "banner.create",
+      entityType: "storefront_banner",
+      entityId: String(id),
+      summary: title,
+      metadata: { placement },
+    });
+    const doc = await ctx.db.get(id);
+    return doc ? publicDoc(doc) : null;
+  },
+});
+
+export const archiveStorefrontBanner = mutation({
+  args: { id: v.string() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const bannerId = ctx.db.normalizeId("storefront_banners", args.id);
+    if (!bannerId) throw new Error("Invalid banner ID.");
+    const doc = await ctx.db.get(bannerId);
+    if (!doc) return false;
+    await ctx.db.patch(doc._id, { is_active: false, updated_at: nowIso() });
+    await writeAuditLog(ctx, {
+      action: "banner.archive",
+      entityType: "storefront_banner",
+      entityId: args.id,
+      summary: doc.title,
     });
     return true;
   },

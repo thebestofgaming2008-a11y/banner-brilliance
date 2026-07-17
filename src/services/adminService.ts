@@ -238,6 +238,7 @@ export interface AdminCategory {
   slug: string;
   name: string;
   type: string;
+  description?: string | null;
   parent_slug?: string | null;
   sort_order?: number | null;
   is_active?: boolean | null;
@@ -253,6 +254,7 @@ export async function upsertCategory(input: {
   slug?: string | null;
   name: string;
   type?: string;
+  description?: string | null;
   parent_slug?: string | null;
   sort_order?: number | null;
   is_active?: boolean;
@@ -262,6 +264,38 @@ export async function upsertCategory(input: {
 
 export async function seedDefaultCategories(): Promise<boolean> {
   return await convex.mutation(api.admin.seedDefaultCategories, {});
+}
+
+export interface StorefrontBanner {
+  id: string;
+  placement: "shop_hero" | "shop_promo" | "homepage_promo" | string;
+  eyebrow?: string | null;
+  title: string;
+  body?: string | null;
+  button_label?: string | null;
+  button_url?: string | null;
+  image_url: string;
+  sort_order?: number | null;
+  is_active?: boolean | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export async function listStorefrontBanners(): Promise<StorefrontBanner[]> {
+  return (await convex.query(api.admin.listStorefrontBanners, {})) as StorefrontBanner[];
+}
+
+export async function upsertStorefrontBanner(
+  input: Omit<StorefrontBanner, "id" | "created_at" | "updated_at"> & { id?: string },
+): Promise<StorefrontBanner | null> {
+  return (await convex.mutation(
+    api.admin.upsertStorefrontBanner,
+    input,
+  )) as StorefrontBanner | null;
+}
+
+export async function archiveStorefrontBanner(id: string): Promise<boolean> {
+  return await convex.mutation(api.admin.archiveStorefrontBanner, { id });
 }
 
 export interface LaunchReadiness {

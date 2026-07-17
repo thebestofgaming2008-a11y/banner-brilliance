@@ -67,8 +67,10 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
 }
 
 export function useCatalogProducts() {
-  const [products, setProducts] = useState<Product[]>(cachedProducts ?? catalog);
-  const [loading, setLoading] = useState(!cachedProducts);
+  // SSR workers are reused across requests. Always start from the same snapshot
+  // in the browser and on the server, then replace it with the live catalog.
+  const [products, setProducts] = useState<Product[]>(catalog);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;

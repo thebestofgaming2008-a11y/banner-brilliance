@@ -74,12 +74,16 @@ import {
   updateReviewStatus,
   upsertCategory,
   seedDefaultCategories,
+  listStorefrontBanners,
+  upsertStorefrontBanner,
+  archiveStorefrontBanner,
   type ProductInput,
   type AdminOrder,
   type AdminCustomer,
   type AdminReview,
   type AdminCategory,
   type ShippingRate,
+  type StorefrontBanner,
 } from "@/services/adminService";
 import type { Product } from "@/services/productService";
 import { catalog as storefrontCatalog } from "@/lib/products";
@@ -279,6 +283,7 @@ const Admin = () => {
   const [reviews, setReviews] = useState<AdminReview[]>([]);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [shippingRates, setShippingRates] = useState<ShippingRate[]>([]);
+  const [banners, setBanners] = useState<StorefrontBanner[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Product | null>(null);
   const [creating, setCreating] = useState(false);
@@ -309,8 +314,9 @@ const Admin = () => {
       listAllReviews(200),
       listCategories(),
       listShippingRates(),
+      listStorefrontBanners(),
     ])
-      .then(([p, o, c, r, cats, rates]) => {
+      .then(([p, o, c, r, cats, rates, bannerRows]) => {
         if (cancelled) return;
         setProducts(p);
         setOrders(o);
@@ -318,6 +324,7 @@ const Admin = () => {
         setReviews(r);
         setCategories(cats);
         setShippingRates(rates);
+        setBanners(bannerRows);
         setLoading(false);
       })
       .catch((error) => {
@@ -339,6 +346,7 @@ const Admin = () => {
   const refreshReviews = async () => setReviews(await listAllReviews(200));
   const refreshCategories = async () => setCategories(await listCategories());
   const refreshShippingRates = async () => setShippingRates(await listShippingRates());
+  const refreshBanners = async () => setBanners(await listStorefrontBanners());
 
   const handleSaveTracking = async (
     order: AdminOrder,
@@ -943,6 +951,7 @@ const Admin = () => {
             {!loading && !adminLoadError && tab === "homepage" && (
               <HomepageAdminPanel
                 products={products}
+                banners={banners}
                 onEdit={setEditing}
                 onPatch={async (product, patch) => {
                   const saved = await updateProduct(product.id, patch);
@@ -951,6 +960,16 @@ const Admin = () => {
                     notify({ title: "Homepage placement updated" });
                     await refreshProducts();
                   }
+                }}
+                onSaveBanner={async (input) => {
+                  await upsertStorefrontBanner(input);
+                  notify({ title: "Storefront banner saved" });
+                  await refreshBanners();
+                }}
+                onArchiveBanner={async (id) => {
+                  await archiveStorefrontBanner(id);
+                  notify({ title: "Storefront banner archived" });
+                  await refreshBanners();
                 }}
               />
             )}
@@ -1110,8 +1129,14 @@ const Admin = () => {
                 categories={categories}
                 products={products}
                 onSeed={async () => {
+                  if (
+                    !confirm(
+                      "Reset collections and filters to the Fawzaan defaults? Custom entries will be archived.",
+                    )
+                  )
+                    return;
                   await seedDefaultCategories();
-                  notify({ title: "Default categories seeded" });
+                  notify({ title: "Catalog organization reset" });
                   await refreshCategories();
                 }}
                 onSave={async (input) => {
@@ -1212,6 +1237,7 @@ const Admin = () => {
       {(creating || editing) && (
         <ProductDrawer
           product={editing ?? undefined}
+          categories={categories}
           onClose={() => {
             setCreating(false);
             setEditing(null);
@@ -2507,12 +2533,20 @@ function ReviewsTable({
 
 function HomepageAdminPanel({
   products,
+  banners,
   onEdit,
   onPatch,
+  onSaveBanner,
+  onArchiveBanner,
 }: {
   products: Product[];
+  banners: StorefrontBanner[];
   onEdit: (product: Product) => void;
   onPatch: (product: Product, patch: Partial<ProductInput>) => Promise<void>;
+  onSaveBanner: (
+    input: Omit<StorefrontBanner, "id" | "created_at" | "updated_at"> & { id?: string },
+  ) => Promise<void>;
+  onArchiveBanner: (id: string) => Promise<void>;
 }) {
   const featured = products.filter((product) => product.is_featured);
   const newArrivals = products.filter((product) => product.is_new_arrival);
@@ -2542,6 +2576,8 @@ function HomepageAdminPanel({
           Icon={TrendingUp}
         />
       </div>
+
+      <BannerAdminPanel banners={banners} onSave={onSaveBanner} onArchive={onArchiveBanner} />
 
       <Section
         title="Homepage placement"
@@ -2614,6 +2650,262 @@ function HomepageAdminPanel({
   );
 }
 
+function BannerAdminPanel({
+  banners,
+  onSave,
+  onArchive,
+}: {
+  banners: StorefrontBanner[];
+  onSave: (
+    input: Omit<StorefrontBanner, "id" | "created_at" | "updated_at"> & { id?: string },
+  ) => Promise<void>;
+  onArchive: (id: string) => Promise<void>;
+}) {
+  const blank = {
+    placement: "shop_promo",
+    eyebrow: "",
+    title: "",
+    body: "",
+    button_label: "",
+    button_url: "/shop",
+    image_url: "",
+    sort_order: "",
+    is_active: true,
+  };
+  const [draft, setDraft] = useState(blank);
+  const [editingId, setEditingId] = useState<string | undefined>();
+  const [uploading, setUploading] = useState(false);
+
+  const edit = (banner: StorefrontBanner) => {
+    setEditingId(banner.id);
+    setDraft({
+      placement: banner.placement,
+      eyebrow: banner.eyebrow ?? "",
+      title: banner.title,
+      body: banner.body ?? "",
+      button_label: banner.button_label ?? "",
+      button_url: banner.button_url ?? "",
+      image_url: banner.image_url,
+      sort_order: banner.sort_order == null ? "" : String(banner.sort_order),
+      is_active: banner.is_active !== false,
+    });
+  };
+
+  const upload = async (file: File) => {
+    setUploading(true);
+    try {
+      const url = await uploadProductImage(file);
+      if (!url) throw new Error("The upload did not return a public URL.");
+      setDraft((current) => ({ ...current, image_url: url }));
+      notify({ title: "Banner image uploaded" });
+    } catch (error) {
+      notify({
+        title: "Banner upload failed",
+        description: error instanceof Error ? error.message : "Could not upload this image.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const save = async () => {
+    if (!draft.title.trim() || !draft.image_url.trim()) {
+      notify({ title: "Banner title and image are required", variant: "destructive" });
+      return;
+    }
+    await onSave({
+      id: editingId,
+      placement: draft.placement,
+      eyebrow: draft.eyebrow.trim() || null,
+      title: draft.title.trim(),
+      body: draft.body.trim() || null,
+      button_label: draft.button_label.trim() || null,
+      button_url: draft.button_url.trim() || null,
+      image_url: draft.image_url.trim(),
+      sort_order: draft.sort_order.trim() ? Number(draft.sort_order) : null,
+      is_active: draft.is_active,
+    });
+    setDraft(blank);
+    setEditingId(undefined);
+  };
+
+  return (
+    <Section
+      title="Storefront banners"
+      subtitle="Managed campaign blocks with consistent typography and layout."
+    >
+      <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+        <div className="space-y-3">
+          <AdminField label="Placement">
+            <select
+              className="admin-input"
+              value={draft.placement}
+              onChange={(event) => setDraft({ ...draft, placement: event.target.value })}
+            >
+              <option value="shop_hero">Shop hero (one active recommended)</option>
+              <option value="shop_promo">Shop promotional banner</option>
+              <option value="homepage_promo">Homepage promotional banner</option>
+            </select>
+          </AdminField>
+          <AdminField label="Eyebrow">
+            <input
+              className="admin-input"
+              value={draft.eyebrow}
+              onChange={(event) => setDraft({ ...draft, eyebrow: event.target.value })}
+              placeholder="New collection"
+            />
+          </AdminField>
+          <AdminField label="Title">
+            <input
+              className="admin-input"
+              value={draft.title}
+              onChange={(event) => setDraft({ ...draft, title: event.target.value })}
+            />
+          </AdminField>
+          <AdminField label="Supporting text">
+            <textarea
+              className="admin-input min-h-20 resize-y"
+              value={draft.body}
+              onChange={(event) => setDraft({ ...draft, body: event.target.value })}
+            />
+          </AdminField>
+          <div className="grid grid-cols-2 gap-3">
+            <AdminField label="Button text">
+              <input
+                className="admin-input"
+                value={draft.button_label}
+                onChange={(event) => setDraft({ ...draft, button_label: event.target.value })}
+                placeholder="Shop collection"
+              />
+            </AdminField>
+            <AdminField label="Button link">
+              <input
+                className="admin-input"
+                value={draft.button_url}
+                onChange={(event) => setDraft({ ...draft, button_url: event.target.value })}
+                placeholder="/shop?collection=..."
+              />
+            </AdminField>
+          </div>
+          <AdminField label="Banner image">
+            <div className="space-y-2">
+              <input
+                className="admin-input"
+                value={draft.image_url}
+                onChange={(event) => setDraft({ ...draft, image_url: event.target.value })}
+                placeholder="Paste URL or upload"
+              />
+              <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-[rgb(var(--vibe-border))] px-3 text-xs font-medium">
+                <Upload className="h-4 w-4" />
+                {uploading ? "Uploading..." : "Upload image"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void upload(file);
+                  }}
+                />
+              </label>
+            </div>
+          </AdminField>
+          <AdminField label="Sort order">
+            <input
+              className="admin-input"
+              inputMode="numeric"
+              value={draft.sort_order}
+              onChange={(event) => setDraft({ ...draft, sort_order: event.target.value })}
+            />
+          </AdminField>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={draft.is_active}
+              onChange={(event) => setDraft({ ...draft, is_active: event.target.checked })}
+            />
+            Visible on storefront
+          </label>
+          <div className="flex gap-2">
+            <button type="button" className="admin-button" onClick={() => void save()}>
+              {editingId ? "Update banner" : "Add banner"}
+            </button>
+            {editingId ? (
+              <button
+                type="button"
+                className="admin-button admin-button-secondary"
+                onClick={() => {
+                  setDraft(blank);
+                  setEditingId(undefined);
+                }}
+              >
+                Cancel
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="grid content-start gap-3 md:grid-cols-2">
+          {banners.length ? (
+            banners.map((banner) => (
+              <article
+                key={banner.id}
+                className={cn(
+                  "overflow-hidden rounded-lg border border-[rgb(var(--vibe-border))] bg-white",
+                  banner.is_active === false && "opacity-60",
+                )}
+              >
+                <div className="aspect-[16/9] bg-[rgb(var(--vibe-surface))]">
+                  <img
+                    src={banner.image_url}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+                <div className="p-4">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-[rgb(var(--vibe-muted))]">
+                    {banner.placement} · order {banner.sort_order ?? "auto"}
+                  </p>
+                  <h3 className="mt-2 font-semibold">{banner.title}</h3>
+                  {banner.body ? (
+                    <p className="mt-1 line-clamp-2 text-xs text-[rgb(var(--vibe-muted))]">
+                      {banner.body}
+                    </p>
+                  ) : null}
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      type="button"
+                      className="h-8 rounded-md border border-[rgb(var(--vibe-border))] px-3 text-xs"
+                      onClick={() => edit(banner)}
+                    >
+                      Edit
+                    </button>
+                    {banner.is_active !== false ? (
+                      <button
+                        type="button"
+                        className="h-8 rounded-md border border-[rgb(var(--vibe-border))] px-3 text-xs"
+                        onClick={() => void onArchive(banner.id)}
+                      >
+                        Archive
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </article>
+            ))
+          ) : (
+            <div className="rounded-lg border border-dashed border-[rgb(var(--vibe-border))] p-8 text-center text-sm text-[rgb(var(--vibe-muted))] md:col-span-2">
+              No managed banners yet. The current storefront artwork remains as the fallback.
+            </div>
+          )}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 function CategoriesAdminPanel({
   categories,
   products,
@@ -2632,15 +2924,34 @@ function CategoriesAdminPanel({
     is_active?: boolean;
   }) => Promise<void>;
 }) {
-  const [draft, setDraft] = useState({
+  const emptyDraft = {
     name: "",
     slug: "",
     type: "collection",
+    description: "",
     parent_slug: "",
     sort_order: "",
-  });
-  const productCount = (slug: string) =>
-    products.filter((product) => product.category_id === slug || product.category === slug).length;
+    is_active: true,
+  };
+  const [draft, setDraft] = useState(emptyDraft);
+  const [editingSlug, setEditingSlug] = useState<string | null>(null);
+  const productCount = (category: AdminCategory) =>
+    products.filter(
+      (product) => product.category_id === category.slug || product.category === category.name,
+    ).length;
+
+  const editCategory = (category: AdminCategory) => {
+    setEditingSlug(category.slug);
+    setDraft({
+      name: category.name,
+      slug: category.slug,
+      type: category.type,
+      description: category.description ?? "",
+      parent_slug: category.parent_slug ?? "",
+      sort_order: category.sort_order == null ? "" : String(category.sort_order),
+      is_active: category.is_active !== false,
+    });
+  };
 
   const save = async () => {
     if (!draft.name.trim()) {
@@ -2651,18 +2962,20 @@ function CategoriesAdminPanel({
       name: draft.name.trim(),
       slug: draft.slug.trim() || null,
       type: draft.type,
+      description: draft.description.trim() || null,
       parent_slug: draft.parent_slug.trim() || null,
       sort_order: draft.sort_order.trim() ? Number(draft.sort_order) : null,
-      is_active: true,
+      is_active: draft.is_active,
     });
-    setDraft({ name: "", slug: "", type: "collection", parent_slug: "", sort_order: "" });
+    setDraft(emptyDraft);
+    setEditingSlug(null);
   };
 
   return (
     <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
       <Section
-        title="Add category or filter"
-        subtitle="Create storefront filters without touching code."
+        title={editingSlug ? "Edit catalog group" : "Add collection or filter"}
+        subtitle="Collections organize products; filters are reusable labels."
       >
         <div className="space-y-3">
           <AdminField label="Name">
@@ -2678,6 +2991,7 @@ function CategoriesAdminPanel({
               value={draft.slug}
               onChange={(e) => setDraft({ ...draft, slug: e.target.value })}
               placeholder="auto from name"
+              disabled={Boolean(editingSlug)}
             />
           </AdminField>
           <AdminField label="Type">
@@ -2688,20 +3002,15 @@ function CategoriesAdminPanel({
             >
               <option value="collection">Collection</option>
               <option value="filter">Filter</option>
-              <option value="audience">Audience</option>
             </select>
           </AdminField>
-          <AdminField label="Parent">
-            <select
-              className="admin-input"
-              value={draft.parent_slug}
-              onChange={(e) => setDraft({ ...draft, parent_slug: e.target.value })}
-            >
-              <option value="">No parent</option>
-              <option value="men">Men</option>
-              <option value="women">Women</option>
-              <option value="unisex">Unisex</option>
-            </select>
+          <AdminField label="Description">
+            <textarea
+              className="admin-input min-h-20 resize-y"
+              value={draft.description}
+              onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+              placeholder="Optional internal or empty-state description"
+            />
           </AdminField>
           <AdminField label="Sort order">
             <input
@@ -2711,52 +3020,97 @@ function CategoriesAdminPanel({
               inputMode="numeric"
             />
           </AdminField>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={draft.is_active}
+              onChange={(e) => setDraft({ ...draft, is_active: e.target.checked })}
+            />
+            Visible on storefront
+          </label>
           <div className="flex flex-wrap gap-2">
             <button type="button" className="admin-button" onClick={save}>
-              Save category
+              {editingSlug ? "Update" : "Create"}
             </button>
+            {editingSlug ? (
+              <button
+                type="button"
+                className="admin-button admin-button-secondary"
+                onClick={() => {
+                  setDraft(emptyDraft);
+                  setEditingSlug(null);
+                }}
+              >
+                Cancel
+              </button>
+            ) : null}
             <button
               type="button"
               className="admin-button admin-button-secondary"
               onClick={() => void onSeed()}
             >
-              Seed defaults
+              Reset defaults
             </button>
           </div>
         </div>
       </Section>
 
-      <Section title="Categories" subtitle={`${categories.length} configured`}>
+      <Section title="Catalog organization" subtitle={`${categories.length} configured`}>
         <div className="grid gap-3 md:grid-cols-2">
-          {[...CATEGORIES.map((item) => ({ ...item, type: "built-in" })), ...categories].map(
-            (category) => {
-              const key = "key" in category ? category.key : category.slug;
-              const label = "label" in category ? category.label : category.name;
-              const parent = "parent" in category ? category.parent : category.parent_slug;
-              return (
-                <article
-                  key={`${key}-${label}`}
-                  className="rounded-lg border border-[rgb(var(--vibe-border))] bg-white p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{label}</p>
-                      <p className="mt-1 text-xs text-[rgb(var(--vibe-muted))]">
-                        {key}
-                        {parent ? ` / ${parent}` : ""}
-                      </p>
+          {categories.map((category) => {
+            return (
+              <article
+                key={category.id}
+                className={cn(
+                  "rounded-lg border border-[rgb(var(--vibe-border))] bg-white p-4",
+                  category.is_active === false && "opacity-60",
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium">{category.name}</p>
+                      <span className="rounded bg-[rgb(var(--vibe-surface))] px-2 py-0.5 text-[10px] uppercase text-[rgb(var(--vibe-muted))]">
+                        {category.type}
+                      </span>
                     </div>
-                    <span className="rounded bg-[rgb(var(--vibe-surface))] px-2 py-1 text-[11px] text-[rgb(var(--vibe-muted))]">
-                      {productCount(key)} products
-                    </span>
+                    <p className="mt-1 text-xs text-[rgb(var(--vibe-muted))]">
+                      {category.slug} · order {category.sort_order ?? "auto"}
+                    </p>
                   </div>
-                  {"blurb" in category && (
-                    <p className="mt-3 text-sm text-[rgb(var(--vibe-muted))]">{category.blurb}</p>
-                  )}
-                </article>
-              );
-            },
-          )}
+                  <span className="rounded bg-[rgb(var(--vibe-surface))] px-2 py-1 text-[11px] text-[rgb(var(--vibe-muted))]">
+                    {productCount(category)} products
+                  </span>
+                </div>
+                {category.description ? (
+                  <p className="mt-3 text-sm text-[rgb(var(--vibe-muted))]">
+                    {category.description}
+                  </p>
+                ) : null}
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    className="h-8 rounded-md border border-[rgb(var(--vibe-border))] px-3 text-xs"
+                    onClick={() => editCategory(category)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="h-8 rounded-md border border-[rgb(var(--vibe-border))] px-3 text-xs"
+                    onClick={() =>
+                      void onSave({
+                        ...category,
+                        is_active: category.is_active === false,
+                      })
+                    }
+                  >
+                    {category.is_active === false ? "Activate" : "Archive"}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
         </div>
       </Section>
     </div>
@@ -2964,13 +3318,25 @@ function ProductThumb({ product }: { product: Product }) {
 
 function ProductDrawer({
   product,
+  categories,
   onClose,
   onSaved,
 }: {
   product?: Product;
+  categories: AdminCategory[];
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const collectionCategories = categories.filter(
+    (category) => category.type === "collection" && category.is_active !== false,
+  );
+  const filterCategories = categories.filter(
+    (category) => category.type === "filter" && category.is_active !== false,
+  );
+  const defaultCollection = collectionCategories[0] ?? {
+    slug: CATEGORIES[0].key,
+    name: CATEGORIES[0].label,
+  };
   const [form, setForm] = useState<ProductInput>({
     name: product?.name ?? "",
     slug: product?.slug ?? null,
@@ -2980,8 +3346,8 @@ function ProductDrawer({
     publisher: product?.publisher ?? "",
     price_inr: product?.price_inr ?? 0,
     sale_price_inr: product?.sale_price_inr ?? null,
-    category: product?.category ?? CATEGORIES[0].label,
-    category_id: product?.category_id ?? CATEGORIES[0].key,
+    category: product?.category ?? defaultCollection.name,
+    category_id: product?.category_id ?? defaultCollection.slug,
     cover_image_url: product?.cover_image_url ?? null,
     images: product?.images ?? [],
     linked_product_ids: product?.linked_product_ids ?? [],
@@ -3079,9 +3445,9 @@ function ProductDrawer({
         cover_image_url: coverImage ?? cleanImageUrl(activeImage) ?? savedImages[0] ?? null,
         images: savedImages,
         category:
-          CATEGORIES.find((category) => category.key === form.category_id)?.label ??
+          collectionCategories.find((category) => category.slug === form.category_id)?.name ??
           form.category ??
-          CATEGORIES[0].label,
+          defaultCollection.name,
         linked_product_ids: linkedIds
           .split(",")
           .map((id) => id.trim())
@@ -3263,15 +3629,65 @@ function ProductDrawer({
             />
             <SelectField
               label="Category"
-              value={form.category_id ?? CATEGORIES[0].key}
+              value={form.category_id ?? defaultCollection.slug}
               onChange={(v) =>
                 setForm({
                   ...form,
                   category_id: v,
-                  category: CATEGORIES.find((category) => category.key === v)?.label ?? v,
+                  category: collectionCategories.find((category) => category.slug === v)?.name ?? v,
                 })
               }
-              options={CATEGORIES.map((c) => ({ value: c.key, label: c.label }))}
+              options={collectionCategories.map((category) => ({
+                value: category.slug,
+                label: category.name,
+              }))}
+            />
+          </div>
+          <div className="rounded-lg border border-border bg-foreground/[0.015] p-3">
+            <p className="text-xs font-medium text-foreground/70">Storefront filters</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {filterCategories.map((filter) => {
+                const active = (form.tags ?? []).includes(filter.slug);
+                return (
+                  <button
+                    key={filter.slug}
+                    type="button"
+                    onClick={() =>
+                      setForm((current) => ({
+                        ...current,
+                        tags: active
+                          ? (current.tags ?? []).filter((tag) => tag !== filter.slug)
+                          : Array.from(new Set([...(current.tags ?? []), filter.slug])),
+                      }))
+                    }
+                    className={cn(
+                      "rounded-md border px-3 py-2 text-xs font-medium",
+                      active
+                        ? "border-[#111827] bg-[#111827] text-white"
+                        : "border-border bg-white text-foreground/70",
+                    )}
+                  >
+                    {filter.name}
+                  </button>
+                );
+              })}
+            </div>
+            <Field
+              label="Additional labels"
+              value={(form.tags ?? [])
+                .filter((tag) => !filterCategories.some((filter) => filter.slug === tag))
+                .join(", ")}
+              onChange={(value) => {
+                const managedTags = (form.tags ?? []).filter((tag) =>
+                  filterCategories.some((filter) => filter.slug === tag),
+                );
+                const customTags = value
+                  .split(",")
+                  .map((tag) => tag.trim().toLowerCase())
+                  .filter(Boolean);
+                setForm({ ...form, tags: Array.from(new Set([...managedTags, ...customTags])) });
+              }}
+              placeholder="e.g. ramadan, gift-ready"
             />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
