@@ -4,9 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 
 import { StoreProductCard } from "@/components/store/product-card";
 import { StorePage } from "@/components/store/store-chrome";
-import { toStoreProduct, type StoreCollection, useStoreProducts } from "@/data/store";
+import { merchandiseProducts, toStoreProduct, type StoreCollection } from "@/data/store";
 import { listActiveProducts } from "@/services/productService";
 import { useStoreReveal } from "@/hooks/use-store-reveal";
+import honeyMulti from "@/assets/product-photos/honey-kashmir-multiflora.jpg";
+import niqabKhadijaFull from "@/assets/product-photos/niqab-khadija-full.jpg";
+import sabrWatchBlack from "@/assets/collection-banners/sabr-watch-black.jpg";
+import shemaghManBack from "@/assets/product-photos/shemagh-man-back.jpg";
 
 type ShopSearch = { collection?: StoreCollection };
 
@@ -24,10 +28,7 @@ export const Route = createFileRoute("/shop")({
 
 function ShopPage() {
   useStoreReveal();
-  const initialProducts = Route.useLoaderData();
-  const liveCatalog = useStoreProducts();
-  const storeProducts = liveCatalog.products.length ? liveCatalog.products : initialProducts;
-  const loading = liveCatalog.loading && !storeProducts.length;
+  const storeProducts = Route.useLoaderData();
   const search = Route.useSearch();
   const [collection, setCollection] = useState<"All" | StoreCollection>(search.collection ?? "All");
   const [query, setQuery] = useState("");
@@ -56,19 +57,61 @@ function ShopPage() {
       if (sort === "price-low") return a.price - b.price;
       if (sort === "price-high") return b.price - a.price;
       if (sort === "rating") return b.rating - a.rating;
-      return (b.badge === "Bestseller" ? 1 : 0) - (a.badge === "Bestseller" ? 1 : 0);
+      return 0;
     });
   }, [collection, query, sort, storeProducts]);
 
+  const displayedProducts = sort === "featured" ? merchandiseProducts(products) : products;
+
   return (
     <StorePage>
-      <section className="bg-[#f4b400] px-[22px] py-12 md:px-8 md:py-18">
-        <div className="mx-auto max-w-[1180px]" data-store-reveal>
-          <p className="section-kicker text-black/55">The complete collection</p>
-          <h1 className="section-heading mt-3 text-[46px] md:text-[72px]">SHOP FAWZAAN</h1>
-          <p className="mt-4 max-w-md text-[14px] leading-6 text-black/65">
-            Modest essentials, SABR watches, considered accessories, and pure Kashmir honey.
-          </p>
+      <section className="relative min-h-[470px] overflow-hidden bg-black text-white md:min-h-[580px]">
+        <div className="absolute inset-0 grid grid-cols-[1.15fr_0.85fr] md:grid-cols-[1.45fr_0.55fr]">
+          <div className="relative overflow-hidden">
+            <img
+              src={shemaghManBack}
+              alt="Ivory embroidered shemagh worn from the back"
+              className="h-full w-full object-cover object-center"
+            />
+          </div>
+          <div className="grid min-h-0 grid-rows-3">
+            <div className="min-h-0 overflow-hidden border-l border-white/10">
+              <img
+                src={niqabKhadijaFull}
+                alt="Khadija niqab"
+                className="h-full w-full object-cover object-[center_20%]"
+              />
+            </div>
+            <div className="min-h-0 overflow-hidden border-l border-t border-white/10">
+              <img
+                src={sabrWatchBlack}
+                alt="SABR black dial watch"
+                className="h-full w-full object-cover object-center"
+              />
+            </div>
+            <div className="min-h-0 overflow-hidden border-l border-t border-white/10">
+              <img
+                src={honeyMulti}
+                alt="Kashmir multi-flora honey"
+                className="h-full w-full object-cover object-center"
+              />
+            </div>
+          </div>
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-r from-black/78 via-black/28 to-black/5" />
+        <div
+          className="relative mx-auto flex min-h-[470px] max-w-[1280px] items-end px-[22px] pb-12 md:min-h-[580px] md:px-8 md:pb-16"
+          data-store-reveal
+        >
+          <div className="max-w-xl">
+            <p className="section-kicker text-white/68">The complete collection</p>
+            <h1 className="banner-heading mt-3 text-[48px] leading-[0.9] md:text-[78px]">
+              THE FAWZAAN EDIT
+            </h1>
+            <p className="mt-5 max-w-md text-[14px] leading-6 text-white/72">
+              Heritage pieces, modest essentials, SABR watches, and Kashmir honey.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -125,21 +168,12 @@ function ShopPage() {
             </div>
           </div>
           <div className="mt-6 flex items-center justify-between text-[11px] text-black/50">
-            <span>{products.length} products</span>
+            <span>{displayedProducts.length} products</span>
             <span>{collection === "All" ? "All collections" : collection}</span>
           </div>
-          {loading ? (
-            <div
-              className="grid grid-cols-2 gap-3 py-8 md:grid-cols-4"
-              aria-label="Loading products"
-            >
-              {Array.from({ length: 8 }).map((_, index) => (
-                <div key={index} className="aspect-[3/4] animate-pulse bg-black/5" />
-              ))}
-            </div>
-          ) : products.length ? (
+          {displayedProducts.length ? (
             <div className="mt-8 grid grid-cols-2 gap-x-3 gap-y-12 md:grid-cols-4 md:gap-x-4 md:gap-y-16">
-              {products.map((product, index) => (
+              {displayedProducts.map((product, index) => (
                 <StoreProductCard key={product.slug} product={product} priority={index < 4} />
               ))}
             </div>

@@ -197,6 +197,31 @@ export function formatPrice(price: number) {
   return `Rs. ${price.toLocaleString()}`;
 }
 
+const featuredProductOrder = [
+  "yemeni-shemagh",
+  "yemeni-shemagh-red",
+  "khadija-niqab",
+  "kashmir-multiflora-honey",
+  "sabr-watch-green",
+  "white-kufi",
+  "rouge-niqab",
+  "sabr-watch-black",
+  "kashmir-acacia-honey",
+  "sabr-watch-blue",
+  "kashmir-black-honey",
+  "sabr-watch-white",
+];
+
+const featuredProductRank = new Map(featuredProductOrder.map((slug, index) => [slug, index]));
+
+export function merchandiseProducts(products: StoreProduct[]) {
+  return [...products].sort((a, b) => {
+    const aRank = featuredProductRank.get(a.slug) ?? Number.MAX_SAFE_INTEGER;
+    const bRank = featuredProductRank.get(b.slug) ?? Number.MAX_SAFE_INTEGER;
+    return aRank - bRank || a.name.localeCompare(b.name);
+  });
+}
+
 export function getProduct(slug: string) {
   return storeProducts.find((product) => product.slug === slug);
 }

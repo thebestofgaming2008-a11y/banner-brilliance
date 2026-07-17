@@ -91,22 +91,6 @@ const starterProducts = [
     stock_quantity: 50,
   },
   {
-    slug: "leather-gloves",
-    name: "Heritage Leather Gloves",
-    short_description: "Full-grain leather, silk-lined.",
-    description: "Full-grain leather gloves with a silk lining. Cut to move, warm without bulk.",
-    price_inr: 4200,
-    sale_price_inr: 3600,
-    category: "Gloves",
-    category_id: "gloves",
-    tags: ["unisex"],
-    color_options: ["Cognac", "Black"],
-    size_options: ["S", "M", "L", "XL"],
-    rating: 4.8,
-    reviews_count: 96,
-    stock_quantity: 50,
-  },
-  {
     slug: "kashmir-multiflora-honey",
     name: "Kashmir Multi-Flora Honey 500g",
     short_description: "Pure Kashmiri highland honey, no adulteration.",
@@ -380,5 +364,29 @@ export const seedWatchCollection = mutation({
     }
 
     return { inserted, updated };
+  },
+});
+
+export const retireLegacyLeatherGloves = mutation({
+  args: { token: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const setupToken = process.env.ADMIN_UPLOAD_TOKEN;
+    if (!setupToken || args.token !== setupToken) await requireAdmin(ctx);
+
+    const product = await ctx.db
+      .query("products")
+      .withIndex("by_slug", (q) => q.eq("slug", "leather-gloves"))
+      .first();
+
+    if (!product) return { archived: false, reason: "not_found" };
+
+    await ctx.db.patch(product._id, {
+      is_active: false,
+      in_stock: false,
+      stock_quantity: 0,
+      updated_at: nowIso(),
+    });
+
+    return { archived: true, productId: product._id };
   },
 });

@@ -68,7 +68,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     const format = (inr: number) => {
       const v = inr * rate;
       const digits = currency === "INR" ? 0 : 2;
-      return `${symbol}${v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+      const locale = currency === "INR" ? "en-IN" : "en-US";
+      return `${symbol}${v.toLocaleString(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
     };
     return { currency, setCurrency, format, symbol };
   }, [currency, rates]);

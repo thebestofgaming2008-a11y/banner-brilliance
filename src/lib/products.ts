@@ -15,7 +15,6 @@ import niqabKhadija1 from "@/assets/niqab-khadija-1.jpg";
 import niqabKhadija2 from "@/assets/niqab-khadija-2.jpg";
 import niqabKhadija3 from "@/assets/niqab-khadija-3.jpg";
 import niqabKhadija4 from "@/assets/niqab-khadija-4.jpg";
-import heroGloves from "@/assets/hero-gloves.jpg";
 import honeyMulti from "@/assets/honey-kashmir-multiflora.jpg";
 import honeyAcacia from "@/assets/honey-kashmir-acacia.jpg";
 import honeyBlack from "@/assets/honey-kashmir-black.jpg";
@@ -169,27 +168,6 @@ export const catalog: Product[] = [
     features: ["Breathable openwork", "Cotton blend", "Holds shape"],
     materials: "Cotton blend.",
     care: "Hand wash cold, air dry flat.",
-  },
-  {
-    slug: "leather-gloves",
-    name: "Heritage Leather Gloves",
-    collection: "gloves",
-    gender: "unisex",
-    price: 3600,
-    compareAt: 4200,
-    rating: 4.8,
-    reviews: 96,
-    images: [heroGloves],
-    colors: [
-      { name: "Cognac", swatch: "#7a4a24" },
-      { name: "Black", swatch: "#000000" },
-    ],
-    sizes: ["S", "M", "L", "XL"],
-    short: "Full-grain leather, silk-lined.",
-    description: "Full-grain leather gloves with a silk lining. Cut to move, warm without bulk.",
-    features: ["Full-grain leather", "Silk lining", "Hand-stitched seams"],
-    materials: "Full-grain leather, silk lining.",
-    care: "Wipe with a soft dry cloth.",
   },
   {
     slug: "kashmir-multiflora-honey",

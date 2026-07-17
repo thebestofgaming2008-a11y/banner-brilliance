@@ -3,7 +3,7 @@ import { ChevronRight, Menu, Minus, Plus, ShoppingBag, Star, X } from "lucide-re
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { StoreFooter, StoreHeader } from "@/components/store/store-chrome";
-import { type StoreProduct, useStoreProducts } from "@/data/store";
+import { merchandiseProducts, type StoreProduct, useStoreProducts } from "@/data/store";
 import { useCurrency } from "@/hooks/use-currency";
 
 import logoGold from "@/assets/fawzaan-logo-gold.png";
@@ -1064,7 +1064,7 @@ function ShopAllProducts() {
   const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("All");
   const visibleProducts =
     activeFilter === "All"
-      ? catalog
+      ? merchandiseProducts(catalog)
       : catalog.filter((product) => product.collection === activeFilter);
 
   useEffect(() => {
@@ -1283,7 +1283,7 @@ function WatchCollection() {
   return (
     <section
       id="watch-collection"
-      className="scroll-mt-[76px] bg-[#f4b400] px-[18px] py-12 md:px-8 md:py-20"
+      className="scroll-mt-[76px] bg-white px-[18px] py-12 md:px-8 md:py-20"
     >
       <div className="mx-auto grid max-w-[1120px] gap-5 md:grid-cols-[0.9fr_1.1fr]">
         <a
@@ -1313,7 +1313,7 @@ function WatchCollection() {
             <a
               key={watch.slug}
               href={`/products/${watch.slug}`}
-              className="product-card group block bg-white p-2 md:p-3"
+              className="product-card group block border border-black/[0.07] bg-white p-2 md:p-3"
               data-reveal
             >
               <div className="product-card__media aspect-[4/5] overflow-hidden bg-[#f4f1eb]">
