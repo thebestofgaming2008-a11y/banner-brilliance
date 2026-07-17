@@ -74,6 +74,10 @@ test("shop product cart and checkout path uses the live product", async ({ page 
   await expect(page).toHaveURL(new RegExp(`/products/${product!.slug}$`));
   await expect(page.getByRole("heading", { name: product!.name, exact: true })).toBeVisible();
   await expect(page.locator("main img, section img").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "YOU MAY ALSO LIKE" })).toBeVisible();
+  await expect(
+    page.locator('[data-testid="related-products-section"] article.store-product-card'),
+  ).toHaveCount(Math.min(4, Math.max(0, products.length - 1)));
   await page.getByRole("button", { name: "Add to cart" }).last().click();
   await page.goto("/cart");
   await expect(page.getByRole("article").getByText(product!.name, { exact: true })).toBeVisible();

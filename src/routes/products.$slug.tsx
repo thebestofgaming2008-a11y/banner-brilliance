@@ -45,13 +45,33 @@ function ProductPage() {
   );
   const [added, setAdded] = useState(false);
 
-  const related = useMemo(
-    () =>
-      products
-        .filter((item) => item.collection === product.collection && item.slug !== product.slug)
-        .slice(0, 4),
-    [product.collection, product.slug, products],
-  );
+  const related = useMemo(() => {
+    const currentTags = new Set(product.filterTags ?? []);
+    const candidates = products.filter(
+      (item) => item.slug !== product.slug && (!product.id || item.id !== product.id),
+    );
+    const ranked = candidates
+      .map((item) => {
+        const sharedTags = (item.filterTags ?? []).filter((tag) => currentTags.has(tag)).length;
+        const sameCollection = item.collectionSlug
+          ? item.collectionSlug === product.collectionSlug
+          : item.collection === product.collection;
+        return {
+          item,
+          score: (sameCollection ? 100 : 0) + sharedTags * 12 + (item.inStock === false ? -50 : 0),
+        };
+      })
+      .sort((a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name));
+
+    return ranked.slice(0, 4).map(({ item }) => item);
+  }, [
+    product.collection,
+    product.collectionSlug,
+    product.filterTags,
+    product.id,
+    product.slug,
+    products,
+  ]);
   const variant = (product.optionGroups ?? [])
     .map((group) => selected[group.name])
     .filter(Boolean)
@@ -206,7 +226,10 @@ function ProductPage() {
       {convex && product.id ? <ProductReviews productId={product.id} /> : null}
 
       {related.length ? (
-        <section className="bg-[#f4b400] px-[22px] py-14 md:px-8 md:py-20">
+        <section
+          className="bg-[#f4b400] px-[22px] py-14 md:px-8 md:py-20"
+          data-testid="related-products-section"
+        >
           <div className="mx-auto max-w-[1180px]">
             <h2 className="section-heading text-[34px]">YOU MAY ALSO LIKE</h2>
             <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
