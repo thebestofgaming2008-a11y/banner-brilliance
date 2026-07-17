@@ -23,7 +23,7 @@ import sabrWatchBlue from "@/assets/collection-banners/sabr-watch-blue.jpg";
 import sabrWatchGreen from "@/assets/collection-banners/sabr-watch-green.jpg";
 import sabrWatchWhite from "@/assets/collection-banners/sabr-watch-white.jpg";
 
-export type Collection = "shemaghs" | "niqabs" | "kufis" | "gloves" | "honey" | "watches";
+export type Collection = "shemaghs" | "niqabs" | "kufis" | "gloves" | "honey" | "watches" | "other";
 export type Gender = "men" | "women" | "unisex";
 
 export type Variant = { name: string; swatch?: string };

@@ -235,6 +235,7 @@ const collectionLabels: Record<Product["collection"], StoreCollection> = {
   gloves: "Gloves",
   honey: "Honey",
   watches: "Watches",
+  other: "Other",
 };
 
 export function toStoreProduct(product: Product): StoreProduct {

@@ -192,6 +192,13 @@ function ShopPage() {
   const [query, setQuery] = useState(search.q ?? "");
   const [sort, setSort] = useState("featured");
   const tabsRef = useRef<HTMLDivElement>(null);
+  const knownCollectionSlugs = useMemo(
+    () =>
+      new Set(
+        collectionRows.filter((row) => row.slug !== "other").map((row) => normalize(row.slug)),
+      ),
+    [collectionRows],
+  );
 
   useEffect(() => {
     setCollection(resolveTaxonomySlug(search.collection, presentation.taxonomy, "collection"));
@@ -202,8 +209,12 @@ function ShopPage() {
   const products = useMemo(() => {
     const term = normalize(query);
     const filtered = storeProducts.filter((product) => {
+      const productCollection = normalize(product.collectionSlug);
       const matchesCollection =
-        collection === "all" || normalize(product.collectionSlug) === normalize(collection);
+        collection === "all" ||
+        (collection === "other"
+          ? productCollection === "other" || !knownCollectionSlugs.has(productCollection)
+          : productCollection === normalize(collection));
       const searchable = [product.name, product.collection, product.description]
         .filter(Boolean)
         .join(" ")
@@ -220,7 +231,7 @@ function ShopPage() {
       if (sort === "rating") return b.rating - a.rating;
       return 0;
     });
-  }, [activeFilter, collection, query, sort, storeProducts]);
+  }, [activeFilter, collection, knownCollectionSlugs, query, sort, storeProducts]);
 
   const displayedProducts = sort === "featured" ? merchandiseProducts(products) : products;
   const selectedCollection = collectionRows.find((row) => row.slug === collection);

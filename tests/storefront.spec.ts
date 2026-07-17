@@ -16,7 +16,10 @@ test("home and live catalog render without browser errors", async ({ page }) => 
     .toBeTruthy();
   const catalogResponse = await page.request.get("/api/catalog/products");
   expect(catalogResponse.ok()).toBeTruthy();
-  const catalog = (await catalogResponse.json()) as Array<{ tags?: string[] }>;
+  const catalog = (await catalogResponse.json()) as Array<{
+    category_id?: string;
+    tags?: string[];
+  }>;
   expect(catalog.length).toBeGreaterThanOrEqual(8);
   const presentationResponse = await page.request.get(
     `/api/catalog/presentation?test=${Date.now()}`,
@@ -28,6 +31,10 @@ test("home and live catalog render without browser errors", async ({ page }) => 
   expect(
     presentation.taxonomy.filter((item) => item.type === "filter").map((item) => item.slug),
   ).not.toEqual(expect.arrayContaining(["unisex", "bestseller", "new", "limited"]));
+  expect(presentation.taxonomy.map((item) => item.slug)).not.toContain("test");
+  expect(presentation.taxonomy.map((item) => item.slug)).not.toContain("testy");
+  expect(presentation.taxonomy.map((item) => item.slug)).toContain("other");
+  expect(catalog.some((product) => product.tags?.includes("test"))).toBeFalsy();
 
   await page.goto("/");
   await expect(page.getByRole("img", { name: "Fawzaan" }).first()).toBeVisible();

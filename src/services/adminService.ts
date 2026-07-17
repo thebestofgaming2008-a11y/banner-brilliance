@@ -1,4 +1,5 @@
 import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 import { convex } from "@/integrations/convex/client";
 import type { Product } from "./productService";
 
@@ -264,6 +265,14 @@ export async function upsertCategory(input: {
   is_active?: boolean;
 }): Promise<AdminCategory | null> {
   return (await convex.mutation(api.admin.upsertCategory, input)) as AdminCategory | null;
+}
+
+export async function removeCategory(id: string): Promise<{
+  removed: boolean;
+  updatedProducts: number;
+  slug: string | null;
+}> {
+  return await convex.mutation(api.admin.removeCategory, { id: id as Id<"categories"> });
 }
 
 export async function seedDefaultCategories(): Promise<boolean> {

@@ -305,6 +305,70 @@ export const upsertCategory = mutation({
   },
 });
 
+export const removeCategory = mutation({
+  args: { id: v.id("categories") },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const category = await ctx.db.get(args.id);
+    if (!category) return { removed: false, updatedProducts: 0, slug: null };
+    const slug = category.slug;
+    if (slug === "other")
+      throw new Error("The Other collection is required and cannot be removed.");
+
+    const timestamp = nowIso();
+    const products = await ctx.db.query("products").collect();
+    let updatedProducts = 0;
+
+    if (category.type === "filter") {
+      for (const product of products) {
+        const tags = Array.isArray(product.tags) ? product.tags : [];
+        const nextTags = tags.filter((tag) => slugify(String(tag)) !== slug);
+        if (nextTags.length === tags.length) continue;
+        await ctx.db.patch(product._id, { tags: nextTags, updated_at: timestamp });
+        updatedProducts += 1;
+      }
+    } else if (category.type === "collection") {
+      const other = await ctx.db
+        .query("categories")
+        .withIndex("by_slug", (q) => q.eq("slug", "other"))
+        .first();
+      const otherPayload = {
+        slug: "other",
+        name: "Other",
+        type: "collection",
+        description: "Products outside the main collections.",
+        parent_slug: null,
+        sort_order: 9999,
+        is_active: true,
+        updated_at: timestamp,
+      };
+      if (other) await ctx.db.patch(other._id, otherPayload);
+      else await ctx.db.insert("categories", { ...otherPayload, created_at: timestamp });
+
+      for (const product of products) {
+        const productCategory = slugify(String(product.category_id ?? product.category ?? ""));
+        if (productCategory !== slug) continue;
+        await ctx.db.patch(product._id, {
+          category: "Other",
+          category_id: "other",
+          updated_at: timestamp,
+        });
+        updatedProducts += 1;
+      }
+    }
+
+    await ctx.db.delete(category._id);
+    await writeAuditLog(ctx, {
+      action: "category.delete",
+      entityType: "category",
+      entityId: String(category._id),
+      summary: category.name,
+      metadata: { slug, type: category.type, updatedProducts },
+    });
+    return { removed: true, updatedProducts, slug };
+  },
+});
+
 export const seedDefaultCategories = mutation({
   args: {},
   handler: async (ctx) => {
@@ -316,6 +380,7 @@ export const seedDefaultCategories = mutation({
       { slug: "honey", name: "Honey", type: "collection", sort_order: 40 },
       { slug: "watches", name: "Watches", type: "collection", sort_order: 50 },
       { slug: "gloves", name: "Gloves", type: "collection", sort_order: 60 },
+      { slug: "other", name: "Other", type: "collection", sort_order: 9999 },
     ];
     const timestamp = nowIso();
     const existingRows = await ctx.db.query("categories").collect();

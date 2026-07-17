@@ -70,6 +70,7 @@ import {
   updateOrderTracking,
   updateReviewStatus,
   upsertCategory,
+  removeCategory,
   listPaymentRecoveries,
   retryPaymentRecovery,
   type ProductInput,
@@ -195,6 +196,14 @@ function normalizeOrderStatus(status: string | null | undefined) {
   )
     return status;
   return "processing";
+}
+
+function normalizeTaxonomySlug(value: string | null | undefined) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function normalizeWhatsAppPhone(value: string | null | undefined) {
@@ -1272,6 +1281,13 @@ const Admin = () => {
               saved,
             ]);
             return saved;
+          }}
+          onRemoveGroup={async (category) => {
+            const result = await removeCategory(category.id);
+            if (!result.removed) throw new Error(`Could not remove ${category.name}.`);
+            setCategories((current) => current.filter((item) => item.id !== category.id));
+            await Promise.all([refreshProducts(), refreshPublicCatalog()]);
+            return result;
           }}
           onClose={() => {
             setCreating(false);
@@ -3609,12 +3625,18 @@ function ProductDrawer({
   product,
   categories,
   onCreateGroup,
+  onRemoveGroup,
   onClose,
   onSaved,
 }: {
   product?: Product;
   categories: AdminCategory[];
   onCreateGroup: (name: string, type: "collection" | "filter") => Promise<AdminCategory>;
+  onRemoveGroup: (category: AdminCategory) => Promise<{
+    removed: boolean;
+    updatedProducts: number;
+    slug: string | null;
+  }>;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -3655,6 +3677,7 @@ function ProductDrawer({
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newFilterName, setNewFilterName] = useState("");
   const [addingGroup, setAddingGroup] = useState<"collection" | "filter" | null>(null);
+  const [removingGroup, setRemovingGroup] = useState<string | null>(null);
   const [linkedIds, setLinkedIds] = useState((product?.linked_product_ids ?? []).join(", "));
   const drawerImages = useMemo(
     () =>
@@ -3726,6 +3749,35 @@ function ProductDrawer({
       });
     } finally {
       setAddingGroup(null);
+    }
+  };
+
+  const deleteFilter = async (filter: AdminCategory) => {
+    if (
+      !confirm(
+        `Remove the "${filter.name}" filter? It will also be removed from every product using it.`,
+      )
+    )
+      return;
+    setRemovingGroup(filter.id);
+    try {
+      const result = await onRemoveGroup(filter);
+      setForm((current) => ({
+        ...current,
+        tags: (current.tags ?? []).filter((tag) => normalizeTaxonomySlug(tag) !== filter.slug),
+      }));
+      notify({
+        title: "Filter removed",
+        description: `${result.updatedProducts} product${result.updatedProducts === 1 ? "" : "s"} updated.`,
+      });
+    } catch (error) {
+      notify({
+        title: "Could not remove filter",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setRemovingGroup(null);
     }
   };
 
@@ -4025,28 +4077,51 @@ function ProductDrawer({
             <p className="text-xs font-medium text-foreground/70">Storefront filters</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {filterCategories.map((filter) => {
-                const active = (form.tags ?? []).includes(filter.slug);
+                const active = (form.tags ?? []).some(
+                  (tag) => normalizeTaxonomySlug(tag) === filter.slug,
+                );
                 return (
-                  <button
+                  <div
                     key={filter.slug}
-                    type="button"
-                    onClick={() =>
-                      setForm((current) => ({
-                        ...current,
-                        tags: active
-                          ? (current.tags ?? []).filter((tag) => tag !== filter.slug)
-                          : Array.from(new Set([...(current.tags ?? []), filter.slug])),
-                      }))
-                    }
                     className={cn(
-                      "rounded-md border px-3 py-2 text-xs font-medium",
+                      "inline-flex overflow-hidden rounded-md border text-xs font-medium",
                       active
                         ? "border-[#111827] bg-[#111827] text-white"
                         : "border-border bg-white text-foreground/70",
                     )}
                   >
-                    {filter.name}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((current) => ({
+                          ...current,
+                          tags: active
+                            ? (current.tags ?? []).filter(
+                                (tag) => normalizeTaxonomySlug(tag) !== filter.slug,
+                              )
+                            : Array.from(new Set([...(current.tags ?? []), filter.slug])),
+                        }))
+                      }
+                      className="px-3 py-2"
+                    >
+                      {filter.name}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteFilter(filter)}
+                      disabled={removingGroup === filter.id}
+                      aria-label={`Remove ${filter.name} filter`}
+                      title={`Remove ${filter.name} filter`}
+                      className={cn(
+                        "grid w-8 place-items-center border-l transition-colors disabled:opacity-50",
+                        active
+                          ? "border-white/20 hover:bg-white/15"
+                          : "border-border hover:bg-rose-50 hover:text-rose-700",
+                      )}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 );
               })}
             </div>

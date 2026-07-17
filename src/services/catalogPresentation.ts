@@ -38,6 +38,7 @@ export const fallbackTaxonomy: CatalogTaxonomyItem[] = [
   { slug: "honey", name: "Honey", type: "collection", sort_order: 40 },
   { slug: "watches", name: "Watches", type: "collection", sort_order: 50 },
   { slug: "gloves", name: "Gloves", type: "collection", sort_order: 60 },
+  { slug: "other", name: "Other", type: "collection", sort_order: 9999 },
 ];
 
 let cachedPresentation: CatalogPresentation | null = null;

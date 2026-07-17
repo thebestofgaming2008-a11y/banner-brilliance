@@ -1461,8 +1461,68 @@ function Index() {
       <WatchCollection />
       <HoneyFeature />
       <ManagedHomepageBanners />
+      <ExploreBeyond />
       <StoreFooter />
     </main>
+  );
+}
+
+function ExploreBeyond() {
+  const { products } = useStoreProducts();
+  const { taxonomy } = useCatalogPresentation();
+  const knownCollections = useMemo(
+    () =>
+      new Set(
+        taxonomy
+          .filter(
+            (item) =>
+              item.type === "collection" && item.is_active !== false && item.slug !== "other",
+          )
+          .map((item) => item.slug.toLowerCase()),
+      ),
+    [taxonomy],
+  );
+  const otherProducts = merchandiseProducts(
+    products.filter((product) => {
+      const slug = String(product.collectionSlug ?? "")
+        .trim()
+        .toLowerCase();
+      return slug === "other" || !knownCollections.has(slug);
+    }),
+  );
+
+  if (!otherProducts.length) return null;
+
+  return (
+    <section className="border-t border-black/10 bg-white px-[22px] py-16 md:px-8 md:py-24">
+      <div className="mx-auto max-w-[1180px]">
+        <div className="flex items-end justify-between gap-5" data-reveal>
+          <div>
+            <p className="section-kicker text-black/45">More from Fawzaan</p>
+            <h2 className="section-heading mt-2 text-[34px] text-black md:text-[52px]">
+              EXPLORE BEYOND
+            </h2>
+          </div>
+          <a
+            href="/shop?collection=other"
+            className="hidden items-center gap-1 text-[11px] font-bold uppercase text-black md:inline-flex"
+          >
+            View all <ChevronRight size={14} />
+          </a>
+        </div>
+        <div className="mt-8 grid grid-cols-2 gap-x-3 gap-y-11 md:grid-cols-4 md:gap-x-4 md:gap-y-14">
+          {otherProducts.slice(0, 8).map((product) => (
+            <ProductTile key={product.slug} product={product} reveal={false} />
+          ))}
+        </div>
+        <a
+          href="/shop?collection=other"
+          className="mt-10 flex h-12 w-full items-center justify-center gap-2 bg-black text-[11px] font-bold uppercase text-white md:hidden"
+        >
+          View all <ChevronRight size={15} />
+        </a>
+      </div>
+    </section>
   );
 }
 
