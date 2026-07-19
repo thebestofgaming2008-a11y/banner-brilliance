@@ -57,9 +57,14 @@ import {
   Home,
   CircleAlert,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Crop,
   ZoomIn,
   ZoomOut,
+  Copy,
+  Monitor,
+  Smartphone,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { api } from "../../convex/_generated/api";
@@ -83,6 +88,9 @@ import {
   listStorefrontBanners,
   upsertStorefrontBanner,
   archiveStorefrontBanner,
+  deleteStorefrontBanner,
+  reorderStorefrontBanners,
+  restoreDefaultHomepageHero,
   listPaymentRecoveries,
   retryPaymentRecovery,
   listMarketingCampaigns,
@@ -107,6 +115,10 @@ import type { Product } from "@/services/productService";
 import { catalog as storefrontCatalog } from "@/lib/products";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import {
+  HomepageContentPreview,
+  type HomepagePreviewProduct,
+} from "@/components/admin/homepage-content-preview";
 
 const CATEGORIES = [
   {
@@ -1238,6 +1250,7 @@ const Admin = () => {
               <BannerAdminPanel
                 banners={storefrontBanners}
                 categories={categories}
+                products={products}
                 onSave={async (input) => {
                   try {
                     const saved = await upsertStorefrontBanner(input);
@@ -1270,6 +1283,35 @@ const Admin = () => {
                   }
                   await Promise.all([refreshStorefrontBanners(), refreshPublicCatalog()]);
                   notify({ title: "Homepage item hidden" });
+                }}
+                onDelete={async (id) => {
+                  if (!confirm("Permanently delete this homepage item? This cannot be undone."))
+                    return;
+                  if (!(await deleteStorefrontBanner(id))) {
+                    notify({ title: "Could not delete homepage item", variant: "destructive" });
+                    return;
+                  }
+                  await Promise.all([refreshStorefrontBanners(), refreshPublicCatalog()]);
+                  notify({ title: "Homepage item deleted" });
+                }}
+                onReorder={async (ids) => {
+                  await reorderStorefrontBanners(ids);
+                  await Promise.all([refreshStorefrontBanners(), refreshPublicCatalog()]);
+                  notify({ title: "Homepage order updated" });
+                }}
+                onRestoreDefaultHero={async () => {
+                  if (
+                    !confirm(
+                      "Restore the original Fawzaan hero? Custom hero slides will be hidden, not deleted.",
+                    )
+                  )
+                    return;
+                  await restoreDefaultHomepageHero();
+                  await Promise.all([refreshStorefrontBanners(), refreshPublicCatalog()]);
+                  notify({
+                    title: "Original hero restored",
+                    description: "Your custom slides remain saved as hidden items.",
+                  });
                 }}
               />
             )}
@@ -3115,7 +3157,7 @@ function ReviewsTable({
   );
 }
 
-function BannerAdminPanel({
+function LegacyBannerAdminPanel({
   banners,
   categories,
   onSave,
@@ -3484,6 +3526,740 @@ function BannerAdminPanel({
         </div>
       </div>
     </Section>
+  );
+}
+
+function BannerAdminPanel({
+  banners,
+  categories,
+  products,
+  onSave,
+  onArchive,
+  onDelete,
+  onReorder,
+  onRestoreDefaultHero,
+}: {
+  banners: StorefrontBanner[];
+  categories: AdminCategory[];
+  products: Product[];
+  onSave: (
+    input: Omit<StorefrontBanner, "id" | "created_at" | "updated_at"> & { id?: string },
+  ) => Promise<void>;
+  onArchive: (id: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  onReorder: (ids: string[]) => Promise<void>;
+  onRestoreDefaultHero: () => Promise<void>;
+}) {
+  const emptyDraft = {
+    placement: "homepage_hero",
+    category_slug: "",
+    eyebrow: "",
+    title: "",
+    body: "",
+    button_label: "",
+    button_url: "/shop",
+    image_url: "",
+    background_color: "#f4b400",
+    image_position: "center",
+    overlay_image_url: "",
+    overlay_position: "right",
+    overlay_scale: "58",
+    content_alignment: "left",
+    text_theme: "dark",
+    product_limit: "4",
+    is_active: true,
+  };
+  const [draft, setDraft] = useState(emptyDraft);
+  const [editingId, setEditingId] = useState<string>();
+  const [uploading, setUploading] = useState<"background" | "foreground" | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [previewViewport, setPreviewViewport] = useState<"desktop" | "mobile">("desktop");
+
+  const resetEditor = () => {
+    setDraft({ ...emptyDraft });
+    setEditingId(undefined);
+  };
+
+  const edit = (banner: StorefrontBanner) => {
+    setEditingId(banner.id);
+    setDraft({
+      placement: banner.placement,
+      category_slug: banner.category_slug ?? "",
+      eyebrow: banner.eyebrow ?? "",
+      title: banner.title,
+      body: banner.body ?? "",
+      button_label: banner.button_label ?? "",
+      button_url: banner.button_url ?? "",
+      image_url: banner.image_url ?? "",
+      background_color: banner.background_color ?? "#f4b400",
+      image_position: banner.image_position ?? "center",
+      overlay_image_url: banner.overlay_image_url ?? "",
+      overlay_position: banner.overlay_position ?? "right",
+      overlay_scale: String(banner.overlay_scale ?? 58),
+      content_alignment: banner.content_alignment ?? "left",
+      text_theme: banner.text_theme ?? "dark",
+      product_limit: String(banner.product_limit ?? 4),
+      is_active: banner.is_active !== false,
+    });
+    window.setTimeout(
+      () =>
+        document
+          .getElementById("homepage-content-editor")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      0,
+    );
+  };
+
+  const upload = async (file: File, target: "background" | "foreground") => {
+    setUploading(target);
+    try {
+      const url = await uploadProductImage(file);
+      if (!url) throw new Error("The upload did not return a public URL.");
+      setDraft((current) =>
+        target === "background"
+          ? { ...current, image_url: url }
+          : { ...current, overlay_image_url: url },
+      );
+      notify({ title: target === "background" ? "Background uploaded" : "Foreground uploaded" });
+    } catch (error) {
+      notify({
+        title: "Image upload failed",
+        description: error instanceof Error ? error.message : "Could not upload this image.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const save = async () => {
+    if (!draft.title.trim()) {
+      notify({ title: "Add a title before saving", variant: "destructive" });
+      return;
+    }
+    if (!/^#[0-9a-f]{6}$/i.test(draft.background_color)) {
+      notify({ title: "Use a valid 6-digit background colour", variant: "destructive" });
+      return;
+    }
+    if (draft.placement === "homepage_collection" && !draft.category_slug) {
+      notify({ title: "Choose a collection for this section", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave({
+        id: editingId,
+        placement: draft.placement,
+        category_slug: draft.category_slug || null,
+        eyebrow: draft.eyebrow.trim() || null,
+        title: draft.title.trim(),
+        body: draft.body.trim() || null,
+        button_label: draft.button_label.trim() || null,
+        button_url: draft.button_url.trim() || null,
+        image_url: draft.image_url.trim(),
+        background_color: draft.background_color,
+        image_position: draft.image_position,
+        overlay_image_url: draft.overlay_image_url.trim() || null,
+        overlay_position: draft.overlay_position,
+        overlay_scale: Number(draft.overlay_scale) || 58,
+        content_alignment: draft.content_alignment,
+        text_theme: draft.text_theme,
+        product_limit: Number(draft.product_limit) || 4,
+        sort_order: editingId
+          ? (banners.find((banner) => banner.id === editingId)?.sort_order ?? null)
+          : null,
+        is_active: draft.is_active,
+      });
+      resetEditor();
+    } catch {
+      // The parent reports the server error and the draft remains available.
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const move = async (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= banners.length) return;
+    const ids = banners.map((banner) => banner.id);
+    [ids[index], ids[target]] = [ids[target], ids[index]];
+    await onReorder(ids);
+  };
+
+  const duplicate = async (banner: StorefrontBanner) => {
+    await onSave({
+      placement: banner.placement,
+      category_slug: banner.category_slug,
+      eyebrow: banner.eyebrow,
+      title: `${banner.title} copy`,
+      body: banner.body,
+      button_label: banner.button_label,
+      button_url: banner.button_url,
+      image_url: banner.image_url,
+      background_color: banner.background_color,
+      image_position: banner.image_position,
+      overlay_image_url: banner.overlay_image_url,
+      overlay_position: banner.overlay_position,
+      overlay_scale: banner.overlay_scale,
+      content_alignment: banner.content_alignment,
+      text_theme: banner.text_theme,
+      product_limit: banner.product_limit,
+      sort_order: (banner.sort_order ?? banners.length * 10) + 5,
+      is_active: false,
+    });
+  };
+
+  const selectedCategory = categories.find((category) => category.slug === draft.category_slug);
+  const previewProducts: HomepagePreviewProduct[] = products
+    .filter(
+      (product) =>
+        draft.placement === "homepage_collection" &&
+        (String(product.category_id ?? "").toLowerCase() === draft.category_slug.toLowerCase() ||
+          String(product.category ?? "").toLowerCase() ===
+            String(selectedCategory?.name ?? "").toLowerCase()),
+    )
+    .map((product) => ({
+      id: product.id,
+      name: product.name,
+      image: productImageUrls(product)[0] ?? null,
+      price: product.price_inr ?? product.price ?? null,
+    }));
+  const previewContent: StorefrontBanner = {
+    id: editingId ?? "preview",
+    ...draft,
+    category_slug: draft.category_slug || null,
+    eyebrow: draft.eyebrow || null,
+    body: draft.body || null,
+    button_label: draft.button_label || null,
+    button_url: draft.button_url || null,
+    overlay_image_url: draft.overlay_image_url || null,
+    overlay_scale: Number(draft.overlay_scale) || 58,
+    product_limit: Number(draft.product_limit) || 4,
+    sort_order: null,
+  };
+  const hasCustomHero = banners.some(
+    (banner) => banner.placement === "homepage_hero" && banner.is_active !== false,
+  );
+  const setField = (field: keyof typeof emptyDraft, value: string | boolean) =>
+    setDraft((current) => ({ ...current, [field]: value }));
+
+  return (
+    <Section
+      title="Homepage content"
+      subtitle="Build hero slides, offers, and product collections without changing code."
+    >
+      <div className="mb-5 flex flex-col gap-3 rounded-lg border border-[rgb(var(--vibe-border))] bg-[rgb(var(--vibe-surface))] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold">
+            {hasCustomHero ? "Custom hero slides are live" : "Original Fawzaan hero is live"}
+          </p>
+          <p className="mt-1 text-xs text-[rgb(var(--vibe-muted))]">
+            Hidden content remains saved. Restore the original hero at any time.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="admin-button admin-button-secondary shrink-0"
+          disabled={!hasCustomHero}
+          onClick={() => void onRestoreDefaultHero()}
+        >
+          <RotateCcw className="h-4 w-4" /> Restore original hero
+        </button>
+      </div>
+
+      <div
+        id="homepage-content-editor"
+        className="grid gap-6 xl:grid-cols-[minmax(360px,480px)_1fr]"
+      >
+        <div className="space-y-4">
+          <EditorGroup title="1. Content" help="Choose the section, wording, and destination.">
+            <AdminField label="Page section">
+              <select
+                className="admin-input"
+                value={draft.placement}
+                onChange={(event) => setField("placement", event.target.value)}
+              >
+                <option value="homepage_hero">Main hero slide</option>
+                <option value="homepage_collection">Collection banner + products</option>
+                <option value="homepage_promo">Offer banner</option>
+                <option value="shop_hero">Shop page hero</option>
+                <option value="shop_promo">Shop page offer</option>
+              </select>
+            </AdminField>
+            {draft.placement === "homepage_collection" ? (
+              <div className="grid gap-3 sm:grid-cols-[1fr_110px]">
+                <AdminField label="Collection">
+                  <select
+                    className="admin-input"
+                    value={draft.category_slug}
+                    onChange={(event) => {
+                      const category = categories.find((item) => item.slug === event.target.value);
+                      setDraft((current) => ({
+                        ...current,
+                        category_slug: event.target.value,
+                        title: current.title || category?.name || "",
+                        button_url: `/shop?collection=${encodeURIComponent(event.target.value)}`,
+                      }));
+                    }}
+                  >
+                    <option value="">Choose collection</option>
+                    {categories
+                      .filter(
+                        (category) =>
+                          category.type === "collection" && category.is_active !== false,
+                      )
+                      .map((category) => (
+                        <option key={category.id} value={category.slug}>
+                          {category.name}
+                        </option>
+                      ))}
+                  </select>
+                </AdminField>
+                <AdminField label="Products">
+                  <select
+                    className="admin-input"
+                    value={draft.product_limit}
+                    onChange={(event) => setField("product_limit", event.target.value)}
+                  >
+                    {[2, 3, 4, 6, 8].map((count) => (
+                      <option key={count}>{count}</option>
+                    ))}
+                  </select>
+                </AdminField>
+              </div>
+            ) : null}
+            <AdminField label="Small heading (optional)">
+              <input
+                className="admin-input"
+                value={draft.eyebrow}
+                onChange={(event) => setField("eyebrow", event.target.value)}
+                placeholder="New collection"
+              />
+            </AdminField>
+            <AdminField label="Main title">
+              <input
+                className="admin-input"
+                value={draft.title}
+                onChange={(event) => setField("title", event.target.value)}
+                placeholder="Collection or offer title"
+              />
+            </AdminField>
+            <AdminField label="Description (optional)">
+              <textarea
+                className="admin-input min-h-20 resize-y"
+                value={draft.body}
+                onChange={(event) => setField("body", event.target.value)}
+              />
+            </AdminField>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <AdminField label="Button text">
+                <input
+                  className="admin-input"
+                  value={draft.button_label}
+                  onChange={(event) => setField("button_label", event.target.value)}
+                  placeholder="Shop collection"
+                />
+              </AdminField>
+              <AdminField label="Button link">
+                <input
+                  className="admin-input"
+                  value={draft.button_url}
+                  onChange={(event) => setField("button_url", event.target.value)}
+                  placeholder="/shop"
+                />
+              </AdminField>
+            </div>
+          </EditorGroup>
+
+          <EditorGroup title="2. Background" help="Use a colour, a full photo, or both.">
+            <AdminField label="Background colour">
+              <div className="grid grid-cols-[48px_1fr] gap-2">
+                <input
+                  type="color"
+                  aria-label="Choose background colour"
+                  className="h-10 w-12 cursor-pointer rounded border p-1"
+                  value={
+                    /^#[0-9a-f]{6}$/i.test(draft.background_color)
+                      ? draft.background_color
+                      : "#f4b400"
+                  }
+                  onChange={(event) => setField("background_color", event.target.value)}
+                />
+                <input
+                  className="admin-input font-mono uppercase"
+                  maxLength={7}
+                  value={draft.background_color}
+                  onChange={(event) => setField("background_color", event.target.value)}
+                />
+              </div>
+            </AdminField>
+            <AdminField label="Background image (optional)">
+              <input
+                className="admin-input"
+                value={draft.image_url}
+                onChange={(event) => setField("image_url", event.target.value)}
+                placeholder="Paste an image URL or upload"
+              />
+            </AdminField>
+            <ImageUploadActions
+              label="Upload background"
+              uploading={uploading === "background"}
+              hasImage={Boolean(draft.image_url)}
+              onUpload={(file) => void upload(file, "background")}
+              onRemove={() => setField("image_url", "")}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <AdminField label="Photo focus">
+                <select
+                  className="admin-input"
+                  value={draft.image_position}
+                  onChange={(event) => setField("image_position", event.target.value)}
+                >
+                  <option value="center">Centre</option>
+                  <option value="top">Top</option>
+                  <option value="bottom">Bottom</option>
+                </select>
+              </AdminField>
+              <AdminField label="Text colour">
+                <select
+                  className="admin-input"
+                  value={draft.text_theme}
+                  onChange={(event) => setField("text_theme", event.target.value)}
+                >
+                  <option value="dark">White</option>
+                  <option value="light">Black</option>
+                </select>
+              </AdminField>
+            </div>
+          </EditorGroup>
+
+          <EditorGroup
+            title="3. Foreground image"
+            help="Optional product cut-out or decorative image placed over the background."
+          >
+            <AdminField label="Foreground image (optional)">
+              <input
+                className="admin-input"
+                value={draft.overlay_image_url}
+                onChange={(event) => setField("overlay_image_url", event.target.value)}
+                placeholder="Paste an image URL or upload"
+              />
+            </AdminField>
+            <ImageUploadActions
+              label="Upload foreground"
+              uploading={uploading === "foreground"}
+              hasImage={Boolean(draft.overlay_image_url)}
+              onUpload={(file) => void upload(file, "foreground")}
+              onRemove={() => setField("overlay_image_url", "")}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <AdminField label="Image side">
+                <select
+                  className="admin-input"
+                  value={draft.overlay_position}
+                  onChange={(event) => setField("overlay_position", event.target.value)}
+                >
+                  <option value="left">Left</option>
+                  <option value="center">Centre</option>
+                  <option value="right">Right</option>
+                </select>
+              </AdminField>
+              <AdminField label={`Image size (${draft.overlay_scale}%)`}>
+                <input
+                  type="range"
+                  min="25"
+                  max="90"
+                  className="h-10 w-full accent-black"
+                  value={draft.overlay_scale}
+                  onChange={(event) => setField("overlay_scale", event.target.value)}
+                />
+              </AdminField>
+            </div>
+            <AdminField label="Text alignment">
+              <div className="grid grid-cols-3 gap-2">
+                {["left", "center", "right"].map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={cn(
+                      "h-9 rounded-md border text-xs capitalize",
+                      draft.content_alignment === value && "border-black bg-black text-white",
+                    )}
+                    onClick={() => setField("content_alignment", value)}
+                  >
+                    {value}
+                  </button>
+                ))}
+              </div>
+            </AdminField>
+          </EditorGroup>
+
+          <EditorGroup
+            title="4. Publish"
+            help="Save hidden while preparing, then publish when ready."
+          >
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={draft.is_active}
+                onChange={(event) => setField("is_active", event.target.checked)}
+              />{" "}
+              Visible on storefront
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="admin-button"
+                disabled={saving || uploading !== null}
+                onClick={() => void save()}
+              >
+                {saving
+                  ? "Saving..."
+                  : editingId
+                    ? "Save changes"
+                    : draft.is_active
+                      ? "Publish item"
+                      : "Save draft"}
+              </button>
+              {editingId ? (
+                <button
+                  type="button"
+                  className="admin-button admin-button-secondary"
+                  onClick={resetEditor}
+                >
+                  Cancel
+                </button>
+              ) : null}
+            </div>
+          </EditorGroup>
+        </div>
+
+        <div className="min-w-0">
+          <div className="sticky top-4 rounded-lg border border-[rgb(var(--vibe-border))] bg-white p-4">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold">Live preview</h3>
+                <p className="mt-1 text-xs text-[rgb(var(--vibe-muted))]">
+                  Uses the same layers and products as the storefront.
+                </p>
+              </div>
+              <div className="inline-grid grid-cols-2 rounded-md border p-1">
+                <button
+                  type="button"
+                  className={cn(
+                    "flex h-8 items-center gap-2 rounded px-3 text-xs",
+                    previewViewport === "desktop" && "bg-black text-white",
+                  )}
+                  onClick={() => setPreviewViewport("desktop")}
+                >
+                  <Monitor className="h-4 w-4" /> Desktop
+                </button>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex h-8 items-center gap-2 rounded px-3 text-xs",
+                    previewViewport === "mobile" && "bg-black text-white",
+                  )}
+                  onClick={() => setPreviewViewport("mobile")}
+                >
+                  <Smartphone className="h-4 w-4" /> Mobile
+                </button>
+              </div>
+            </div>
+            <HomepageContentPreview
+              content={previewContent}
+              products={previewProducts}
+              viewport={previewViewport}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-8 border-t border-[rgb(var(--vibe-border))] pt-6">
+        <h3 className="text-sm font-semibold">Saved homepage items</h3>
+        <p className="mt-1 text-xs text-[rgb(var(--vibe-muted))]">
+          Move items to reorder them. Duplicates are saved hidden.
+        </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {banners.length ? (
+            banners.map((banner, index) => (
+              <article
+                key={banner.id}
+                className={cn(
+                  "overflow-hidden rounded-lg border bg-white",
+                  banner.is_active === false && "opacity-65",
+                )}
+              >
+                <div
+                  className="relative aspect-[16/9] overflow-hidden"
+                  style={{ backgroundColor: banner.background_color || "#f4b400" }}
+                >
+                  {banner.image_url ? (
+                    <img
+                      src={banner.image_url}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : null}
+                  {banner.overlay_image_url ? (
+                    <img
+                      src={banner.overlay_image_url}
+                      alt=""
+                      className="absolute bottom-0 right-0 h-[90%] w-1/2 object-contain object-bottom"
+                      loading="lazy"
+                    />
+                  ) : null}
+                  <span
+                    className={cn(
+                      "absolute left-2 top-2 rounded px-2 py-1 text-[9px] font-bold uppercase",
+                      banner.is_active === false
+                        ? "bg-white text-black"
+                        : "bg-emerald-600 text-white",
+                    )}
+                  >
+                    {banner.is_active === false ? "Hidden" : "Live"}
+                  </span>
+                </div>
+                <div className="p-4">
+                  <p className="text-[10px] font-medium uppercase text-[rgb(var(--vibe-muted))]">
+                    {banner.placement.replaceAll("_", " ")} · order {banner.sort_order ?? "auto"}
+                  </p>
+                  <h4 className="mt-2 font-semibold">{banner.title}</h4>
+                  {banner.category_slug ? (
+                    <p className="mt-1 text-xs text-[rgb(var(--vibe-muted))]">
+                      {banner.category_slug} · {banner.product_limit ?? 4} products
+                    </p>
+                  ) : null}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="h-8 rounded-md border px-3 text-xs"
+                      onClick={() => edit(banner)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      title="Move up"
+                      aria-label={`Move ${banner.title} up`}
+                      disabled={index === 0}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border disabled:opacity-30"
+                      onClick={() => void move(index, -1)}
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Move down"
+                      aria-label={`Move ${banner.title} down`}
+                      disabled={index === banners.length - 1}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border disabled:opacity-30"
+                      onClick={() => void move(index, 1)}
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Duplicate"
+                      aria-label={`Duplicate ${banner.title}`}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border"
+                      onClick={() => void duplicate(banner)}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                    {banner.is_active !== false ? (
+                      <button
+                        type="button"
+                        className="h-8 rounded-md border px-3 text-xs"
+                        onClick={() => void onArchive(banner.id)}
+                      >
+                        Hide
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      title="Delete permanently"
+                      aria-label={`Delete ${banner.title}`}
+                      className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 text-red-700"
+                      onClick={() => void onDelete(banner.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))
+          ) : (
+            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-[rgb(var(--vibe-muted))] md:col-span-2 xl:col-span-3">
+              No managed content yet. The original storefront artwork remains live.
+            </div>
+          )}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function EditorGroup({
+  title,
+  help,
+  children,
+}: {
+  title: string;
+  help: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-3 rounded-lg border border-[rgb(var(--vibe-border))] bg-white p-4">
+      <div>
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <p className="mt-1 text-xs text-[rgb(var(--vibe-muted))]">{help}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ImageUploadActions({
+  label,
+  uploading,
+  hasImage,
+  onUpload,
+  onRemove,
+}: {
+  label: string;
+  uploading: boolean;
+  hasImage: boolean;
+  onUpload: (file: File) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-xs font-medium hover:bg-[rgb(var(--vibe-surface))]">
+        <Upload className="h-4 w-4" />
+        {uploading ? "Uploading..." : label}
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) onUpload(file);
+            event.target.value = "";
+          }}
+        />
+      </label>
+      {hasImage ? (
+        <button
+          type="button"
+          className="h-9 rounded-md border border-red-200 px-3 text-xs text-red-700"
+          onClick={onRemove}
+        >
+          Remove image
+        </button>
+      ) : null}
+    </div>
   );
 }
 

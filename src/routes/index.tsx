@@ -684,6 +684,63 @@ function HeroBanner({
   );
 }
 
+function managedBannerImageClass(position: string | null | undefined) {
+  if (position === "top") return "object-top";
+  if (position === "bottom") return "object-bottom";
+  return "object-center";
+}
+
+function managedBannerAlignmentClass(alignment: string | null | undefined) {
+  if (alignment === "center") return "justify-center text-center";
+  if (alignment === "right") return "justify-end text-right";
+  return "justify-start text-left";
+}
+
+function managedBannerOverlayStyle(banner: CatalogBanner) {
+  const scale = Math.min(90, Math.max(25, Number(banner.overlay_scale ?? 58)));
+  const position = banner.overlay_position ?? "right";
+  return {
+    width: `${scale}%`,
+    left: position === "left" ? 0 : position === "center" ? "50%" : "auto",
+    right: position === "right" ? 0 : "auto",
+    transform: position === "center" ? "translateX(-50%)" : undefined,
+  };
+}
+
+function ManagedBannerArtwork({
+  banner,
+  priority = false,
+}: {
+  banner: CatalogBanner;
+  priority?: boolean;
+}) {
+  return (
+    <>
+      {banner.image_url ? (
+        <img
+          src={banner.image_url}
+          alt=""
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : "low"}
+          decoding="async"
+          className={`absolute inset-0 h-full w-full object-cover ${managedBannerImageClass(banner.image_position)}`}
+        />
+      ) : null}
+      {banner.overlay_image_url ? (
+        <img
+          src={banner.overlay_image_url}
+          alt=""
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : "low"}
+          decoding="async"
+          className="pointer-events-none absolute bottom-0 z-10 max-h-[96%] object-contain object-bottom"
+          style={managedBannerOverlayStyle(banner)}
+        />
+      ) : null}
+    </>
+  );
+}
+
 function ManagedHeroBanner({
   banner,
   isPriority,
@@ -694,25 +751,18 @@ function ManagedHeroBanner({
   slideCount: number;
 }) {
   const lightBackground = banner.text_theme === "light";
-  const imagePosition =
-    banner.image_position === "top"
-      ? "object-top"
-      : banner.image_position === "bottom"
-        ? "object-bottom"
-        : "object-center";
+  const alignment = managedBannerAlignmentClass(banner.content_alignment);
 
   return (
     <article
       className={`relative shrink-0 overflow-hidden ${lightBackground ? "text-black" : "text-white"}`}
-      style={{ width: `${100 / slideCount}%`, height: "clamp(560px, 145vw, 820px)" }}
+      style={{
+        width: `${100 / slideCount}%`,
+        height: "clamp(560px, 145vw, 820px)",
+        backgroundColor: banner.background_color || "#f4b400",
+      }}
     >
-      <img
-        src={banner.image_url}
-        alt=""
-        loading={isPriority ? "eager" : "lazy"}
-        fetchPriority={isPriority ? "high" : "low"}
-        className={`absolute inset-0 h-full w-full object-cover ${imagePosition}`}
-      />
+      <ManagedBannerArtwork banner={banner} priority={isPriority} />
       <div
         className={`absolute inset-0 ${
           lightBackground
@@ -720,7 +770,9 @@ function ManagedHeroBanner({
             : "bg-gradient-to-t from-black/75 via-black/10 to-transparent"
         }`}
       />
-      <div className="relative flex h-full items-end px-[22px] pb-16 md:px-12 md:pb-20">
+      <div
+        className={`relative z-20 flex h-full items-end px-[22px] pb-16 md:px-12 md:pb-20 ${alignment}`}
+      >
         <div className="max-w-2xl">
           {banner.eyebrow ? (
             <p className={`section-kicker ${lightBackground ? "text-black/65" : "text-white/72"}`}>
@@ -1610,12 +1662,7 @@ function ManagedCollectionSections() {
           }),
         ).slice(0, Math.min(8, Math.max(2, banner.product_limit ?? 4)));
         const lightBackground = banner.text_theme === "light";
-        const imagePosition =
-          banner.image_position === "top"
-            ? "object-top"
-            : banner.image_position === "bottom"
-              ? "object-bottom"
-              : "object-center";
+        const alignment = managedBannerAlignmentClass(banner.content_alignment);
         const collectionUrl =
           banner.button_url || `/shop?collection=${encodeURIComponent(categorySlug)}`;
 
@@ -1630,14 +1677,10 @@ function ManagedCollectionSections() {
                 className={`collection-banner relative block min-h-[440px] overflow-hidden md:min-h-[560px] ${
                   lightBackground ? "bg-white text-black" : "bg-black text-white"
                 }`}
+                style={{ backgroundColor: banner.background_color || undefined }}
                 data-reveal
               >
-                <img
-                  src={banner.image_url}
-                  alt=""
-                  loading="lazy"
-                  className={`absolute inset-0 h-full w-full object-cover ${imagePosition}`}
-                />
+                <ManagedBannerArtwork banner={banner} />
                 <div
                   className={`absolute inset-0 ${
                     lightBackground
@@ -1645,7 +1688,9 @@ function ManagedCollectionSections() {
                       : "bg-gradient-to-t from-black/80 via-black/12 to-transparent"
                   }`}
                 />
-                <div className="relative flex min-h-[440px] items-end p-6 md:min-h-[560px] md:p-10">
+                <div
+                  className={`relative z-20 flex min-h-[440px] items-end p-6 md:min-h-[560px] md:p-10 ${alignment}`}
+                >
                   <div className="max-w-xl">
                     {banner.eyebrow ? (
                       <p
@@ -1767,26 +1812,18 @@ function ManagedHomepageBanners() {
           className={`relative mx-auto min-h-[440px] max-w-[1180px] overflow-hidden md:min-h-[560px] ${
             banner.text_theme === "light" ? "bg-white text-black" : "bg-black text-white"
           }`}
+          style={{ backgroundColor: banner.background_color || undefined }}
           data-store-reveal
         >
-          <img
-            src={banner.image_url}
-            alt=""
-            loading="lazy"
-            className={`absolute inset-0 h-full w-full object-cover ${
-              banner.image_position === "top"
-                ? "object-top"
-                : banner.image_position === "bottom"
-                  ? "object-bottom"
-                  : "object-center"
-            }`}
-          />
+          <ManagedBannerArtwork banner={banner} />
           <div
             className={`absolute inset-0 ${
               banner.text_theme === "light" ? "bg-white/45" : "bg-black/45"
             }`}
           />
-          <div className="relative flex min-h-[440px] items-end p-7 md:min-h-[560px] md:p-12">
+          <div
+            className={`relative z-20 flex min-h-[440px] items-end p-7 md:min-h-[560px] md:p-12 ${managedBannerAlignmentClass(banner.content_alignment)}`}
+          >
             <div className="max-w-lg">
               {banner.eyebrow ? (
                 <p

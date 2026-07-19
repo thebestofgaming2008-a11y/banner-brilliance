@@ -438,7 +438,12 @@ export const upsertStorefrontBanner = mutation({
     button_label: v.optional(v.union(v.string(), v.null())),
     button_url: v.optional(v.union(v.string(), v.null())),
     image_url: v.string(),
+    background_color: v.optional(v.union(v.string(), v.null())),
     image_position: v.optional(v.union(v.string(), v.null())),
+    overlay_image_url: v.optional(v.union(v.string(), v.null())),
+    overlay_position: v.optional(v.union(v.string(), v.null())),
+    overlay_scale: v.optional(v.union(v.number(), v.null())),
+    content_alignment: v.optional(v.union(v.string(), v.null())),
     text_theme: v.optional(v.union(v.string(), v.null())),
     product_limit: v.optional(v.union(v.number(), v.null())),
     sort_order: v.optional(v.union(v.number(), v.null())),
@@ -449,12 +454,24 @@ export const upsertStorefrontBanner = mutation({
     const title = cleanText(args.title, 100);
     const placement = cleanText(args.placement, 40);
     const imageUrl = cleanText(args.image_url, 1000);
+    const overlayImageUrl = cleanText(args.overlay_image_url, 1000) || null;
+    const backgroundColor = cleanText(args.background_color, 20) || "#f4b400";
     const categorySlug = cleanText(args.category_slug, 80) || null;
     const buttonUrl = cleanText(args.button_url, 500) || null;
     if (!title) throw new Error("Banner title is required.");
     if (!placement) throw new Error("Banner placement is required.");
-    if (!/^https?:\/\//i.test(imageUrl) && !imageUrl.startsWith("/")) {
+    if (imageUrl && !/^https?:\/\//i.test(imageUrl) && !imageUrl.startsWith("/")) {
       throw new Error("Banner image must be an HTTPS or site-relative URL.");
+    }
+    if (
+      overlayImageUrl &&
+      !/^https?:\/\//i.test(overlayImageUrl) &&
+      !overlayImageUrl.startsWith("/")
+    ) {
+      throw new Error("Foreground image must be an HTTPS or site-relative URL.");
+    }
+    if (!/^#[0-9a-f]{6}$/i.test(backgroundColor)) {
+      throw new Error("Background colour must be a six-digit hex colour.");
     }
     if (buttonUrl && !/^https?:\/\//i.test(buttonUrl) && !buttonUrl.startsWith("/")) {
       throw new Error("Banner link must be an HTTPS or site-relative URL.");
@@ -473,9 +490,18 @@ export const upsertStorefrontBanner = mutation({
       button_label: cleanText(args.button_label, 50) || null,
       button_url: buttonUrl,
       image_url: imageUrl,
+      background_color: backgroundColor,
       image_position: ["center", "top", "bottom"].includes(String(args.image_position))
         ? String(args.image_position)
         : "center",
+      overlay_image_url: overlayImageUrl,
+      overlay_position: ["left", "center", "right"].includes(String(args.overlay_position))
+        ? String(args.overlay_position)
+        : "right",
+      overlay_scale: Math.min(90, Math.max(25, Math.round(args.overlay_scale ?? 58))),
+      content_alignment: ["left", "center", "right"].includes(String(args.content_alignment))
+        ? String(args.content_alignment)
+        : "left",
       text_theme: args.text_theme === "light" ? "light" : "dark",
       product_limit: productLimit,
       sort_order: args.sort_order ?? null,
@@ -516,6 +542,71 @@ export const archiveStorefrontBanner = mutation({
       summary: doc.title,
     });
     return true;
+  },
+});
+
+export const deleteStorefrontBanner = mutation({
+  args: { id: v.string() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const bannerId = ctx.db.normalizeId("storefront_banners", args.id);
+    if (!bannerId) throw new Error("Invalid homepage item ID.");
+    const doc = await ctx.db.get(bannerId);
+    if (!doc) return false;
+    await ctx.db.delete(doc._id);
+    await writeAuditLog(ctx, {
+      action: "banner.delete",
+      entityType: "storefront_banner",
+      entityId: args.id,
+      summary: doc.title,
+    });
+    return true;
+  },
+});
+
+export const reorderStorefrontBanners = mutation({
+  args: { ids: v.array(v.string()) },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    let updated = 0;
+    for (const [index, rawId] of args.ids.entries()) {
+      const id = ctx.db.normalizeId("storefront_banners", rawId);
+      if (!id) continue;
+      const doc = await ctx.db.get(id);
+      if (!doc) continue;
+      await ctx.db.patch(id, { sort_order: (index + 1) * 10, updated_at: nowIso() });
+      updated += 1;
+    }
+    await writeAuditLog(ctx, {
+      action: "banner.reorder",
+      entityType: "storefront_banner",
+      summary: `Reordered ${updated} homepage items`,
+    });
+    return updated;
+  },
+});
+
+export const restoreDefaultHomepageHero = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const rows = await ctx.db
+      .query("storefront_banners")
+      .withIndex("by_placement", (q) => q.eq("placement", "homepage_hero"))
+      .collect();
+    let hidden = 0;
+    for (const row of rows) {
+      if (row.is_active === false) continue;
+      await ctx.db.patch(row._id, { is_active: false, updated_at: nowIso() });
+      hidden += 1;
+    }
+    await writeAuditLog(ctx, {
+      action: "banner.restore_default_hero",
+      entityType: "storefront_banner",
+      summary: "Restored original Fawzaan homepage hero",
+      metadata: { hidden },
+    });
+    return hidden;
   },
 });
 

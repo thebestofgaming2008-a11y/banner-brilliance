@@ -303,7 +303,12 @@ export interface StorefrontBanner {
   button_label?: string | null;
   button_url?: string | null;
   image_url: string;
+  background_color?: string | null;
   image_position?: "center" | "top" | "bottom" | string | null;
+  overlay_image_url?: string | null;
+  overlay_position?: "left" | "center" | "right" | string | null;
+  overlay_scale?: number | null;
+  content_alignment?: "left" | "center" | "right" | string | null;
   text_theme?: "dark" | "light" | string | null;
   product_limit?: number | null;
   sort_order?: number | null;
@@ -328,6 +333,18 @@ export async function upsertStorefrontBanner(
 
 export async function archiveStorefrontBanner(id: string): Promise<boolean> {
   return await convex.mutation(api.admin.archiveStorefrontBanner, { id });
+}
+
+export async function deleteStorefrontBanner(id: string): Promise<boolean> {
+  return await convex.mutation(api.admin.deleteStorefrontBanner, { id });
+}
+
+export async function reorderStorefrontBanners(ids: string[]): Promise<number> {
+  return await convex.mutation(api.admin.reorderStorefrontBanners, { ids });
+}
+
+export async function restoreDefaultHomepageHero(): Promise<number> {
+  return await convex.mutation(api.admin.restoreDefaultHomepageHero, {});
 }
 
 export interface LaunchReadiness {

@@ -106,39 +106,82 @@ function DefaultShopHero() {
   );
 }
 
-function ShopHero({ banner }: { banner?: CatalogBanner }) {
+function bannerImagePosition(position: string | null | undefined) {
+  if (position === "top") return "object-top";
+  if (position === "bottom") return "object-bottom";
+  return "object-center";
+}
+
+function bannerAlignment(alignment: string | null | undefined) {
+  if (alignment === "center") return "justify-center text-center";
+  if (alignment === "right") return "justify-end text-right";
+  return "justify-start text-left";
+}
+
+function ShopBannerArtwork({ banner }: { banner: CatalogBanner }) {
+  const scale = Math.min(90, Math.max(25, Number(banner.overlay_scale ?? 58)));
+  const position = banner.overlay_position ?? "right";
   return (
-    <section className="relative min-h-[470px] overflow-hidden bg-black text-white md:min-h-[580px]">
+    <>
+      {banner.image_url ? (
+        <img
+          src={banner.image_url}
+          alt=""
+          className={`absolute inset-0 h-full w-full object-cover ${bannerImagePosition(banner.image_position)}`}
+        />
+      ) : null}
+      {banner.overlay_image_url ? (
+        <img
+          src={banner.overlay_image_url}
+          alt=""
+          className="pointer-events-none absolute bottom-0 z-10 max-h-[96%] object-contain object-bottom"
+          style={{
+            width: `${scale}%`,
+            left: position === "left" ? 0 : position === "center" ? "50%" : "auto",
+            right: position === "right" ? 0 : "auto",
+            transform: position === "center" ? "translateX(-50%)" : undefined,
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function ShopHero({ banner }: { banner?: CatalogBanner }) {
+  const lightText = !banner || banner.text_theme !== "light";
+  return (
+    <section
+      className={`relative min-h-[470px] overflow-hidden md:min-h-[580px] ${lightText ? "bg-black text-white" : "bg-white text-black"}`}
+      style={{ backgroundColor: banner?.background_color || undefined }}
+    >
       {banner ? (
         <>
-          <img
-            src={banner.image_url}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-          <div className="absolute inset-0 bg-black/45" />
+          <ShopBannerArtwork banner={banner} />
+          <div className={`absolute inset-0 ${lightText ? "bg-black/45" : "bg-white/45"}`} />
         </>
       ) : (
         <DefaultShopHero />
       )}
       <div
-        className="relative mx-auto flex min-h-[470px] max-w-[1280px] items-end px-[22px] pb-12 md:min-h-[580px] md:px-8 md:pb-16"
+        className={`relative z-20 mx-auto flex min-h-[470px] max-w-[1280px] items-end px-[22px] pb-12 md:min-h-[580px] md:px-8 md:pb-16 ${bannerAlignment(banner?.content_alignment)}`}
         data-store-reveal
       >
         <div className="max-w-xl">
-          <p className="section-kicker text-white/68">
+          <p className={`section-kicker ${lightText ? "text-white/68" : "text-black/60"}`}>
             {banner?.eyebrow || "The complete collection"}
           </p>
           <h1 className="banner-heading mt-3 text-[48px] leading-[0.9] md:text-[78px]">
             {banner?.title || "THE FAWZAAN EDIT"}
           </h1>
-          <p className="mt-5 max-w-md text-[14px] leading-6 text-white/72">
+          <p
+            className={`mt-5 max-w-md text-[14px] leading-6 ${lightText ? "text-white/72" : "text-black/70"}`}
+          >
             {banner?.body || "Heritage pieces, modest essentials, SABR watches, and Kashmir honey."}
           </p>
           {banner?.button_label && banner.button_url ? (
             <a
               href={banner.button_url}
-              className="mt-7 inline-flex h-11 items-center bg-white px-6 text-[11px] font-bold uppercase text-black"
+              className={`mt-7 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase ${lightText ? "bg-white text-black" : "bg-black text-white"}`}
             >
               {banner.button_label}
             </a>
@@ -150,30 +193,38 @@ function ShopHero({ banner }: { banner?: CatalogBanner }) {
 }
 
 function PromoBanner({ banner }: { banner: CatalogBanner }) {
+  const lightText = banner.text_theme !== "light";
   return (
     <section className="px-[22px] pb-12 md:px-8 md:pb-20" data-store-reveal>
-      <div className="relative mx-auto min-h-[380px] max-w-[1180px] overflow-hidden bg-black text-white md:min-h-[460px]">
-        <img
-          src={banner.image_url}
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-        <div className="absolute inset-0 bg-black/45" />
-        <div className="relative flex min-h-[380px] items-end p-7 md:min-h-[460px] md:p-12">
+      <div
+        className={`relative mx-auto min-h-[380px] max-w-[1180px] overflow-hidden md:min-h-[460px] ${lightText ? "bg-black text-white" : "bg-white text-black"}`}
+        style={{ backgroundColor: banner.background_color || undefined }}
+      >
+        <ShopBannerArtwork banner={banner} />
+        <div className={`absolute inset-0 ${lightText ? "bg-black/45" : "bg-white/45"}`} />
+        <div
+          className={`relative z-20 flex min-h-[380px] items-end p-7 md:min-h-[460px] md:p-12 ${bannerAlignment(banner.content_alignment)}`}
+        >
           <div className="max-w-lg">
             {banner.eyebrow ? (
-              <p className="section-kicker text-white/65">{banner.eyebrow}</p>
+              <p className={`section-kicker ${lightText ? "text-white/65" : "text-black/60"}`}>
+                {banner.eyebrow}
+              </p>
             ) : null}
             <h2 className="banner-heading mt-3 text-[40px] leading-none md:text-[64px]">
               {banner.title}
             </h2>
             {banner.body ? (
-              <p className="mt-4 max-w-md text-[14px] leading-6 text-white/75">{banner.body}</p>
+              <p
+                className={`mt-4 max-w-md text-[14px] leading-6 ${lightText ? "text-white/75" : "text-black/70"}`}
+              >
+                {banner.body}
+              </p>
             ) : null}
             {banner.button_label && banner.button_url ? (
               <a
                 href={banner.button_url}
-                className="mt-6 inline-flex h-11 items-center bg-white px-6 text-[11px] font-bold uppercase text-black"
+                className={`mt-6 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase ${lightText ? "bg-white text-black" : "bg-black text-white"}`}
               >
                 {banner.button_label}
               </a>
