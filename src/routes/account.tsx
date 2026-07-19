@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import { StorePage } from "@/components/store/store-chrome";
 import { useCurrency } from "@/hooks/use-currency";
 import { useAccount, type Address } from "@/lib/account";
-import { COUNTRIES, countryUsesPostalCode } from "@/lib/countries";
+import { countryUsesPostalCode } from "@/lib/countries";
+import { CountrySelector } from "@/components/store/country-selector";
 import { seo } from "@/lib/seo";
 
 export const Route = createFileRoute("/account")({
@@ -336,22 +337,7 @@ function AddressForm({
           autoComplete="postal-code"
           required={postalRequired}
         />
-        <label className="block text-[11px] font-bold uppercase text-black/55">
-          Country
-          <select
-            value={country}
-            onChange={(event) => setCountry(event.target.value)}
-            autoComplete="country-name"
-            className="mt-1 h-11 w-full border border-black/15 bg-white px-3 text-sm font-normal normal-case text-black outline-none focus:border-black"
-            required
-          >
-            {COUNTRIES.map((option) => (
-              <option key={option.code} value={option.name}>
-                {option.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <CountrySelector value={country} onChange={setCountry} required />
       </div>
       <label className="flex items-center gap-2 text-[11px] text-black/65">
         <input

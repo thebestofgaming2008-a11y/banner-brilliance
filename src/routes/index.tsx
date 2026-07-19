@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { StoreFooter, StoreHeader } from "@/components/store/store-chrome";
 import { merchandiseProducts, type StoreProduct, useStoreProducts } from "@/data/store";
 import { useCurrency } from "@/hooks/use-currency";
-import { useCatalogPresentation } from "@/services/catalogPresentation";
+import { useCatalogPresentation, type CatalogBanner } from "@/services/catalogPresentation";
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, seo } from "@/lib/seo";
 
 import logoGold from "@/assets/fawzaan-logo-gold.png";
@@ -69,7 +69,7 @@ type CollectionName = Product["collection"];
 const FRAME_W = 390;
 const FRAME_H = 649;
 
-const banners: Banner[] = [
+const defaultHeroBanners: Banner[] = [
   {
     title: "AL-IKHWAAN SET",
     product: heroShemaghFull,
@@ -609,12 +609,20 @@ function Header() {
   );
 }
 
-function HeroBanner({ banner, isPriority }: { banner: Banner; isPriority?: boolean }) {
+function HeroBanner({
+  banner,
+  isPriority,
+  slideCount,
+}: {
+  banner: Banner;
+  isPriority?: boolean;
+  slideCount: number;
+}) {
   return (
     <article
       className="relative shrink-0 overflow-hidden bg-[#f5b90a]"
       style={{
-        width: `${100 / banners.length}%`,
+        width: `${100 / slideCount}%`,
         height: `clamp(560px, ${(FRAME_H / FRAME_W) * 100}vw, 820px)`,
       }}
     >
@@ -676,8 +684,85 @@ function HeroBanner({ banner, isPriority }: { banner: Banner; isPriority?: boole
   );
 }
 
+function ManagedHeroBanner({
+  banner,
+  isPriority,
+  slideCount,
+}: {
+  banner: CatalogBanner;
+  isPriority?: boolean;
+  slideCount: number;
+}) {
+  const lightBackground = banner.text_theme === "light";
+  const imagePosition =
+    banner.image_position === "top"
+      ? "object-top"
+      : banner.image_position === "bottom"
+        ? "object-bottom"
+        : "object-center";
+
+  return (
+    <article
+      className={`relative shrink-0 overflow-hidden ${lightBackground ? "text-black" : "text-white"}`}
+      style={{ width: `${100 / slideCount}%`, height: "clamp(560px, 145vw, 820px)" }}
+    >
+      <img
+        src={banner.image_url}
+        alt=""
+        loading={isPriority ? "eager" : "lazy"}
+        fetchPriority={isPriority ? "high" : "low"}
+        className={`absolute inset-0 h-full w-full object-cover ${imagePosition}`}
+      />
+      <div
+        className={`absolute inset-0 ${
+          lightBackground
+            ? "bg-gradient-to-t from-white/80 via-white/10 to-transparent"
+            : "bg-gradient-to-t from-black/75 via-black/10 to-transparent"
+        }`}
+      />
+      <div className="relative flex h-full items-end px-[22px] pb-16 md:px-12 md:pb-20">
+        <div className="max-w-2xl">
+          {banner.eyebrow ? (
+            <p className={`section-kicker ${lightBackground ? "text-black/65" : "text-white/72"}`}>
+              {banner.eyebrow}
+            </p>
+          ) : null}
+          <h1 className="banner-heading mt-3 text-[50px] leading-[0.9] md:text-[82px]">
+            {banner.title}
+          </h1>
+          {banner.body ? (
+            <p
+              className={`mt-4 max-w-lg text-[14px] leading-6 ${lightBackground ? "text-black/70" : "text-white/78"}`}
+            >
+              {banner.body}
+            </p>
+          ) : null}
+          {banner.button_label && banner.button_url ? (
+            <a
+              href={banner.button_url}
+              className={`mt-7 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase ${
+                lightBackground ? "bg-black text-white" : "bg-white text-black"
+              }`}
+            >
+              {banner.button_label}
+            </a>
+          ) : null}
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function HeroSlider() {
   const [active, setActive] = useState(0);
+  const { banners: managedBanners } = useCatalogPresentation();
+  const managedHeroBanners = managedBanners.filter(
+    (banner) => banner.placement === "homepage_hero",
+  );
+  const slideCount = managedHeroBanners.length || defaultHeroBanners.length;
+  const slideLabels = managedHeroBanners.length
+    ? managedHeroBanners.map((banner) => banner.title)
+    : defaultHeroBanners.map((banner) => banner.title);
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -694,7 +779,7 @@ function HeroSlider() {
       if (document.hidden) return;
 
       timer = window.setInterval(() => {
-        setActive((current) => (current + 1) % banners.length);
+        setActive((current) => (current + 1) % slideCount);
       }, 5200);
     };
 
@@ -710,27 +795,45 @@ function HeroSlider() {
       stopTimer();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [slideCount]);
+
+  useEffect(() => {
+    setActive((current) => Math.min(current, Math.max(0, slideCount - 1)));
+  }, [slideCount]);
 
   return (
     <section className="relative overflow-hidden bg-[#f5b90a]" aria-label="Featured collections">
       <div
         className="hero-track flex"
         style={{
-          width: `${banners.length * 100}%`,
-          transform: `translate3d(-${active * (100 / banners.length)}%, 0, 0)`,
+          width: `${slideCount * 100}%`,
+          transform: `translate3d(-${active * (100 / slideCount)}%, 0, 0)`,
         }}
       >
-        {banners.map((banner, index) => (
-          <HeroBanner key={banner.title} banner={banner} isPriority={index === 0} />
-        ))}
+        {managedHeroBanners.length
+          ? managedHeroBanners.map((banner, index) => (
+              <ManagedHeroBanner
+                key={banner.id || `${banner.title}-${index}`}
+                banner={banner}
+                isPriority={index === 0}
+                slideCount={slideCount}
+              />
+            ))
+          : defaultHeroBanners.map((banner, index) => (
+              <HeroBanner
+                key={banner.title}
+                banner={banner}
+                isPriority={index === 0}
+                slideCount={slideCount}
+              />
+            ))}
       </div>
       <div className="absolute bottom-4 right-5 z-30 flex gap-2" aria-label="Choose hero slide">
-        {banners.map((banner, index) => (
+        {slideLabels.map((label, index) => (
           <button
             type="button"
-            key={banner.title}
-            aria-label={`Show ${banner.title}`}
+            key={`${label}-${index}`}
+            aria-label={`Show ${label}`}
             aria-current={active === index}
             onClick={() => setActive(index)}
             className={`h-1.5 rounded-full bg-white transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
@@ -1475,10 +1578,119 @@ function Index() {
       <ModestEssentials />
       <WatchCollection />
       <HoneyFeature />
+      <ManagedCollectionSections />
       <ManagedHomepageBanners />
       <ExploreBeyond />
       <StoreFooter />
     </main>
+  );
+}
+
+function ManagedCollectionSections() {
+  const { products } = useStoreProducts();
+  const { banners: managedBanners, taxonomy } = useCatalogPresentation();
+  const sections = managedBanners.filter(
+    (banner) => banner.placement === "homepage_collection" && banner.category_slug,
+  );
+
+  if (!sections.length) return null;
+
+  return (
+    <div>
+      {sections.map((banner) => {
+        const categorySlug = String(banner.category_slug).toLowerCase();
+        const category = taxonomy.find(
+          (item) => item.type === "collection" && item.slug.toLowerCase() === categorySlug,
+        );
+        const sectionProducts = merchandiseProducts(
+          products.filter((product) => {
+            const slug = String(product.collectionSlug ?? "").toLowerCase();
+            const label = String(product.collection ?? "").toLowerCase();
+            return slug === categorySlug || label === category?.name.toLowerCase();
+          }),
+        ).slice(0, Math.min(8, Math.max(2, banner.product_limit ?? 4)));
+        const lightBackground = banner.text_theme === "light";
+        const imagePosition =
+          banner.image_position === "top"
+            ? "object-top"
+            : banner.image_position === "bottom"
+              ? "object-bottom"
+              : "object-center";
+        const collectionUrl =
+          banner.button_url || `/shop?collection=${encodeURIComponent(categorySlug)}`;
+
+        return (
+          <section
+            key={banner.id || `${categorySlug}-${banner.title}`}
+            className="border-t border-black/10 bg-white px-[22px] py-16 md:px-8 md:py-24"
+          >
+            <div className="mx-auto max-w-[1180px]">
+              <a
+                href={collectionUrl}
+                className={`collection-banner relative block min-h-[440px] overflow-hidden md:min-h-[560px] ${
+                  lightBackground ? "bg-white text-black" : "bg-black text-white"
+                }`}
+                data-reveal
+              >
+                <img
+                  src={banner.image_url}
+                  alt=""
+                  loading="lazy"
+                  className={`absolute inset-0 h-full w-full object-cover ${imagePosition}`}
+                />
+                <div
+                  className={`absolute inset-0 ${
+                    lightBackground
+                      ? "bg-gradient-to-t from-white/85 via-white/10 to-transparent"
+                      : "bg-gradient-to-t from-black/80 via-black/12 to-transparent"
+                  }`}
+                />
+                <div className="relative flex min-h-[440px] items-end p-6 md:min-h-[560px] md:p-10">
+                  <div className="max-w-xl">
+                    {banner.eyebrow ? (
+                      <p
+                        className={`section-kicker ${lightBackground ? "text-black/60" : "text-white/70"}`}
+                      >
+                        {banner.eyebrow}
+                      </p>
+                    ) : null}
+                    <h2 className="banner-heading mt-3 text-[44px] leading-none md:text-[68px]">
+                      {banner.title}
+                    </h2>
+                    {banner.body ? (
+                      <p
+                        className={`mt-4 max-w-md text-[14px] leading-6 ${lightBackground ? "text-black/70" : "text-white/76"}`}
+                      >
+                        {banner.body}
+                      </p>
+                    ) : null}
+                    <span
+                      className={`mt-7 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase ${
+                        lightBackground ? "bg-black text-white" : "bg-white text-black"
+                      }`}
+                    >
+                      {banner.button_label || "Shop collection"}
+                    </span>
+                  </div>
+                </div>
+              </a>
+
+              {sectionProducts.length ? (
+                <div className="mt-10 grid grid-cols-2 gap-x-2 gap-y-10 md:grid-cols-4 md:gap-x-4">
+                  {sectionProducts.map((product) => (
+                    <ProductTile key={product.slug} product={product} />
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-6 text-sm text-black/55">
+                  Add visible products to {category?.name || banner.title} to fill this section.
+                </p>
+              )}
+            </div>
+          </section>
+        );
+      })}
+    </div>
   );
 }
 
@@ -1552,31 +1764,57 @@ function ManagedHomepageBanners() {
       {homepageBanners.map((banner) => (
         <article
           key={banner.id || `${banner.placement}-${banner.title}`}
-          className="relative mx-auto min-h-[440px] max-w-[1180px] overflow-hidden bg-black text-white md:min-h-[560px]"
+          className={`relative mx-auto min-h-[440px] max-w-[1180px] overflow-hidden md:min-h-[560px] ${
+            banner.text_theme === "light" ? "bg-white text-black" : "bg-black text-white"
+          }`}
           data-store-reveal
         >
           <img
             src={banner.image_url}
             alt=""
             loading="lazy"
-            className="absolute inset-0 h-full w-full object-cover"
+            className={`absolute inset-0 h-full w-full object-cover ${
+              banner.image_position === "top"
+                ? "object-top"
+                : banner.image_position === "bottom"
+                  ? "object-bottom"
+                  : "object-center"
+            }`}
           />
-          <div className="absolute inset-0 bg-black/45" />
+          <div
+            className={`absolute inset-0 ${
+              banner.text_theme === "light" ? "bg-white/45" : "bg-black/45"
+            }`}
+          />
           <div className="relative flex min-h-[440px] items-end p-7 md:min-h-[560px] md:p-12">
             <div className="max-w-lg">
               {banner.eyebrow ? (
-                <p className="section-kicker text-white/65">{banner.eyebrow}</p>
+                <p
+                  className={`section-kicker ${
+                    banner.text_theme === "light" ? "text-black/65" : "text-white/65"
+                  }`}
+                >
+                  {banner.eyebrow}
+                </p>
               ) : null}
               <h2 className="banner-heading mt-3 text-[42px] leading-none md:text-[68px]">
                 {banner.title}
               </h2>
               {banner.body ? (
-                <p className="mt-4 max-w-md text-[14px] leading-6 text-white/75">{banner.body}</p>
+                <p
+                  className={`mt-4 max-w-md text-[14px] leading-6 ${
+                    banner.text_theme === "light" ? "text-black/75" : "text-white/75"
+                  }`}
+                >
+                  {banner.body}
+                </p>
               ) : null}
               {banner.button_label && banner.button_url ? (
                 <a
                   href={banner.button_url}
-                  className="mt-6 inline-flex h-11 items-center bg-white px-6 text-[11px] font-bold uppercase text-black"
+                  className={`mt-6 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase ${
+                    banner.text_theme === "light" ? "bg-black text-white" : "bg-white text-black"
+                  }`}
                 >
                   {banner.button_label}
                 </a>

@@ -13,7 +13,8 @@ import { SiteHeader } from "@/components/brand/SiteHeader";
 import { useCart } from "@/lib/cart";
 import { useAccount, type Address } from "@/lib/account";
 import { useCurrency } from "@/lib/currency";
-import { COUNTRIES, COUNTRY_NAME_BY_CODE, countryUsesPostalCode } from "@/lib/countries";
+import { COUNTRY_NAME_BY_CODE, countryUsesPostalCode } from "@/lib/countries";
+import { CountrySelector } from "@/components/store/country-selector";
 import {
   createBackendWhatsAppOrder,
   createRazorpayOrder,
@@ -482,22 +483,7 @@ function CheckoutPage() {
                   autoComplete="postal-code"
                   required={postalRequired}
                 />
-                <label className="text-[11px] uppercase tracking-[0.18em] text-ink/60">
-                  Country<span className="text-red-600"> *</span>
-                  <select
-                    value={country}
-                    onChange={(event) => setCountry(event.target.value)}
-                    className="mt-1 w-full border border-ink/15 bg-ivory px-3 py-2.5 font-sans-ui text-sm text-ink outline-none transition focus:border-ink"
-                    autoComplete="country-name"
-                    required
-                  >
-                    {COUNTRIES.map((option) => (
-                      <option key={option.code} value={option.name}>
-                        {option.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <CountrySelector value={country} onChange={setCountry} required />
               </div>
               <Input
                 label="WhatsApp / phone"

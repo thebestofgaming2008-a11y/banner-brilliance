@@ -17,7 +17,6 @@ export const CURRENCIES = {
   SGD: { symbol: "S$", rate: 0.016, label: "Singapore Dollar" },
   ZAR: { symbol: "R", rate: 0.21, label: "South African Rand" },
   JPY: { symbol: "¥", rate: 1.8, label: "Japanese Yen" },
-  PKR: { symbol: "₨", rate: 3.34, label: "Pakistani Rupee" },
   BDT: { symbol: "৳", rate: 1.43, label: "Bangladeshi Taka" },
 } as const satisfies Record<string, Rate>;
 

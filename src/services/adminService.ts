@@ -289,13 +289,23 @@ export async function seedDefaultCategories(): Promise<boolean> {
 
 export interface StorefrontBanner {
   id: string;
-  placement: "shop_hero" | "shop_promo" | "homepage_promo" | string;
+  placement:
+    | "homepage_hero"
+    | "homepage_collection"
+    | "homepage_promo"
+    | "shop_hero"
+    | "shop_promo"
+    | string;
+  category_slug?: string | null;
   eyebrow?: string | null;
   title: string;
   body?: string | null;
   button_label?: string | null;
   button_url?: string | null;
   image_url: string;
+  image_position?: "center" | "top" | "bottom" | string | null;
+  text_theme?: "dark" | "light" | string | null;
+  product_limit?: number | null;
   sort_order?: number | null;
   is_active?: boolean | null;
   created_at?: string | null;

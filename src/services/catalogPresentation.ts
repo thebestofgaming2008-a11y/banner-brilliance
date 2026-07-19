@@ -16,12 +16,16 @@ export type CatalogTaxonomyItem = {
 export type CatalogBanner = {
   id?: string;
   placement: string;
+  category_slug?: string | null;
   eyebrow?: string | null;
   title: string;
   body?: string | null;
   button_label?: string | null;
   button_url?: string | null;
   image_url: string;
+  image_position?: "center" | "top" | "bottom" | string | null;
+  text_theme?: "dark" | "light" | string | null;
+  product_limit?: number | null;
   sort_order?: number | null;
   is_active?: boolean | null;
 };

@@ -106,7 +106,18 @@ test("shop product cart and checkout path uses the live product", async ({ page 
   await page.getByRole("link", { name: "Proceed to checkout" }).click();
   await expect(page).toHaveURL(/\/checkout$/);
   await expect(page.getByRole("heading", { name: "Delivery details" })).toBeVisible();
-  await expect(page.getByLabel("Country").locator("option")).toHaveCount(249);
+  const countryButton = page.getByRole("button", { name: /^Country:/ });
+  await countryButton.click();
+  const countrySearch = page.getByRole("searchbox", { name: "Search countries" });
+  await countrySearch.fill("United States");
+  await expect(page.getByRole("option", { name: /United States/ })).toBeVisible();
+  await countrySearch.fill("Pakistan");
+  await expect(page.getByRole("option", { name: /Pakistan/ })).toHaveCount(0);
+  await countrySearch.fill("Israel");
+  await expect(page.getByRole("option", { name: /Israel/ })).toHaveCount(0);
+  await countrySearch.fill("United States");
+  await page.getByRole("option", { name: /United States/ }).click();
+  await expect(countryButton).toHaveAccessibleName("Country: United States");
   expect(errors).toEqual([]);
 });
 
@@ -144,6 +155,8 @@ test("mobile shop controls scroll and menu search filters the live catalog", asy
   const currencyButton = storeMenu.getByRole("button", { name: /^Currency:/ });
   await currencyButton.click();
   const currencySearch = storeMenu.getByRole("searchbox", { name: "Search currencies" });
+  await currencySearch.fill("Pakistani Rupee");
+  await expect(storeMenu.getByRole("option", { name: /PKR/ })).toHaveCount(0);
   await currencySearch.fill("US Dollar");
   await expect(storeMenu.getByRole("option", { name: /USD/ })).toBeVisible();
   await storeMenu.getByRole("option", { name: /USD/ }).click();

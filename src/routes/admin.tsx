@@ -80,6 +80,9 @@ import {
   deleteReview,
   upsertCategory,
   removeCategory,
+  listStorefrontBanners,
+  upsertStorefrontBanner,
+  archiveStorefrontBanner,
   listPaymentRecoveries,
   retryPaymentRecovery,
   listMarketingCampaigns,
@@ -179,6 +182,7 @@ const NAV = [
   { key: "orders", label: "Orders", Icon: ShoppingBag },
   { key: "products", label: "Products", Icon: Package },
   { key: "inventory", label: "Inventory", Icon: Boxes },
+  { key: "homepage", label: "Homepage", Icon: ImageIcon },
   { key: "reviews", label: "Reviews", Icon: MessageSquare },
   { key: "customers", label: "Customers", Icon: Users },
 ] as const;
@@ -188,6 +192,7 @@ const PAGE_DESCRIPTIONS: Record<TabKey, string> = {
   orders: "Confirm, pack, ship, and track customer orders.",
   products: "Add products and manage their details, images, and visibility.",
   inventory: "Keep stock accurate and find low-stock products.",
+  homepage: "Change hero slides, offers, and collection sections.",
   reviews: "Approve or hide customer reviews.",
   customers: "View customer accounts and order activity.",
 };
@@ -310,6 +315,7 @@ const Admin = () => {
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [reviews, setReviews] = useState<AdminReview[]>([]);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
+  const [storefrontBanners, setStorefrontBanners] = useState<StorefrontBanner[]>([]);
   const [paymentRecoveries, setPaymentRecoveries] = useState<PaymentRecovery[]>([]);
   const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([]);
   const [marketingConfig, setMarketingConfig] = useState<MarketingConfiguration | null>(null);
@@ -339,15 +345,17 @@ const Admin = () => {
       listAllCustomers(200),
       listAllReviews(200),
       listCategories(),
+      listStorefrontBanners(),
       listPaymentRecoveries(),
     ])
-      .then(([p, o, c, r, cats, recoveries]) => {
+      .then(([p, o, c, r, cats, banners, recoveries]) => {
         if (cancelled) return;
         setProducts(p);
         setOrders(o);
         setCustomers(c);
         setReviews(r);
         setCategories(cats);
+        setStorefrontBanners(banners);
         setPaymentRecoveries(recoveries);
         setLoading(false);
       })
@@ -368,6 +376,7 @@ const Admin = () => {
   const refreshProducts = async () => setProducts(await listAllProducts());
   const refreshOrders = async () => setOrders(await listAllOrders(200));
   const refreshReviews = async () => setReviews(await listAllReviews(200));
+  const refreshStorefrontBanners = async () => setStorefrontBanners(await listStorefrontBanners());
   const refreshPaymentRecoveries = async () => setPaymentRecoveries(await listPaymentRecoveries());
   const refreshCampaigns = async () => setCampaigns(await listMarketingCampaigns());
 
@@ -629,7 +638,9 @@ const Admin = () => {
     { label: "Overview", items: NAV.filter((item) => item.key === "dash") },
     {
       label: "Commerce",
-      items: NAV.filter((item) => ["orders", "products", "inventory"].includes(item.key)),
+      items: NAV.filter((item) =>
+        ["orders", "products", "inventory", "homepage"].includes(item.key),
+      ),
     },
     {
       label: "People",
@@ -1221,6 +1232,46 @@ const Admin = () => {
                   }}
                 />
               </Section>
+            )}
+
+            {!loading && !adminLoadError && tab === "homepage" && (
+              <BannerAdminPanel
+                banners={storefrontBanners}
+                categories={categories}
+                onSave={async (input) => {
+                  try {
+                    const saved = await upsertStorefrontBanner(input);
+                    if (!saved) throw new Error("The homepage item was not saved.");
+                    await Promise.all([refreshStorefrontBanners(), refreshPublicCatalog()]);
+                    notify({
+                      title: input.id ? "Homepage item updated" : "Homepage item added",
+                      description: "The storefront will use the new content immediately.",
+                    });
+                  } catch (error) {
+                    notify({
+                      title: "Could not save homepage item",
+                      description:
+                        error instanceof Error
+                          ? error.message
+                          : "Please check the fields and try again.",
+                      variant: "destructive",
+                    });
+                    throw error;
+                  }
+                }}
+                onArchive={async (id) => {
+                  if (
+                    !confirm("Hide this homepage item? You can still edit and show it again later.")
+                  )
+                    return;
+                  if (!(await archiveStorefrontBanner(id))) {
+                    notify({ title: "Could not hide homepage item", variant: "destructive" });
+                    return;
+                  }
+                  await Promise.all([refreshStorefrontBanners(), refreshPublicCatalog()]);
+                  notify({ title: "Homepage item hidden" });
+                }}
+              />
             )}
 
             {!loading && !adminLoadError && tab === "customers" && (
@@ -3064,151 +3115,53 @@ function ReviewsTable({
   );
 }
 
-function HomepageAdminPanel({
-  products,
-  onEdit,
-  onPatch,
-}: {
-  products: Product[];
-  onEdit: (product: Product) => void;
-  onPatch: (product: Product, patch: Partial<ProductInput>) => Promise<void>;
-}) {
-  const featured = products.filter((product) => product.is_featured);
-  const newArrivals = products.filter((product) => product.is_new_arrival);
-  const bestsellers = products.filter((product) => product.is_bestseller);
-  const rows = products.filter((product) => product.is_active !== false);
-
-  return (
-    <div className="space-y-6">
-      <div className="grid gap-3 md:grid-cols-3">
-        <AttentionCard
-          title="Featured"
-          count={featured.length}
-          description="Products shown in homepage rails"
-          Icon={Store}
-        />
-        <AttentionCard
-          title="New arrivals"
-          count={newArrivals.length}
-          description="Fresh products promoted on the storefront"
-          Icon={Sparkles}
-          accent="info"
-        />
-        <AttentionCard
-          title="Bestsellers"
-          count={bestsellers.length}
-          description="Products marked as strongest sellers"
-          Icon={TrendingUp}
-        />
-      </div>
-
-      <Section
-        title="Product placement"
-        subtitle="Feature products inside the storefront layout that already exists."
-      >
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm" data-testid="admin-homepage-placement-table">
-            <thead>
-              <tr className="border-b border-[rgb(var(--vibe-border))] text-left text-[11px] uppercase tracking-[0.16em] text-[rgb(var(--vibe-muted))]">
-                <th className="py-2 pr-3">Product</th>
-                <th className="py-2 px-3">Collection</th>
-                <th className="py-2 px-3">Featured</th>
-                <th className="py-2 px-3">New</th>
-                <th className="py-2 px-3">Bestseller</th>
-                <th className="py-2 pl-3 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((product) => (
-                <tr
-                  key={product.id}
-                  className="border-b border-[rgb(var(--vibe-border))] last:border-0"
-                >
-                  <td className="py-3 pr-3">
-                    <div className="flex items-center gap-3">
-                      <ProductThumb product={product} />
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">{product.name}</p>
-                        <p className="text-xs text-[rgb(var(--vibe-muted))]">{product.slug}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-3 py-3">
-                    {categoryLabel(product.category_id ?? product.category)}
-                  </td>
-                  <td className="px-3 py-3">
-                    <ToggleButton
-                      active={Boolean(product.is_featured)}
-                      onClick={() => onPatch(product, { is_featured: !product.is_featured })}
-                    />
-                  </td>
-                  <td className="px-3 py-3">
-                    <ToggleButton
-                      active={Boolean(product.is_new_arrival)}
-                      onClick={() => onPatch(product, { is_new_arrival: !product.is_new_arrival })}
-                    />
-                  </td>
-                  <td className="px-3 py-3">
-                    <ToggleButton
-                      active={Boolean(product.is_bestseller)}
-                      onClick={() => onPatch(product, { is_bestseller: !product.is_bestseller })}
-                    />
-                  </td>
-                  <td className="py-3 pl-3 text-right">
-                    <button
-                      type="button"
-                      className="h-8 rounded-md border border-[rgb(var(--vibe-border))] px-3 text-xs hover:bg-[rgb(var(--vibe-accent))]"
-                      onClick={() => onEdit(product)}
-                    >
-                      Edit
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Section>
-    </div>
-  );
-}
-
 function BannerAdminPanel({
   banners,
+  categories,
   onSave,
   onArchive,
 }: {
   banners: StorefrontBanner[];
+  categories: AdminCategory[];
   onSave: (
     input: Omit<StorefrontBanner, "id" | "created_at" | "updated_at"> & { id?: string },
   ) => Promise<void>;
   onArchive: (id: string) => Promise<void>;
 }) {
   const blank = {
-    placement: "shop_promo",
+    placement: "homepage_hero",
+    category_slug: "",
     eyebrow: "",
     title: "",
     body: "",
     button_label: "",
     button_url: "/shop",
     image_url: "",
+    image_position: "center",
+    text_theme: "dark",
+    product_limit: "4",
     sort_order: "",
     is_active: true,
   };
   const [draft, setDraft] = useState(blank);
   const [editingId, setEditingId] = useState<string | undefined>();
   const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const edit = (banner: StorefrontBanner) => {
     setEditingId(banner.id);
     setDraft({
       placement: banner.placement,
+      category_slug: banner.category_slug ?? "",
       eyebrow: banner.eyebrow ?? "",
       title: banner.title,
       body: banner.body ?? "",
       button_label: banner.button_label ?? "",
       button_url: banner.button_url ?? "",
       image_url: banner.image_url,
+      image_position: banner.image_position ?? "center",
+      text_theme: banner.text_theme ?? "dark",
+      product_limit: String(banner.product_limit ?? 4),
       sort_order: banner.sort_order == null ? "" : String(banner.sort_order),
       is_active: banner.is_active !== false,
     });
@@ -3237,26 +3190,41 @@ function BannerAdminPanel({
       notify({ title: "Banner title and image are required", variant: "destructive" });
       return;
     }
-    await onSave({
-      id: editingId,
-      placement: draft.placement,
-      eyebrow: draft.eyebrow.trim() || null,
-      title: draft.title.trim(),
-      body: draft.body.trim() || null,
-      button_label: draft.button_label.trim() || null,
-      button_url: draft.button_url.trim() || null,
-      image_url: draft.image_url.trim(),
-      sort_order: draft.sort_order.trim() ? Number(draft.sort_order) : null,
-      is_active: draft.is_active,
-    });
-    setDraft(blank);
-    setEditingId(undefined);
+    if (draft.placement === "homepage_collection" && !draft.category_slug) {
+      notify({ title: "Choose a collection for this section", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave({
+        id: editingId,
+        placement: draft.placement,
+        category_slug: draft.category_slug.trim() || null,
+        eyebrow: draft.eyebrow.trim() || null,
+        title: draft.title.trim(),
+        body: draft.body.trim() || null,
+        button_label: draft.button_label.trim() || null,
+        button_url: draft.button_url.trim() || null,
+        image_url: draft.image_url.trim(),
+        image_position: draft.image_position,
+        text_theme: draft.text_theme,
+        product_limit: Number(draft.product_limit) || 4,
+        sort_order: draft.sort_order.trim() ? Number(draft.sort_order) : null,
+        is_active: draft.is_active,
+      });
+      setDraft(blank);
+      setEditingId(undefined);
+    } catch {
+      // The parent reports the server error and the draft stays available for correction.
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <Section
-      title="Storefront banners"
-      subtitle="Managed campaign blocks with consistent typography and layout."
+      title="Homepage content"
+      subtitle="Add hero slides, offers, or a collection banner with live products underneath."
     >
       <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
         <div className="space-y-3">
@@ -3266,11 +3234,59 @@ function BannerAdminPanel({
               value={draft.placement}
               onChange={(event) => setDraft({ ...draft, placement: event.target.value })}
             >
+              <option value="homepage_hero">Hero slide</option>
+              <option value="homepage_collection">Collection section + products</option>
+              <option value="homepage_promo">Simple homepage offer</option>
               <option value="shop_hero">Shop hero (one active recommended)</option>
               <option value="shop_promo">Shop promotional banner</option>
-              <option value="homepage_promo">Homepage promotional banner</option>
             </select>
           </AdminField>
+          {draft.placement === "homepage_collection" ? (
+            <div className="grid grid-cols-[1fr_110px] gap-3">
+              <AdminField label="Collection">
+                <select
+                  className="admin-input"
+                  value={draft.category_slug}
+                  onChange={(event) => {
+                    const category = categories.find((item) => item.slug === event.target.value);
+                    setDraft((current) => ({
+                      ...current,
+                      category_slug: event.target.value,
+                      button_url: event.target.value
+                        ? `/shop?collection=${encodeURIComponent(event.target.value)}`
+                        : current.button_url,
+                      title: current.title || category?.name || "",
+                    }));
+                  }}
+                  required
+                >
+                  <option value="">Choose...</option>
+                  {categories
+                    .filter(
+                      (category) => category.type === "collection" && category.is_active !== false,
+                    )
+                    .map((category) => (
+                      <option key={category.id} value={category.slug}>
+                        {category.name}
+                      </option>
+                    ))}
+                </select>
+              </AdminField>
+              <AdminField label="Products">
+                <select
+                  className="admin-input"
+                  value={draft.product_limit}
+                  onChange={(event) => setDraft({ ...draft, product_limit: event.target.value })}
+                >
+                  {[2, 3, 4, 6, 8].map((count) => (
+                    <option key={count} value={count}>
+                      {count}
+                    </option>
+                  ))}
+                </select>
+              </AdminField>
+            </div>
+          ) : null}
           <AdminField label="Eyebrow">
             <input
               className="admin-input"
@@ -3332,8 +3348,40 @@ function BannerAdminPanel({
                   }}
                 />
               </label>
+              {draft.image_url ? (
+                <div className="aspect-[16/9] overflow-hidden rounded-md bg-[rgb(var(--vibe-surface))]">
+                  <img
+                    src={draft.image_url}
+                    alt="Banner preview"
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              ) : null}
             </div>
           </AdminField>
+          <div className="grid grid-cols-2 gap-3">
+            <AdminField label="Image focus">
+              <select
+                className="admin-input"
+                value={draft.image_position}
+                onChange={(event) => setDraft({ ...draft, image_position: event.target.value })}
+              >
+                <option value="center">Centre</option>
+                <option value="top">Top</option>
+                <option value="bottom">Bottom</option>
+              </select>
+            </AdminField>
+            <AdminField label="Text colour">
+              <select
+                className="admin-input"
+                value={draft.text_theme}
+                onChange={(event) => setDraft({ ...draft, text_theme: event.target.value })}
+              >
+                <option value="dark">White text</option>
+                <option value="light">Black text</option>
+              </select>
+            </AdminField>
+          </div>
           <AdminField label="Sort order">
             <input
               className="admin-input"
@@ -3351,8 +3399,13 @@ function BannerAdminPanel({
             Visible on storefront
           </label>
           <div className="flex gap-2">
-            <button type="button" className="admin-button" onClick={() => void save()}>
-              {editingId ? "Update banner" : "Add banner"}
+            <button
+              type="button"
+              className="admin-button"
+              disabled={saving || uploading}
+              onClick={() => void save()}
+            >
+              {saving ? "Saving..." : editingId ? "Update item" : "Add item"}
             </button>
             {editingId ? (
               <button
@@ -3389,12 +3442,17 @@ function BannerAdminPanel({
                 </div>
                 <div className="p-4">
                   <p className="text-[10px] font-medium uppercase tracking-wider text-[rgb(var(--vibe-muted))]">
-                    {banner.placement} · order {banner.sort_order ?? "auto"}
+                    {banner.placement.replaceAll("_", " ")} · order {banner.sort_order ?? "auto"}
                   </p>
                   <h3 className="mt-2 font-semibold">{banner.title}</h3>
                   {banner.body ? (
                     <p className="mt-1 line-clamp-2 text-xs text-[rgb(var(--vibe-muted))]">
                       {banner.body}
+                    </p>
+                  ) : null}
+                  {banner.category_slug ? (
+                    <p className="mt-2 text-xs font-medium">
+                      {banner.category_slug} · {banner.product_limit ?? 4} products
                     </p>
                   ) : null}
                   <div className="mt-4 flex gap-2">
@@ -3869,23 +3927,6 @@ function RateInput({
       inputMode="numeric"
       className="h-8 w-20 rounded-md border border-[rgb(var(--vibe-border))] px-2 text-right font-mono text-xs outline-none focus:ring-1 focus:ring-zinc-500"
     />
-  );
-}
-
-function ToggleButton({ active, onClick }: { active: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "h-8 rounded-md border px-3 text-xs font-medium",
-        active
-          ? "border-zinc-300 bg-zinc-900 text-white"
-          : "border-[rgb(var(--vibe-border))] text-[rgb(var(--vibe-muted))] hover:bg-[rgb(var(--vibe-accent))]",
-      )}
-    >
-      {active ? "On" : "Off"}
-    </button>
   );
 }
 

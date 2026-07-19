@@ -431,12 +431,16 @@ export const upsertStorefrontBanner = mutation({
   args: {
     id: v.optional(v.string()),
     placement: v.string(),
+    category_slug: v.optional(v.union(v.string(), v.null())),
     eyebrow: v.optional(v.union(v.string(), v.null())),
     title: v.string(),
     body: v.optional(v.union(v.string(), v.null())),
     button_label: v.optional(v.union(v.string(), v.null())),
     button_url: v.optional(v.union(v.string(), v.null())),
     image_url: v.string(),
+    image_position: v.optional(v.union(v.string(), v.null())),
+    text_theme: v.optional(v.union(v.string(), v.null())),
+    product_limit: v.optional(v.union(v.number(), v.null())),
     sort_order: v.optional(v.union(v.number(), v.null())),
     is_active: v.optional(v.boolean()),
   },
@@ -445,6 +449,7 @@ export const upsertStorefrontBanner = mutation({
     const title = cleanText(args.title, 100);
     const placement = cleanText(args.placement, 40);
     const imageUrl = cleanText(args.image_url, 1000);
+    const categorySlug = cleanText(args.category_slug, 80) || null;
     const buttonUrl = cleanText(args.button_url, 500) || null;
     if (!title) throw new Error("Banner title is required.");
     if (!placement) throw new Error("Banner placement is required.");
@@ -454,15 +459,25 @@ export const upsertStorefrontBanner = mutation({
     if (buttonUrl && !/^https?:\/\//i.test(buttonUrl) && !buttonUrl.startsWith("/")) {
       throw new Error("Banner link must be an HTTPS or site-relative URL.");
     }
+    if (placement === "homepage_collection" && !categorySlug) {
+      throw new Error("Collection sections need a category.");
+    }
+    const productLimit = Math.min(8, Math.max(2, Math.round(args.product_limit ?? 4)));
     const timestamp = nowIso();
     const payload = {
       placement,
+      category_slug: categorySlug,
       eyebrow: cleanText(args.eyebrow, 60) || null,
       title,
       body: cleanText(args.body, 320) || null,
       button_label: cleanText(args.button_label, 50) || null,
       button_url: buttonUrl,
       image_url: imageUrl,
+      image_position: ["center", "top", "bottom"].includes(String(args.image_position))
+        ? String(args.image_position)
+        : "center",
+      text_theme: args.text_theme === "light" ? "light" : "dark",
+      product_limit: productLimit,
       sort_order: args.sort_order ?? null,
       is_active: args.is_active ?? true,
       updated_at: timestamp,

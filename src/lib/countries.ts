@@ -5,10 +5,14 @@ const REGION_CODES =
 
 const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
 
-export const COUNTRIES = REGION_CODES.map((code) => ({
-  code,
-  name: regionNames.of(code) ?? code,
-})).sort((a, b) => a.name.localeCompare(b.name));
+const EXCLUDED_COUNTRY_CODES = new Set(["IL", "PK"]);
+
+export const COUNTRIES = REGION_CODES.filter((code) => !EXCLUDED_COUNTRY_CODES.has(code))
+  .map((code) => ({
+    code,
+    name: regionNames.of(code) ?? code,
+  }))
+  .sort((a, b) => a.name.localeCompare(b.name));
 
 export const COUNTRY_NAME_BY_CODE = Object.fromEntries(
   COUNTRIES.map((country) => [country.code, country.name]),
