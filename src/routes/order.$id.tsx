@@ -8,6 +8,7 @@ import { api } from "../../convex/_generated/api";
 import { StorePage } from "@/components/store/store-chrome";
 import { useCurrency } from "@/hooks/use-currency";
 import { convex } from "@/lib/backend";
+import { seo } from "@/lib/seo";
 
 type OrderSearch = { email?: string };
 
@@ -51,7 +52,7 @@ export const Route = createFileRoute("/order/$id")({
   validateSearch: (search: Record<string, unknown>): OrderSearch => ({
     email: typeof search.email === "string" ? search.email : undefined,
   }),
-  head: () => ({ meta: [{ title: "Track order | Fawzaan" }] }),
+  head: () => seo({ title: "Order Status | Fawzaan Store", path: "/order", noIndex: true }),
   component: OrderPage,
 });
 
@@ -238,7 +239,9 @@ function ReviewOrderItems({ order, email }: { order: TrackedOrder; email: string
   const [rating, setRating] = useState(5);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const reviewable = (order.items ?? []).filter((item) => item.product_id);
+  const reviewable = (order.items ?? []).filter(
+    (item): item is TrackedItem & { product_id: string } => Boolean(item.product_id),
+  );
   if (!reviewable.length) return null;
 
   return (

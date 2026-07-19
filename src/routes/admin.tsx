@@ -1,5 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
+import { useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
 import Cropper, { type Area as CropArea } from "react-easy-crop";
 import "react-easy-crop/react-easy-crop.css";
@@ -61,6 +62,7 @@ import {
   ZoomOut,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { api } from "../../convex/_generated/api";
 import {
   listAllProducts,
   createProduct,
@@ -75,6 +77,7 @@ import {
   updateOrderStatus,
   updateOrderTracking,
   updateReviewStatus,
+  deleteReview,
   upsertCategory,
   removeCategory,
   listPaymentRecoveries,
@@ -178,7 +181,6 @@ const NAV = [
   { key: "inventory", label: "Inventory", Icon: Boxes },
   { key: "reviews", label: "Reviews", Icon: MessageSquare },
   { key: "customers", label: "Customers", Icon: Users },
-  { key: "marketing", label: "Email offers", Icon: Mail },
 ] as const;
 
 const PAGE_DESCRIPTIONS: Record<TabKey, string> = {
@@ -188,7 +190,6 @@ const PAGE_DESCRIPTIONS: Record<TabKey, string> = {
   inventory: "Keep stock accurate and find low-stock products.",
   reviews: "Approve or hide customer reviews.",
   customers: "View customer accounts and order activity.",
-  marketing: "Create and send offers to customers who opted in.",
 };
 
 type TabKey = (typeof NAV)[number]["key"];
@@ -298,7 +299,8 @@ function buildDashboardAnalytics(orders: AdminOrder[], customers: AdminCustomer[
 
 const Admin = () => {
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
-  const { signIn, signOut } = useAuthActions();
+  const { signOut } = useAuthActions();
+  const currentUser = useQuery(api.users.currentUser, isAuthenticated ? {} : "skip");
   const [tab, setTab] = useState<TabKey>("dash");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileNavClosing, setMobileNavClosing] = useState(false);
@@ -318,16 +320,13 @@ const Admin = () => {
   const [orderFilter, setOrderFilter] = useState<string>("all");
   const [productQuery, setProductQuery] = useState("");
   const [productFilter, setProductFilter] = useState<string>("all");
-  const [adminEmail, setAdminEmail] = useState("");
-  const [adminPassword, setAdminPassword] = useState("");
-  const [authMode, setAuthMode] = useState<"signIn" | "signUp">("signIn");
-  const [authSaving, setAuthSaving] = useState(false);
   const [adminLoadError, setAdminLoadError] = useState<string | null>(null);
+  const adminEmail = String(currentUser?.email ?? "");
 
   useEffect(() => {
     let cancelled = false;
-    if (authLoading) return;
-    if (!isAuthenticated) {
+    if (authLoading || (isAuthenticated && currentUser === undefined)) return;
+    if (!isAuthenticated || !currentUser?.isAdmin) {
       setLoading(false);
       setAdminLoadError(null);
       return;
@@ -341,10 +340,8 @@ const Admin = () => {
       listAllReviews(200),
       listCategories(),
       listPaymentRecoveries(),
-      listMarketingCampaigns(),
-      getMarketingConfiguration(),
     ])
-      .then(([p, o, c, r, cats, recoveries, emailCampaigns, emailConfig]) => {
+      .then(([p, o, c, r, cats, recoveries]) => {
         if (cancelled) return;
         setProducts(p);
         setOrders(o);
@@ -352,8 +349,6 @@ const Admin = () => {
         setReviews(r);
         setCategories(cats);
         setPaymentRecoveries(recoveries);
-        setCampaigns(emailCampaigns);
-        setMarketingConfig(emailConfig);
         setLoading(false);
       })
       .catch((error) => {
@@ -368,7 +363,7 @@ const Admin = () => {
     return () => {
       cancelled = true;
     };
-  }, [authLoading, isAuthenticated]);
+  }, [authLoading, currentUser, isAuthenticated]);
 
   const refreshProducts = async () => setProducts(await listAllProducts());
   const refreshOrders = async () => setOrders(await listAllOrders(200));
@@ -656,54 +651,11 @@ const Admin = () => {
     }, 180);
   };
 
-  const submitAuth = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!adminEmail.includes("@")) {
-      notify({ title: "Enter a valid admin email", variant: "destructive" });
-      return;
-    }
-    const minimumPasswordLength = authMode === "signUp" ? 8 : 6;
-    if (adminPassword.length < minimumPasswordLength) {
-      notify({
-        title:
-          authMode === "signUp" ? "Password must be at least 8 characters" : "Enter your password",
-        variant: "destructive",
-      });
-      return;
-    }
-    setAuthSaving(true);
-    try {
-      await signIn("password", {
-        email: adminEmail.toLowerCase(),
-        password: adminPassword,
-        flow: authMode,
-      });
-      notify({ title: authMode === "signIn" ? "Signed in" : "Admin account created" });
-    } catch (error) {
-      notify({
-        title: error instanceof Error ? error.message : "Could not sign in",
-        variant: "destructive",
-      });
-    } finally {
-      setAuthSaving(false);
-    }
-  };
-
-  if (authLoading || !isAuthenticated) {
+  if (authLoading || (isAuthenticated && currentUser === undefined))
     return (
-      <AdminLogin
-        authLoading={authLoading}
-        authMode={authMode}
-        authSaving={authSaving}
-        email={adminEmail}
-        password={adminPassword}
-        onEmailChange={setAdminEmail}
-        onPasswordChange={setAdminPassword}
-        onModeChange={() => setAuthMode((mode) => (mode === "signIn" ? "signUp" : "signIn"))}
-        onSubmit={submitAuth}
-      />
+      <div className="grid min-h-screen place-items-center bg-[#f5f5f3] text-sm">Loading…</div>
     );
-  }
+  if (!isAuthenticated || !currentUser?.isAdmin) return <Navigate to="/account" replace />;
 
   return (
     <div className="vibe-admin admin-vibe flex min-h-screen bg-[rgb(var(--vibe-page))] text-[rgb(var(--vibe-foreground))]">
@@ -1277,29 +1229,6 @@ const Admin = () => {
               </Section>
             )}
 
-            {!loading && !adminLoadError && tab === "marketing" && (
-              <MarketingPanel
-                campaigns={campaigns}
-                customers={customers}
-                configuration={marketingConfig}
-                onSave={async (input, id) => {
-                  const savedId = await saveMarketingCampaign(input, id);
-                  await refreshCampaigns();
-                  return savedId;
-                }}
-                onDelete={async (id) => {
-                  await deleteMarketingDraft(id);
-                  await refreshCampaigns();
-                }}
-                onTest={sendMarketingTest}
-                onSend={async (id) => {
-                  const result = await sendMarketingCampaign(id);
-                  await refreshCampaigns();
-                  return result;
-                }}
-              />
-            )}
-
             {!loading && !adminLoadError && tab === "reviews" && (
               <Section
                 title="Reviews"
@@ -1315,6 +1244,13 @@ const Admin = () => {
                       });
                       await refreshReviews();
                       await refreshProducts();
+                    }
+                  }}
+                  onDelete={async (id) => {
+                    if (!confirm("Permanently delete this review? This cannot be undone.")) return;
+                    if (await deleteReview(id)) {
+                      notify({ title: "Review deleted" });
+                      await Promise.all([refreshReviews(), refreshProducts()]);
                     }
                   }}
                 />
@@ -1360,6 +1296,9 @@ const Admin = () => {
 };
 
 export const Route = createFileRoute("/admin")({
+  head: () => ({
+    meta: [{ title: "Admin | Fawzaan Store" }, { name: "robots", content: "noindex, nofollow" }],
+  }),
   component: Admin,
 });
 
@@ -3032,10 +2971,12 @@ function ReviewsTable({
   rows,
   products,
   onStatusChange,
+  onDelete,
 }: {
   rows: AdminReview[];
   products: Product[];
   onStatusChange: (id: string, status: "pending" | "published" | "hidden") => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }) {
   const productName = (id: string) =>
     products.find((product) => product.id === id)?.name ?? "Product";
@@ -3106,6 +3047,15 @@ function ReviewsTable({
               className="h-8 rounded-md border border-[#D1D5DB] px-3 text-xs font-medium text-[#4B5563] hover:bg-[#F9FAFB]"
             >
               Hide
+            </button>
+            <button
+              type="button"
+              onClick={() => onDelete(review.id)}
+              aria-label="Permanently delete review"
+              className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md border border-red-200 px-3 text-xs font-medium text-red-700 hover:bg-red-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
             </button>
           </div>
         </article>
@@ -4465,15 +4415,26 @@ function ProductDrawer({
     >
       <aside
         className={cn(
-          "admin-drawer-panel absolute right-0 top-0 h-full w-full max-w-[560px] overflow-y-auto bg-background p-4 sm:p-6",
+          "admin-drawer-panel absolute right-0 top-0 flex h-full w-full max-w-[1120px] flex-col overflow-hidden bg-[#F8FAFC] shadow-2xl",
           closing && "is-closing",
         )}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-product-editor-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-foreground">
-            {product ? "Edit product" : "New product"}
-          </h2>
+        <div className="flex shrink-0 items-center justify-between border-b border-[#E5E7EB] bg-white px-4 py-4 sm:px-6">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#6B7280]">
+              Catalog
+            </p>
+            <h2
+              id="admin-product-editor-title"
+              className="mt-0.5 text-lg font-semibold text-[#111827]"
+            >
+              {product ? "Edit product" : "New product"}
+            </h2>
+          </div>
           <button
             onClick={requestClose}
             aria-label="Close"
@@ -4484,8 +4445,11 @@ function ProductDrawer({
           </button>
         </div>
 
-        <form onSubmit={submit} className="space-y-4">
-          <div>
+        <form
+          onSubmit={submit}
+          className="grid min-h-0 flex-1 grid-cols-1 items-start gap-5 overflow-y-auto p-4 sm:p-6 lg:grid-cols-2 lg:gap-6"
+        >
+          <div className="rounded-xl border border-[#E5E7EB] bg-white p-4 lg:col-span-2">
             <span className="block text-xs font-medium text-foreground/70 mb-1.5">Cover image</span>
             <div className="grid gap-3 sm:grid-cols-[132px_1fr]">
               <div className="min-w-0">
@@ -4662,7 +4626,7 @@ function ProductDrawer({
               </div>
             </div>
           </div>
-          <div className="rounded-lg border border-border bg-foreground/[0.015] p-3">
+          <div className="rounded-xl border border-[#E5E7EB] bg-white p-4 lg:col-span-2">
             <p className="text-xs font-medium text-foreground/70">Storefront filters</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {filterCategories.map((filter) => {
@@ -4812,7 +4776,7 @@ function ProductDrawer({
             rows={5}
           />
 
-          <div className="rounded-lg border border-[#E5E7EB] bg-[#FAFAFA] p-3">
+          <div className="rounded-xl border border-[#E5E7EB] bg-white p-4 lg:col-span-2">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-[#111827]">Store visibility</p>
@@ -4846,7 +4810,7 @@ function ProductDrawer({
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-4 sticky bottom-0 bg-background pb-1 border-t border-border">
+          <div className="sticky bottom-0 z-10 flex justify-end gap-2 border-t border-[#E5E7EB] bg-white/95 px-1 pb-1 pt-4 backdrop-blur lg:col-span-2">
             <button
               type="button"
               onClick={requestClose}

@@ -1,10 +1,19 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { Clock, ExternalLink, Lock, MapPin, MessageCircle, ShieldCheck } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  CircleAlert,
+  Clock,
+  ExternalLink,
+  Lock,
+  MapPin,
+  MessageCircle,
+  ShieldCheck,
+} from "lucide-react";
 import { SiteHeader } from "@/components/brand/SiteHeader";
 import { useCart } from "@/lib/cart";
 import { useAccount, type Address } from "@/lib/account";
 import { useCurrency } from "@/lib/currency";
+import { COUNTRIES, COUNTRY_NAME_BY_CODE, countryUsesPostalCode } from "@/lib/countries";
 import {
   createBackendWhatsAppOrder,
   createRazorpayOrder,
@@ -12,6 +21,7 @@ import {
   verifyRazorpayPayment,
 } from "@/services/orderService";
 import { toast } from "sonner";
+import { seo } from "@/lib/seo";
 
 type RazorpayFailure = { error?: { description?: string; reason?: string } };
 type RazorpaySuccess = {
@@ -42,31 +52,15 @@ declare global {
 }
 
 export const Route = createFileRoute("/checkout")({
-  head: () => ({
-    meta: [
-      { title: "Checkout - Fawzaan.store" },
-      { name: "description", content: "Secure checkout for Fawzaan Store orders." },
-    ],
-  }),
+  head: () =>
+    seo({
+      title: "Secure Checkout | Fawzaan Store",
+      description: "Secure checkout for Fawzaan Store orders.",
+      path: "/checkout",
+      noIndex: true,
+    }),
   component: CheckoutPage,
 });
-
-const REGION_CODES =
-  "AD AE AF AG AI AL AM AO AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW".split(
-    " ",
-  );
-const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
-const COUNTRIES = REGION_CODES.map((code) => ({ code, name: regionNames.of(code) ?? code })).sort(
-  (a, b) => a.name.localeCompare(b.name),
-);
-const GEO_COUNTRY = Object.fromEntries(COUNTRIES.map((country) => [country.code, country.name]));
-const NO_POSTAL_COUNTRIES = new Set([
-  "United Arab Emirates",
-  "Qatar",
-  "Hong Kong",
-  "Macao",
-  "Bahamas",
-]);
 
 function isIndia(country: string) {
   return country.trim().toLowerCase() === "india";
@@ -127,6 +121,7 @@ function CheckoutPage() {
   const [country, setCountry] = useState(defaultAddress?.country ?? "India");
   const [phone, setPhone] = useState(defaultAddress?.phone ?? "");
   const [processing, setProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const [pendingPayment, setPendingPayment] = useState<PendingPayment | null>(() => {
     if (typeof window === "undefined") return null;
     try {
@@ -137,6 +132,11 @@ function CheckoutPage() {
     }
   });
   const [checkingPayment, setCheckingPayment] = useState(false);
+  const internationalRequestId = useRef(
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `wa-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
 
   useEffect(() => {
     if (defaultAddress) return;
@@ -144,7 +144,7 @@ function CheckoutPage() {
     fetch("/api/geo")
       .then((response) => response.json())
       .then((geo) => {
-        const detected = GEO_COUNTRY[String(geo?.country ?? "").toUpperCase()];
+        const detected = COUNTRY_NAME_BY_CODE[String(geo?.country ?? "").toUpperCase()];
         if (!cancelled && detected) setCountry(detected);
       })
       .catch(() => undefined);
@@ -154,7 +154,7 @@ function CheckoutPage() {
   }, [defaultAddress]);
 
   const indiaCheckout = isIndia(country);
-  const postalRequired = !NO_POSTAL_COUNTRIES.has(country);
+  const postalRequired = countryUsesPostalCode(country);
   const shippingLabel = indiaCheckout ? "Included" : "Confirmed on WhatsApp";
   const total = subtotal;
   const canPlaceOrder =
@@ -179,6 +179,11 @@ function CheckoutPage() {
     postal_code: postal.trim(),
     country,
   };
+
+  useEffect(() => {
+    if (!indiaCheckout || items.length === 0) return;
+    void loadRazorpayScript().catch(() => undefined);
+  }, [indiaCheckout, items.length]);
 
   const rememberAddress = async () => {
     if (!account) return;
@@ -239,12 +244,18 @@ function CheckoutPage() {
   const placeInternationalOrder = async () => {
     const whatsappWindow = window.open("about:blank", "_blank");
     if (whatsappWindow) whatsappWindow.opener = null;
-    const result = await createBackendWhatsAppOrder({ cart: items, customer, total });
-    await rememberAddress();
+    const result = await createBackendWhatsAppOrder({
+      cart: items,
+      customer,
+      total,
+      requestId: internationalRequestId.current,
+    });
+    await rememberAddress().catch(() => undefined);
+    clear();
     if (whatsappWindow) whatsappWindow.location.replace(result.whatsappUrl);
     else window.location.href = result.whatsappUrl;
     setProcessing(false);
-    toast.success("WhatsApp order message opened.");
+    toast.success(`Order ${String(result.order?.order_number ?? "")} saved. WhatsApp opened.`);
   };
 
   const placeIndiaOrder = async () => {
@@ -323,13 +334,17 @@ function CheckoutPage() {
       toast.error("Complete the required address details.");
       return;
     }
+    setPaymentError(null);
     setProcessing(true);
     try {
       if (indiaCheckout) await placeIndiaOrder();
       else await placeInternationalOrder();
     } catch (error) {
       setProcessing(false);
-      toast.error(error instanceof Error ? error.message : "Checkout could not be completed.");
+      const message =
+        error instanceof Error ? error.message : "Checkout could not be completed. Please retry.";
+      setPaymentError(message);
+      toast.error(message);
     }
   };
 
@@ -456,6 +471,7 @@ function CheckoutPage() {
                   value={state}
                   onChange={setState}
                   autoComplete="address-level1"
+                  required={indiaCheckout}
                 />
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -468,19 +484,19 @@ function CheckoutPage() {
                 />
                 <label className="text-[11px] uppercase tracking-[0.18em] text-ink/60">
                   Country<span className="text-red-600"> *</span>
-                  <input
-                    list="checkout-countries"
+                  <select
                     value={country}
                     onChange={(event) => setCountry(event.target.value)}
                     className="mt-1 w-full border border-ink/15 bg-ivory px-3 py-2.5 font-sans-ui text-sm text-ink outline-none transition focus:border-ink"
                     autoComplete="country-name"
                     required
-                  />
-                  <datalist id="checkout-countries">
+                  >
                     {COUNTRIES.map((option) => (
-                      <option key={option.code} value={option.name} label={option.code} />
+                      <option key={option.code} value={option.name}>
+                        {option.name}
+                      </option>
                     ))}
-                  </datalist>
+                  </select>
                 </label>
               </div>
               <Input
@@ -532,6 +548,29 @@ function CheckoutPage() {
                       {checkingPayment ? "Checking..." : "Check order status"}
                     </button>
                   </div>
+                </div>
+              </div>
+            ) : null}
+
+            {paymentError ? (
+              <div
+                className="mt-4 flex items-start gap-3 border border-rose-300 bg-rose-50 p-4 text-rose-950"
+                role="alert"
+              >
+                <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+                <div>
+                  <p className="font-semibold">Payment window could not open</p>
+                  <p className="mt-1 text-sm leading-6 text-rose-900/80">{paymentError}</p>
+                  <button
+                    type="button"
+                    className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] underline underline-offset-4"
+                    onClick={() => {
+                      setPaymentError(null);
+                      void placeOrder();
+                    }}
+                  >
+                    Try secure checkout again
+                  </button>
                 </div>
               </div>
             ) : null}

@@ -11,6 +11,7 @@ export default tseslint.config(
       "dist",
       ".output",
       ".vinxi",
+      ".wrangler",
       "convex/_generated",
       "test-results",
       "playwright-report",

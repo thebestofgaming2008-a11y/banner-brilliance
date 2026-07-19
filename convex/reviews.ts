@@ -205,50 +205,6 @@ export const submitForOrder = mutation({
   },
 });
 
-export const createAdmin = mutation({
-  args: {
-    productId: v.string(),
-    rating: v.number(),
-    customerName: v.optional(v.union(v.string(), v.null())),
-    customerEmail: v.optional(v.union(v.string(), v.null())),
-    title: v.optional(v.union(v.string(), v.null())),
-    body: v.optional(v.union(v.string(), v.null())),
-    status: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    await requireAdmin(ctx);
-    const product = (await ctx.db.get(args.productId as any)) as any;
-    if (!product) throw new Error("Product not found.");
-    const status = cleanText(args.status ?? "published", 24).toLowerCase();
-    if (!reviewStatus.has(status)) throw new Error("Invalid review status.");
-    const timestamp = nowIso();
-    const id = await ctx.db.insert("reviews", {
-      product_id: args.productId,
-      user_id: null,
-      customer_name: cleanNullable(args.customerName, 120),
-      customer_email: cleanNullable(args.customerEmail, 160),
-      rating: Math.max(1, Math.min(5, Math.round(args.rating * 10) / 10)),
-      title: cleanNullable(args.title, 120),
-      body: cleanNullable(args.body, 1600),
-      media_urls: [],
-      status,
-      admin_note: "Created by admin",
-      created_at: timestamp,
-      updated_at: timestamp,
-    });
-    if (status === "published") await recalculateProductRating(ctx, args.productId);
-    await writeAuditLog(ctx, {
-      action: "review.create",
-      entityType: "review",
-      entityId: String(id),
-      summary: cleanNullable(args.title, 120) ?? cleanNullable(args.body, 120),
-      metadata: { productId: args.productId, status },
-    });
-    const doc = await ctx.db.get(id);
-    return doc ? publicReview(doc) : null;
-  },
-});
-
 export const canReviewProduct = query({
   args: { productId: v.string() },
   handler: async (ctx, args) => {
@@ -294,5 +250,41 @@ export const updateStatus = mutation({
       metadata: { productId: current.product_id },
     });
     return true;
+  },
+});
+
+export const remove = mutation({
+  args: { id: v.string() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const current = (await ctx.db.get(args.id as any)) as any;
+    if (!current) return false;
+    await ctx.db.delete(args.id as any);
+    await recalculateProductRating(ctx, current.product_id);
+    await writeAuditLog(ctx, {
+      action: "review.delete",
+      entityType: "review",
+      entityId: args.id,
+      summary: "Review permanently deleted",
+      metadata: { productId: current.product_id, status: current.status },
+    });
+    return true;
+  },
+});
+
+export const recalculateAllProductRatings = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const products = await ctx.db.query("products").collect();
+    for (const product of products) {
+      await recalculateProductRating(ctx, String(product._id));
+    }
+    await writeAuditLog(ctx, {
+      action: "review.summary.recalculate_all",
+      entityType: "product",
+      summary: `Recalculated review summaries for ${products.length} products`,
+    });
+    return { updated: products.length };
   },
 });

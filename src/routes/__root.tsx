@@ -4,7 +4,6 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
-  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -19,6 +18,15 @@ import { convex } from "@/lib/backend";
 import { CartProvider } from "@/lib/cart";
 import { CurrencyProvider } from "@/lib/currency";
 import { WishlistProvider } from "@/lib/wishlist";
+import {
+  absoluteUrl,
+  BRAND_ALTERNATE_NAMES,
+  BRAND_NAME,
+  DEFAULT_DESCRIPTION,
+  DEFAULT_TITLE,
+  seo,
+  SITE_URL,
+} from "@/lib/seo";
 
 function NotFoundComponent() {
   return (
@@ -81,40 +89,69 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  head: () => ({
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Fawzaan | Premium Modest Essentials" },
-      {
-        name: "description",
-        content:
-          "Discover Fawzaan shemaghs, niqabs, kufis, SABR watches, gloves, and Kashmir honey: modest essentials selected for quality and everyday use.",
-      },
-      { property: "og:title", content: "Fawzaan | Premium Modest Essentials" },
-      {
-        property: "og:description",
-        content:
-          "Premium shemaghs, niqabs, kufis, SABR watches, gloves, and Kashmir honey from Fawzaan.",
-      },
-      { property: "og:type", content: "website" },
-      { property: "og:site_name", content: "Fawzaan" },
-      { property: "og:url", content: "https://fawzaanstore.pages.dev" },
-      { property: "og:image", content: "https://fawzaanstore.pages.dev/og-image.jpg" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-    links: [
-      { rel: "stylesheet", href: appCss },
-      { rel: "canonical", href: "https://fawzaanstore.pages.dev" },
-      { rel: "icon", href: "/fawzaan-logo.svg", type: "image/svg+xml" },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Schibsted+Grotesk:wght@400;500;600&display=swap",
-      },
-    ],
-  }),
+  head: () => {
+    const defaultSeo = seo({ title: DEFAULT_TITLE, description: DEFAULT_DESCRIPTION, path: "/" });
+    return {
+      meta: [
+        { charSet: "utf-8" },
+        { name: "viewport", content: "width=device-width, initial-scale=1" },
+        { name: "theme-color", content: "#0a0a0a" },
+        ...defaultSeo.meta,
+      ],
+      links: [
+        { rel: "stylesheet", href: appCss },
+        ...defaultSeo.links,
+        { rel: "icon", href: "/fawzaan-logo.png", type: "image/png", sizes: "280x132" },
+        { rel: "apple-touch-icon", href: "/fawzaan-logo.png" },
+        { rel: "manifest", href: "/site.webmanifest" },
+        { rel: "preconnect", href: "https://fonts.googleapis.com" },
+        { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+        {
+          rel: "stylesheet",
+          href: "https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Schibsted+Grotesk:wght@400;500;600&display=swap",
+        },
+      ],
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "OnlineStore",
+            "@id": `${SITE_URL}/#store`,
+            name: BRAND_NAME,
+            alternateName: BRAND_ALTERNATE_NAMES,
+            url: SITE_URL,
+            logo: absoluteUrl("/fawzaan-logo.png"),
+            image: absoluteUrl("/og-image-v2.jpg"),
+            hasMerchantReturnPolicy: {
+              "@type": "MerchantReturnPolicy",
+              applicableCountry: "IN",
+              returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
+              merchantReturnDays: 30,
+              returnPolicyUrl: absoluteUrl("/pages/returns"),
+            },
+          }),
+        },
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "@id": `${SITE_URL}/#website`,
+            name: BRAND_NAME,
+            alternateName: BRAND_ALTERNATE_NAMES,
+            url: SITE_URL,
+            publisher: { "@id": `${SITE_URL}/#store` },
+            potentialAction: {
+              "@type": "SearchAction",
+              target: `${absoluteUrl("/shop")}?q={search_term_string}`,
+              "query-input": "required name=search_term_string",
+            },
+          }),
+        },
+      ],
+    };
+  },
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
@@ -137,8 +174,6 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const isAdminRoute = pathname.startsWith("/admin");
 
   const app = (
     <QueryClientProvider client={queryClient}>
@@ -147,9 +182,7 @@ function RootComponent() {
           <WishlistProvider>
             <CartProvider>
               <Outlet />
-              {!isAdminRoute ? (
-                <Toaster position="bottom-center" theme="light" richColors closeButton />
-              ) : null}
+              <Toaster position="bottom-center" theme="light" richColors closeButton />
             </CartProvider>
           </WishlistProvider>
         </AccountProvider>

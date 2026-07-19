@@ -183,10 +183,26 @@ export async function createBackendWhatsAppOrder(args: {
   cart: CartItem[];
   customer: CheckoutCustomer;
   total: number;
+  requestId: string;
 }): Promise<WhatsAppOrderResult> {
-  const savedMessage = buildWhatsAppMessage(args.cart, args.customer, args.total);
+  const payload = await buildBackendCheckoutPayload({
+    cart: args.cart,
+    customer: args.customer,
+    subtotal: args.total,
+    shipping: 0,
+    total: args.total,
+  });
+  const order = (await convex.mutation(api.orders.createWhatsAppOrder, {
+    cart: payload.cart,
+    customer: payload.customer,
+    client_request_id: args.requestId,
+  })) as Record<string, unknown> | null;
+  if (!order) throw new Error("The international order could not be saved.");
+  const savedMessage = String(
+    order.whatsapp_message ?? buildWhatsAppMessage(args.cart, args.customer, args.total),
+  );
   return {
-    order: null,
+    order,
     whatsappUrl: configuredWhatsAppUrl(savedMessage),
   };
 }

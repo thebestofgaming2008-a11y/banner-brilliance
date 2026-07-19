@@ -16,10 +16,18 @@ import {
   type CatalogTaxonomyItem,
 } from "@/services/catalogPresentation";
 import { listActiveProducts } from "@/services/productService";
+import { seo } from "@/lib/seo";
 
 type ShopSearch = { collection?: string; filter?: string; q?: string };
 
 export const Route = createFileRoute("/shop")({
+  head: () =>
+    seo({
+      title: "Shop All | Fawzaan Store",
+      description:
+        "Browse all Fawzaan shemaghs, niqabs, kufis, watches, gloves and Kashmir honey with current prices and live availability.",
+      path: "/shop",
+    }),
   loader: async () => {
     const [products, presentation] = await Promise.all([
       listActiveProducts(),
@@ -228,7 +236,6 @@ function ShopPage() {
     return [...filtered].sort((a, b) => {
       if (sort === "price-low") return a.price - b.price;
       if (sort === "price-high") return b.price - a.price;
-      if (sort === "rating") return b.rating - a.rating;
       return 0;
     });
   }, [activeFilter, collection, knownCollectionSlugs, query, sort, storeProducts]);
@@ -311,7 +318,6 @@ function ShopPage() {
                   <option value="featured">Featured</option>
                   <option value="price-low">Price low</option>
                   <option value="price-high">Price high</option>
-                  <option value="rating">Top rated</option>
                 </select>
               </label>
             </div>

@@ -6,9 +6,10 @@ import { StorePage } from "@/components/store/store-chrome";
 import { toStoreProduct } from "@/data/store";
 import { useWishlist } from "@/lib/wishlist";
 import { useCatalogProducts } from "@/services/productService";
+import { seo } from "@/lib/seo";
 
 export const Route = createFileRoute("/wishlist")({
-  head: () => ({ meta: [{ title: "Wishlist | Fawzaan" }] }),
+  head: () => seo({ title: "Wishlist | Fawzaan Store", path: "/wishlist", noIndex: true }),
   component: WishlistPage,
 });
 

@@ -233,7 +233,7 @@ export async function updateShippingRate(
   patch: Partial<ShippingRate>,
 ): Promise<ShippingRate | null> {
   return (await convex.mutation(api.admin.updateShippingRate, {
-    id,
+    id: id as Id<"shipping_rates">,
     patch,
   })) as ShippingRate | null;
 }
@@ -309,9 +309,10 @@ export async function listStorefrontBanners(): Promise<StorefrontBanner[]> {
 export async function upsertStorefrontBanner(
   input: Omit<StorefrontBanner, "id" | "created_at" | "updated_at"> & { id?: string },
 ): Promise<StorefrontBanner | null> {
+  const payload = { ...input, is_active: input.is_active ?? undefined };
   return (await convex.mutation(
     api.admin.upsertStorefrontBanner,
-    input,
+    payload,
   )) as StorefrontBanner | null;
 }
 
@@ -524,18 +525,6 @@ export async function listAllReviews(limit = 200): Promise<AdminReview[]> {
   return (await convex.query(api.reviews.listAll, { limit })) as AdminReview[];
 }
 
-export async function createAdminReview(input: {
-  productId: string;
-  rating: number;
-  customerName?: string | null;
-  customerEmail?: string | null;
-  title?: string | null;
-  body?: string | null;
-  status?: "pending" | "published" | "hidden";
-}): Promise<AdminReview | null> {
-  return (await convex.mutation(api.reviews.createAdmin, input)) as AdminReview | null;
-}
-
 export async function updateReviewStatus(
   id: string,
   status: "pending" | "published" | "hidden",
@@ -546,4 +535,8 @@ export async function updateReviewStatus(
     status,
     adminNote: adminNote ?? null,
   });
+}
+
+export async function deleteReview(id: string): Promise<boolean> {
+  return await convex.mutation(api.reviews.remove, { id });
 }

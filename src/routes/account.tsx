@@ -1,31 +1,34 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { LogOut, Mail, MapPin, Package, Trash2 } from "lucide-react";
+import { Check, LayoutDashboard, LogOut, MapPin, Package, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { StorePage } from "@/components/store/store-chrome";
 import { useCurrency } from "@/hooks/use-currency";
-import { useAccount } from "@/lib/account";
+import { useAccount, type Address } from "@/lib/account";
+import { COUNTRIES, countryUsesPostalCode } from "@/lib/countries";
+import { seo } from "@/lib/seo";
 
 export const Route = createFileRoute("/account")({
-  head: () => ({ meta: [{ title: "Account | Fawzaan" }] }),
+  head: () => seo({ title: "Account | Fawzaan Store", path: "/account", noIndex: true }),
   component: AccountPage,
 });
 
 function AccountPage() {
   const {
     account,
+    isAdmin,
     isLoading,
     signIn,
     signUp,
     signOut,
-    requestPasswordReset,
-    resetPassword,
-    setMarketingConsent,
+    addAddress,
     removeAddress,
+    setDefaultAddress,
   } = useAccount();
   const { formatPrice } = useCurrency();
   const navigate = useNavigate();
+  const [addingAddress, setAddingAddress] = useState(false);
 
   if (isLoading) {
     return (
@@ -36,15 +39,7 @@ function AccountPage() {
       </StorePage>
     );
   }
-  if (!account)
-    return (
-      <AuthPanel
-        signIn={signIn}
-        signUp={signUp}
-        requestPasswordReset={requestPasswordReset}
-        resetPassword={resetPassword}
-      />
-    );
+  if (!account) return <AuthPanel signIn={signIn} signUp={signUp} />;
 
   return (
     <StorePage>
@@ -57,17 +52,27 @@ function AccountPage() {
             </h1>
             <p className="mt-2 text-sm text-black/55">{account.email}</p>
           </div>
-          <button
-            type="button"
-            onClick={async () => {
-              await signOut();
-              toast("Signed out");
-              await navigate({ to: "/" });
-            }}
-            className="inline-flex h-10 items-center gap-2 border border-black/15 px-4 text-[11px] font-bold uppercase"
-          >
-            <LogOut size={15} /> Sign out
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin ? (
+              <Link
+                to="/admin"
+                className="inline-flex h-10 items-center gap-2 bg-[#f4b400] px-4 text-[11px] font-bold uppercase"
+              >
+                <LayoutDashboard size={15} /> Admin dashboard
+              </Link>
+            ) : null}
+            <button
+              type="button"
+              onClick={async () => {
+                await signOut();
+                toast("Signed out");
+                await navigate({ to: "/" });
+              }}
+              className="inline-flex h-10 items-center gap-2 border border-black/15 px-4 text-[11px] font-bold uppercase"
+            >
+              <LogOut size={15} /> Sign out
+            </button>
+          </div>
         </div>
 
         <div className="mt-10 grid gap-12 md:grid-cols-[1fr_320px]">
@@ -124,10 +129,33 @@ function AccountPage() {
           </section>
 
           <aside>
-            <div className="flex items-center gap-2">
-              <MapPin size={17} />
-              <h2 className="text-[20px] font-bold uppercase">Saved addresses</h2>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <MapPin size={17} />
+                <h2 className="text-[20px] font-bold uppercase">Saved addresses</h2>
+              </div>
+              {account.addresses.length < 10 ? (
+                <button
+                  type="button"
+                  onClick={() => setAddingAddress((open) => !open)}
+                  className="inline-flex h-9 shrink-0 items-center gap-1.5 border border-black/15 px-3 text-[10px] font-bold uppercase"
+                  aria-expanded={addingAddress}
+                >
+                  {addingAddress ? <X size={14} /> : <Plus size={14} />}
+                  {addingAddress ? "Cancel" : "Add"}
+                </button>
+              ) : null}
             </div>
+            {addingAddress ? (
+              <AddressForm
+                makeDefault={account.addresses.length === 0}
+                onCancel={() => setAddingAddress(false)}
+                onSave={async (address) => {
+                  await addAddress(address);
+                  setAddingAddress(false);
+                }}
+              />
+            ) : null}
             {account.addresses.length ? (
               <div className="mt-5 space-y-3">
                 {account.addresses.map((address) => (
@@ -146,7 +174,8 @@ function AccountPage() {
                       {address.line2 ? `, ${address.line2}` : ""}
                       <br />
                       {address.city}
-                      {address.state ? `, ${address.state}` : ""} {address.postal}
+                      {address.state && address.state !== "N/A" ? `, ${address.state}` : ""}
+                      {address.postal && address.postal !== "N/A" ? ` ${address.postal}` : ""}
                       <br />
                       {address.country}
                     </p>
@@ -161,14 +190,39 @@ function AccountPage() {
                     >
                       <Trash2 size={15} />
                     </button>
+                    {!address.isDefault ? (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await setDefaultAddress(address.id);
+                            toast.success("Default address updated");
+                          } catch (error) {
+                            toast.error(
+                              error instanceof Error
+                                ? error.message
+                                : "Could not update the default address.",
+                            );
+                          }
+                        }}
+                        className="mt-3 inline-flex items-center gap-1.5 text-[9px] font-bold uppercase underline underline-offset-4"
+                      >
+                        <Check size={12} /> Make default
+                      </button>
+                    ) : null}
                   </div>
                 ))}
               </div>
             ) : (
               <p className="mt-5 border border-black/10 p-5 text-sm text-black/55">
-                You can save an address during checkout.
+                Add an address here for a faster checkout.
               </p>
             )}
+            {account.addresses.length >= 10 ? (
+              <p className="mt-3 text-[11px] text-black/50">
+                You have reached the limit of 10 saved addresses.
+              </p>
+            ) : null}
             <div className="mt-7 space-y-3 border-t border-black/10 pt-5 text-[12px]">
               <Link to="/wishlist" className="block underline underline-offset-4">
                 Wishlist
@@ -177,42 +231,6 @@ function AccountPage() {
                 Contact support
               </a>
             </div>
-            <div className="mt-7 border-t border-black/10 pt-5">
-              <div className="flex items-start gap-3">
-                <Mail size={17} className="mt-0.5 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-semibold">Offers by email</p>
-                  <p className="mt-1 text-[11px] leading-5 text-black/50">
-                    Get occasional sales and new collection announcements. Unsubscribe any time.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={account.marketingConsent}
-                  aria-label="Email offers"
-                  onClick={async () => {
-                    try {
-                      await setMarketingConsent(!account.marketingConsent);
-                      toast.success(
-                        account.marketingConsent
-                          ? "Email offers turned off"
-                          : "Email offers turned on",
-                      );
-                    } catch (error) {
-                      toast.error(
-                        error instanceof Error ? error.message : "Could not save preference.",
-                      );
-                    }
-                  }}
-                  className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${account.marketingConsent ? "bg-[#f4b400]" : "bg-black/15"}`}
-                >
-                  <span
-                    className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${account.marketingConsent ? "translate-x-6" : "translate-x-1"}`}
-                  />
-                </button>
-              </div>
-            </div>
           </aside>
         </div>
       </main>
@@ -220,11 +238,154 @@ function AccountPage() {
   );
 }
 
+function AddressForm({
+  makeDefault,
+  onCancel,
+  onSave,
+}: {
+  makeDefault: boolean;
+  onCancel: () => void;
+  onSave: (address: Omit<Address, "id">) => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [line1, setLine1] = useState("");
+  const [line2, setLine2] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [postal, setPostal] = useState("");
+  const [country, setCountry] = useState("India");
+  const [isDefault, setIsDefault] = useState(makeDefault);
+  const [saving, setSaving] = useState(false);
+  const postalRequired = countryUsesPostalCode(country);
+
+  return (
+    <form
+      className="mt-5 space-y-3 border border-black/10 bg-black/[0.025] p-4"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        const phoneDigits = phone.replace(/\D/g, "");
+        if (phoneDigits.length < 7 || phoneDigits.length > 15) {
+          toast.error("Enter a valid phone number.");
+          return;
+        }
+        setSaving(true);
+        try {
+          await onSave({
+            name: name.trim(),
+            phone: phone.trim(),
+            line1: line1.trim(),
+            line2: line2.trim() || undefined,
+            city: city.trim(),
+            state: state.trim() || "N/A",
+            postal: postal.trim() || "N/A",
+            country,
+            isDefault,
+          });
+          toast.success("Address saved");
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Could not save the address.");
+        } finally {
+          setSaving(false);
+        }
+      }}
+    >
+      <p className="text-[12px] font-bold uppercase">Add a delivery address</p>
+      <Field label="Full name" value={name} onChange={setName} autoComplete="name" required />
+      <Field
+        label="Phone"
+        type="tel"
+        value={phone}
+        onChange={setPhone}
+        autoComplete="tel"
+        required
+      />
+      <Field
+        label="Address"
+        value={line1}
+        onChange={setLine1}
+        autoComplete="address-line1"
+        required
+      />
+      <Field
+        label="Apartment, suite (optional)"
+        value={line2}
+        onChange={setLine2}
+        autoComplete="address-line2"
+      />
+      <div className="grid grid-cols-2 gap-3">
+        <Field
+          label="City"
+          value={city}
+          onChange={setCity}
+          autoComplete="address-level2"
+          required
+        />
+        <Field
+          label="State / region"
+          value={state}
+          onChange={setState}
+          autoComplete="address-level1"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field
+          label={postalRequired ? "Postal code" : "Postal (optional)"}
+          value={postal}
+          onChange={setPostal}
+          autoComplete="postal-code"
+          required={postalRequired}
+        />
+        <label className="block text-[11px] font-bold uppercase text-black/55">
+          Country
+          <select
+            value={country}
+            onChange={(event) => setCountry(event.target.value)}
+            autoComplete="country-name"
+            className="mt-1 h-11 w-full border border-black/15 bg-white px-3 text-sm font-normal normal-case text-black outline-none focus:border-black"
+            required
+          >
+            {COUNTRIES.map((option) => (
+              <option key={option.code} value={option.name}>
+                {option.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <label className="flex items-center gap-2 text-[11px] text-black/65">
+        <input
+          type="checkbox"
+          checked={isDefault}
+          disabled={makeDefault}
+          onChange={(event) => setIsDefault(event.target.checked)}
+          className="h-4 w-4 accent-[#f4b400]"
+        />
+        Use as my default delivery address
+      </label>
+      <div className="flex gap-2 pt-1">
+        <button
+          type="submit"
+          disabled={saving}
+          className="h-10 flex-1 bg-[#f4b400] text-[10px] font-bold uppercase disabled:opacity-50"
+        >
+          {saving ? "Saving..." : "Save address"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="h-10 border border-black/15 px-4 text-[10px] font-bold uppercase"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function AuthPanel({
   signIn,
   signUp,
-  requestPasswordReset,
-  resetPassword,
 }: {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (
@@ -234,16 +395,12 @@ function AuthPanel({
     last: string,
     marketingConsent?: boolean,
   ) => Promise<void>;
-  requestPasswordReset: (email: string) => Promise<void>;
-  resetPassword: (email: string, code: string, newPassword: string) => Promise<void>;
 }) {
-  const [mode, setMode] = useState<"in" | "up" | "reset" | "verify">("in");
+  const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [code, setCode] = useState("");
   const [first, setFirst] = useState("");
   const [last, setLast] = useState("");
-  const [marketingConsent, setMarketingConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   return (
@@ -251,47 +408,24 @@ function AuthPanel({
       <main className="mx-auto max-w-md px-[22px] py-14 md:py-20">
         <p className="section-kicker text-center text-black/45">Fawzaan account</p>
         <h1 className="section-heading mt-3 text-center text-[42px]">
-          {mode === "in"
-            ? "SIGN IN"
-            : mode === "up"
-              ? "CREATE ACCOUNT"
-              : mode === "reset"
-                ? "RESET PASSWORD"
-                : "ENTER RESET CODE"}
+          {mode === "in" ? "SIGN IN" : "CREATE ACCOUNT"}
         </h1>
         <p className="mt-3 text-center text-sm text-black/55">
           {mode === "in"
             ? "Access your orders, addresses, and wishlist."
-            : mode === "up"
-              ? "Create an account for faster checkout and order history."
-              : mode === "reset"
-                ? "We will email a one-time reset code."
-                : `Enter the code sent to ${email}.`}
+            : "Create an account for faster checkout and order history."}
         </p>
         <form
           className="mt-8 space-y-4"
           onSubmit={async (event) => {
             event.preventDefault();
             if (mode === "in" && password.length < 6) return toast.error("Enter your password.");
-            if ((mode === "up" || mode === "verify") && password.length < 8)
+            if (mode === "up" && password.length < 8)
               return toast.error("Password must be at least 8 characters.");
             setSubmitting(true);
             try {
               if (mode === "in") await signIn(email, password);
-              else if (mode === "up") await signUp(email, password, first, last, marketingConsent);
-              else if (mode === "reset") {
-                await requestPasswordReset(email);
-                setMode("verify");
-                toast.success("Reset code sent");
-                return;
-              } else {
-                await resetPassword(email, code, password);
-                setMode("in");
-                setCode("");
-                setPassword("");
-                toast.success("Password changed. Sign in with your new password.");
-                return;
-              }
+              else await signUp(email, password, first, last);
               toast.success(mode === "in" ? "Signed in" : "Account created");
             } catch (error) {
               toast.error(
@@ -322,73 +456,30 @@ function AuthPanel({
               />
             </div>
           ) : null}
-          {mode !== "verify" ? (
-            <Field
-              label="Email"
-              type="email"
-              value={email}
-              onChange={setEmail}
-              autoComplete="email"
-              required
-            />
-          ) : null}
-          {mode === "verify" ? (
-            <Field
-              label="Reset code"
-              value={code}
-              onChange={setCode}
-              autoComplete="one-time-code"
-              inputMode="numeric"
-              required
-            />
-          ) : null}
-          {mode !== "reset" ? (
-            <Field
-              label={mode === "verify" ? "New password" : "Password"}
-              type="password"
-              value={password}
-              onChange={setPassword}
-              autoComplete={mode === "in" ? "current-password" : "new-password"}
-              required
-            />
-          ) : null}
-          {mode === "up" ? (
-            <label className="flex cursor-pointer items-start gap-3 text-[12px] leading-5 text-black/60">
-              <input
-                type="checkbox"
-                checked={marketingConsent}
-                onChange={(event) => setMarketingConsent(event.target.checked)}
-                className="mt-1 h-4 w-4 accent-[#f4b400]"
-              />
-              Email me occasional sales and new collection announcements. Optional and easy to
-              unsubscribe.
-            </label>
-          ) : null}
+          <Field
+            label="Email"
+            type="email"
+            value={email}
+            onChange={setEmail}
+            autoComplete="email"
+            required
+          />
+          <Field
+            label="Password"
+            type="password"
+            value={password}
+            onChange={setPassword}
+            autoComplete={mode === "in" ? "current-password" : "new-password"}
+            required
+          />
           <button
             disabled={submitting}
             className="h-12 w-full bg-[#f4b400] text-[11px] font-bold uppercase disabled:opacity-50"
           >
-            {submitting
-              ? "Please wait..."
-              : mode === "in"
-                ? "Sign in"
-                : mode === "up"
-                  ? "Create account"
-                  : mode === "reset"
-                    ? "Send reset code"
-                    : "Change password"}
+            {submitting ? "Please wait..." : mode === "in" ? "Sign in" : "Create account"}
           </button>
         </form>
         <div className="mt-6 space-y-3 text-center text-[12px]">
-          {mode === "in" ? (
-            <button
-              type="button"
-              onClick={() => setMode("reset")}
-              className="block w-full underline underline-offset-4"
-            >
-              Forgot password?
-            </button>
-          ) : null}
           <button
             type="button"
             onClick={() => setMode(mode === "in" ? "up" : "in")}

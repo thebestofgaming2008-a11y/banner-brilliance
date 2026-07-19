@@ -4,8 +4,12 @@ import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import { StorePage } from "@/components/store/store-chrome";
 import { useCurrency } from "@/hooks/use-currency";
 import { useCart } from "@/lib/cart";
+import { seo } from "@/lib/seo";
 
-export const Route = createFileRoute("/cart")({ component: CartPage });
+export const Route = createFileRoute("/cart")({
+  head: () => seo({ title: "Shopping Cart | Fawzaan Store", path: "/cart", noIndex: true }),
+  component: CartPage,
+});
 
 function CartPage() {
   const { items, subtotal, setQty, remove } = useCart();

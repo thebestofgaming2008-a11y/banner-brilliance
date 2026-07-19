@@ -1,0 +1,16 @@
+{
+  "name": "Fawzaan Store",
+  "short_name": "Fawzaan",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    {
+      "src": "/fawzaan-logo.png",
+      "sizes": "280x132",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

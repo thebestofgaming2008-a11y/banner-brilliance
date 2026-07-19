@@ -5,8 +5,17 @@ import { useState } from "react";
 import { StorePage } from "@/components/store/store-chrome";
 import { useStoreReveal } from "@/hooks/use-store-reveal";
 import { STORE_WHATSAPP_DISPLAY, whatsappUrl } from "@/lib/store-config";
+import { seo } from "@/lib/seo";
 
-export const Route = createFileRoute("/pages/contact")({ component: ContactPage });
+export const Route = createFileRoute("/pages/contact")({
+  head: () =>
+    seo({
+      title: "Contact Fawzaan Store | Customer Support",
+      description: "Contact Fawzaan Store for product, delivery or order support through WhatsApp.",
+      path: "/pages/contact",
+    }),
+  component: ContactPage,
+});
 
 function ContactPage() {
   useStoreReveal();

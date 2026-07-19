@@ -1,14 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { StorePage } from "@/components/store/store-chrome";
 import { STORE_WHATSAPP_DISPLAY, whatsappUrl } from "@/lib/store-config";
+import { seo } from "@/lib/seo";
 
 export const Route = createFileRoute("/terms")({
-  head: () => ({
-    meta: [
-      { title: "Terms & Conditions | Fawzaan.store" },
-      { name: "description", content: "The rules and terms governing your use of Fawzaan Store." },
-    ],
-  }),
+  head: () =>
+    seo({
+      title: "Terms & Conditions | Fawzaan Store",
+      description: "The terms governing purchases, payments and use of Fawzaan Store.",
+      path: "/terms",
+    }),
   component: TermsPage,
 });
 

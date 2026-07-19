@@ -1,6 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { InfoPage } from "@/components/store/info-page";
-export const Route = createFileRoute("/pages/shipping")({ component: ShippingPage });
+import { seo } from "@/lib/seo";
+export const Route = createFileRoute("/pages/shipping")({
+  head: () =>
+    seo({
+      title: "Shipping Information | Fawzaan Store",
+      description:
+        "Fawzaan Store processing, India delivery and international shipping information.",
+      path: "/pages/shipping",
+    }),
+  component: ShippingPage,
+});
 function ShippingPage() {
   return (
     <InfoPage

@@ -29,13 +29,22 @@ type R2BucketLike = {
 };
 
 const PUBLIC_SITE_URL = "https://fawzaanstore.pages.dev";
-const SITEMAP_LASTMOD = "2026-07-04";
+const SITEMAP_LASTMOD = "2026-07-18";
 const CATALOG_CACHE_HEADERS = {
-  "cache-control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600",
+  "cache-control": "no-store",
 };
 const CURRENCY_CACHE_HEADERS = {
   "cache-control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
 };
+const FALLBACK_TAXONOMY = [
+  { slug: "shemaghs", name: "Shemaghs", type: "collection", sort_order: 10 },
+  { slug: "niqabs", name: "Niqabs", type: "collection", sort_order: 20 },
+  { slug: "kufis", name: "Kufis", type: "collection", sort_order: 30 },
+  { slug: "honey", name: "Honey", type: "collection", sort_order: 40 },
+  { slug: "watches", name: "Watches", type: "collection", sort_order: 50 },
+  { slug: "gloves", name: "Gloves", type: "collection", sort_order: 60 },
+  { slug: "other", name: "Other", type: "collection", sort_order: 9999 },
+];
 const EURO_COUNTRIES = new Set([
   "AT",
   "BE",
@@ -76,7 +85,7 @@ function runtimeEnvCandidates(env: unknown, request?: Request): RuntimeEnv[] {
       ?.env as RuntimeEnv,
     (globalRecord.cloudflare as RuntimeEnv | undefined)?.env as RuntimeEnv,
     globalRecord,
-  ].filter(Boolean);
+  ].filter((candidate): candidate is RuntimeEnv => Boolean(candidate));
 }
 
 function envString(env: unknown, name: string, request?: Request) {
@@ -91,6 +100,36 @@ function jsonResponse(body: unknown, status = 200, extraHeaders?: HeadersInit) {
   const headers = new Headers(extraHeaders);
   headers.set("content-type", "application/json; charset=utf-8");
   return new Response(JSON.stringify(body), { status, headers });
+}
+
+function withSecurityHeaders(response: Response, request: Request) {
+  const headers = new Headers(response.headers);
+  const url = new URL(request.url);
+  headers.set("x-content-type-options", "nosniff");
+  headers.set("x-frame-options", "DENY");
+  headers.set("referrer-policy", "strict-origin-when-cross-origin");
+  headers.set(
+    "permissions-policy",
+    "camera=(), microphone=(), geolocation=(), payment=(self), usb=()",
+  );
+  const privatePath =
+    /^(?:\/admin(?:\/|$)|\/account(?:\/|$)|\/cart(?:\/|$)|\/checkout(?:\/|$)|\/order(?:\/|$)|\/search(?:\/|$)|\/track-order(?:\/|$)|\/unsubscribe(?:\/|$)|\/wishlist(?:\/|$))/i.test(
+      url.pathname,
+    );
+  const isPreviewHostname =
+    url.hostname.endsWith(".fawzaanstore.pages.dev") && url.hostname !== "fawzaanstore.pages.dev";
+  if (privatePath || isPreviewHostname) headers.set("x-robots-tag", "noindex, nofollow");
+  if (response.headers.get("content-type")?.includes("text/html")) {
+    headers.set("cache-control", privatePath ? "no-store" : "no-cache");
+  }
+  if (url.protocol === "https:") {
+    headers.set("strict-transport-security", "max-age=31536000; includeSubDomains");
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 function convexClient(env: unknown, request?: Request) {
@@ -203,12 +242,17 @@ async function handleCatalogRequest(request: Request, env: unknown): Promise<Res
 
   if (url.pathname === "/api/catalog/presentation") {
     const client = convexClient(env, request);
-    if (!client) return jsonResponse({ taxonomy: [], banners: [] }, 200, CATALOG_CACHE_HEADERS);
+    if (!client)
+      return jsonResponse({ taxonomy: FALLBACK_TAXONOMY, banners: [] }, 200, CATALOG_CACHE_HEADERS);
     const [taxonomy, banners] = await Promise.all([
       client.query(api.catalog.listActiveTaxonomy, {}),
       client.query(api.catalog.listActiveBanners, {}),
     ]);
-    return jsonResponse({ taxonomy, banners }, 200, CATALOG_CACHE_HEADERS);
+    return jsonResponse(
+      { taxonomy: taxonomy.length ? taxonomy : FALLBACK_TAXONOMY, banners },
+      200,
+      CATALOG_CACHE_HEADERS,
+    );
   }
 
   if (url.pathname === "/api/catalog/products") {
@@ -344,6 +388,7 @@ async function handleCurrencyRequest(request: Request, env: unknown): Promise<Re
   };
   const apiKey =
     envString(env, "EXCHANGE_RATE_API_KEY", request) || envString(env, "CURRENCY_API_KEY", request);
+  const source = apiKey ? "exchangerate-api.com" : "open.er-api.com";
   const ratesUrl = apiKey
     ? `https://v6.exchangerate-api.com/v6/${encodeURIComponent(apiKey)}/latest/INR`
     : "https://open.er-api.com/v6/latest/INR";
@@ -352,6 +397,9 @@ async function handleCurrencyRequest(request: Request, env: unknown): Promise<Re
     const response = await fetch(ratesUrl, { headers: { accept: "application/json" } });
     if (!response.ok) throw new Error(`Currency API returned ${response.status}`);
     const payload = await response.json();
+    if (payload?.result === "error") {
+      throw new Error(`Currency API error: ${String(payload?.["error-type"] ?? "unknown")}`);
+    }
     const rates = payload?.conversion_rates ?? payload?.rates;
     if (!rates) throw new Error("Currency API response did not include usable rates.");
     return jsonResponse(
@@ -360,7 +408,7 @@ async function handleCurrencyRequest(request: Request, env: unknown): Promise<Re
         rates: { INR: 1, ...(rates as Record<string, number>) },
         updated_at: payload?.time_last_update_utc ?? null,
         fetchedAt: new Date().toISOString(),
-        source: "exchangerate-api.com",
+        source,
         error: null,
       },
       200,
@@ -394,15 +442,30 @@ function handleGeoRequest(request: Request): Response | null {
 
 function cleanApiError(error: unknown) {
   const message = error instanceof Error ? error.message : "Payment request failed.";
-  return message
+  const uncaught = [...message.matchAll(/Uncaught Error:\s*([^\n]+)/gi)].at(-1)?.[1]?.trim();
+  const clean = (uncaught ?? message)
     .replace(/^Uncaught Error:\s*/i, "")
+    .replace(/\s+at\s+handler[\s\S]*$/i, "")
     .replace(/\s*\n[\s\S]*$/, "")
     .trim();
+  if (/payment provider error \((401|403)\//i.test(clean)) {
+    return "Secure payment setup needs attention. Please contact support before retrying.";
+  }
+  if (
+    /provider_(timeout|unavailable)|provider request timed out|temporarily unavailable/i.test(clean)
+  ) {
+    return "The secure payment provider did not respond. Please retry shortly.";
+  }
+  if (/^\[Request ID:.*\]\s*Server Error$/i.test(clean)) {
+    return "Secure payment is temporarily unavailable. Please contact support before retrying.";
+  }
+  return clean;
 }
 
 function paymentErrorStatus(message: string, fallback = 500) {
+  if (/payment provider|secure payment|temporarily unavailable|did not respond/i.test(message))
+    return 503;
   if (/missing|required|invalid|mismatch|signature|amount/i.test(message)) return 400;
-  if (/auth|key|credential|unauthorized/i.test(message)) return 401;
   return fallback;
 }
 
@@ -496,8 +559,15 @@ async function handleRazorpayApiRequest(request: Request, env: unknown): Promise
       ...corsHeaders,
     });
   } catch (error) {
-    console.error("Razorpay API error", error);
     const message = cleanApiError(error);
+    console.error(
+      JSON.stringify({
+        event: "checkout_api_error",
+        route: url.pathname,
+        status: paymentErrorStatus(message),
+        message,
+      }),
+    );
     return jsonResponse(
       { error: message || "Payment request failed." },
       paymentErrorStatus(message),
@@ -551,12 +621,13 @@ function sitemapUrlNode(
   priority: string,
   image?: string,
   imageTitle?: string,
+  lastModified = SITEMAP_LASTMOD,
 ) {
   const loc = `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
   const parts = [
     "  <url>",
     `    <loc>${xmlEscape(loc)}</loc>`,
-    `    <lastmod>${SITEMAP_LASTMOD}</lastmod>`,
+    `    <lastmod>${xmlEscape(lastModified)}</lastmod>`,
     "    <changefreq>weekly</changefreq>",
     `    <priority>${priority}</priority>`,
   ];
@@ -572,7 +643,7 @@ function sitemapUrlNode(
   return parts.join("\n");
 }
 
-function handleSitemapRequest(request: Request, env: unknown): Response | null {
+async function handleSitemapRequest(request: Request, env: unknown): Promise<Response | null> {
   const url = new URL(request.url);
   if ((request.method !== "GET" && request.method !== "HEAD") || url.pathname !== "/sitemap.xml") {
     return null;
@@ -580,27 +651,32 @@ function handleSitemapRequest(request: Request, env: unknown): Response | null {
   const baseUrl = publicSiteUrl(env, request);
   const staticPaths = [
     "/",
-    "/men",
-    "/women",
     "/shop",
     "/about",
+    "/faq",
     "/pages/contact",
     "/pages/shipping",
     "/pages/returns",
-    "/privacy",
+    "/pages/privacy",
     "/terms",
   ];
+  const products = mergeLocalCatalogProducts(await liveCatalogProducts(env, request)) as Array<
+    Record<string, unknown>
+  >;
   const nodes = [
     ...staticPaths.map((path) => sitemapUrlNode(baseUrl, path, path === "/" ? "1.0" : "0.7")),
-    ...localBackendProducts.map((product) =>
-      sitemapUrlNode(
-        baseUrl,
-        `/products/${encodeURIComponent(product.slug ?? "")}`,
-        product.is_featured || product.is_bestseller || product.is_new_arrival ? "0.85" : "0.8",
-        product.cover_image_url ?? undefined,
-        product.name,
+    ...products
+      .filter((product) => product.is_active !== false && String(product.slug ?? "").trim())
+      .map((product) =>
+        sitemapUrlNode(
+          baseUrl,
+          `/products/${encodeURIComponent(String(product.slug ?? ""))}`,
+          product.is_featured || product.is_bestseller || product.is_new_arrival ? "0.85" : "0.8",
+          typeof product.cover_image_url === "string" ? product.cover_image_url : undefined,
+          String(product.name ?? "Product"),
+          String(product.updated_at ?? product.created_at ?? SITEMAP_LASTMOD),
+        ),
       ),
-    ),
   ];
   const body = [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -644,37 +720,42 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    const finish = (response: Response) => withSecurityHeaders(response, request);
     try {
       const robotsResponse = handleRobotsRequest(request, env);
-      if (robotsResponse) return robotsResponse;
+      if (robotsResponse) return finish(robotsResponse);
 
-      const sitemapResponse = handleSitemapRequest(request, env);
-      if (sitemapResponse) return sitemapResponse;
+      const sitemapResponse = await handleSitemapRequest(request, env);
+      if (sitemapResponse) return finish(sitemapResponse);
 
       const mediaResponse = await handleMediaRequest(request, env);
-      if (mediaResponse) return mediaResponse;
+      if (mediaResponse) return finish(mediaResponse);
 
       const catalogResponse = await handleCatalogRequest(request, env);
-      if (catalogResponse) return catalogResponse;
+      if (catalogResponse) return finish(catalogResponse);
 
       const razorpayResponse = await handleRazorpayApiRequest(request, env);
-      if (razorpayResponse) return razorpayResponse;
+      if (razorpayResponse) return finish(razorpayResponse);
 
       const geoResponse = handleGeoRequest(request);
-      if (geoResponse) return geoResponse;
+      if (geoResponse) return finish(geoResponse);
 
       const currencyResponse = await handleCurrencyRequest(request, env);
-      if (currencyResponse) return currencyResponse;
+      if (currencyResponse) return finish(currencyResponse);
 
       const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
+      const response = await normalizeCatastrophicSsrResponse(
+        await handler.fetch(request, env, ctx),
+      );
+      return finish(response);
     } catch (error) {
       console.error(error);
-      return new Response(renderErrorPage(), {
-        status: 500,
-        headers: { "content-type": "text/html; charset=utf-8" },
-      });
+      return finish(
+        new Response(renderErrorPage(), {
+          status: 500,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }),
+      );
     }
   },
 };

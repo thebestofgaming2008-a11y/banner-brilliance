@@ -1,19 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import hero from "@/assets/hero-honey.jpg";
+import hero from "@/assets/hero-honey.webp";
 import { StorePage } from "@/components/store/store-chrome";
+import { seo } from "@/lib/seo";
 
 export const Route = createFileRoute("/about")({
-  head: () => ({
-    meta: [
-      { title: "About | Fawzaan" },
-      {
-        name: "description",
-        content:
-          "Learn about Fawzaan's focused selection of modest essentials and specialty goods.",
-      },
-    ],
-  }),
+  head: () =>
+    seo({
+      title: "About Fawzaan Store | Our Product Selection",
+      description:
+        "Learn how Fawzaan brings shemaghs, niqabs, kufis, watches, gloves and Kashmir honey into one clearly presented online store.",
+      path: "/about",
+      image: hero,
+    }),
   component: AboutPage,
 });
 

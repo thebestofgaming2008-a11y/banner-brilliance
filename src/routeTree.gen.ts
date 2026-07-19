@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WishlistRouteImport } from './routes/wishlist'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
+import { Route as TrackOrderRouteImport } from './routes/track-order'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ShopRouteImport } from './routes/shop'
 import { Route as SearchRouteImport } from './routes/search'
@@ -27,6 +28,7 @@ import { Route as PagesReturnsRouteImport } from './routes/pages.returns'
 import { Route as PagesPrivacyRouteImport } from './routes/pages.privacy'
 import { Route as PagesContactRouteImport } from './routes/pages.contact'
 import { Route as OrderIdRouteImport } from './routes/order.$id'
+import { Route as AdminLoginRouteImport } from './routes/admin_.login'
 
 const WishlistRoute = WishlistRouteImport.update({
   id: '/wishlist',
@@ -36,6 +38,11 @@ const WishlistRoute = WishlistRouteImport.update({
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
   id: '/unsubscribe',
   path: '/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrackOrderRoute = TrackOrderRouteImport.update({
+  id: '/track-order',
+  path: '/track-order',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TermsRoute = TermsRouteImport.update({
@@ -118,6 +125,11 @@ const OrderIdRoute = OrderIdRouteImport.update({
   path: '/order/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin_/login',
+  path: '/admin/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -130,8 +142,10 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/shop': typeof ShopRoute
   '/terms': typeof TermsRoute
+  '/track-order': typeof TrackOrderRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/wishlist': typeof WishlistRoute
+  '/admin/login': typeof AdminLoginRoute
   '/order/$id': typeof OrderIdRoute
   '/pages/contact': typeof PagesContactRoute
   '/pages/privacy': typeof PagesPrivacyRoute
@@ -150,8 +164,10 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/shop': typeof ShopRoute
   '/terms': typeof TermsRoute
+  '/track-order': typeof TrackOrderRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/wishlist': typeof WishlistRoute
+  '/admin/login': typeof AdminLoginRoute
   '/order/$id': typeof OrderIdRoute
   '/pages/contact': typeof PagesContactRoute
   '/pages/privacy': typeof PagesPrivacyRoute
@@ -171,8 +187,10 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/shop': typeof ShopRoute
   '/terms': typeof TermsRoute
+  '/track-order': typeof TrackOrderRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/wishlist': typeof WishlistRoute
+  '/admin_/login': typeof AdminLoginRoute
   '/order/$id': typeof OrderIdRoute
   '/pages/contact': typeof PagesContactRoute
   '/pages/privacy': typeof PagesPrivacyRoute
@@ -193,8 +211,10 @@ export interface FileRouteTypes {
     | '/search'
     | '/shop'
     | '/terms'
+    | '/track-order'
     | '/unsubscribe'
     | '/wishlist'
+    | '/admin/login'
     | '/order/$id'
     | '/pages/contact'
     | '/pages/privacy'
@@ -213,8 +233,10 @@ export interface FileRouteTypes {
     | '/search'
     | '/shop'
     | '/terms'
+    | '/track-order'
     | '/unsubscribe'
     | '/wishlist'
+    | '/admin/login'
     | '/order/$id'
     | '/pages/contact'
     | '/pages/privacy'
@@ -233,8 +255,10 @@ export interface FileRouteTypes {
     | '/search'
     | '/shop'
     | '/terms'
+    | '/track-order'
     | '/unsubscribe'
     | '/wishlist'
+    | '/admin_/login'
     | '/order/$id'
     | '/pages/contact'
     | '/pages/privacy'
@@ -254,8 +278,10 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   ShopRoute: typeof ShopRoute
   TermsRoute: typeof TermsRoute
+  TrackOrderRoute: typeof TrackOrderRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
   WishlistRoute: typeof WishlistRoute
+  AdminLoginRoute: typeof AdminLoginRoute
   OrderIdRoute: typeof OrderIdRoute
   PagesContactRoute: typeof PagesContactRoute
   PagesPrivacyRoute: typeof PagesPrivacyRoute
@@ -278,6 +304,13 @@ declare module '@tanstack/react-router' {
       path: '/unsubscribe'
       fullPath: '/unsubscribe'
       preLoaderRoute: typeof UnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/track-order': {
+      id: '/track-order'
+      path: '/track-order'
+      fullPath: '/track-order'
+      preLoaderRoute: typeof TrackOrderRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/terms': {
@@ -392,6 +425,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrderIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin_/login': {
+      id: '/admin_/login'
+      path: '/admin/login'
+      fullPath: '/admin/login'
+      preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -406,8 +446,10 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   ShopRoute: ShopRoute,
   TermsRoute: TermsRoute,
+  TrackOrderRoute: TrackOrderRoute,
   UnsubscribeRoute: UnsubscribeRoute,
   WishlistRoute: WishlistRoute,
+  AdminLoginRoute: AdminLoginRoute,
   OrderIdRoute: OrderIdRoute,
   PagesContactRoute: PagesContactRoute,
   PagesPrivacyRoute: PagesPrivacyRoute,

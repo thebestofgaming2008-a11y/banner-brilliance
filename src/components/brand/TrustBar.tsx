@@ -4,7 +4,7 @@ const items = [
   { Icon: Truck, label: "India shipping included" },
   { Icon: ShieldCheck, label: "Secure checkout" },
   { Icon: RotateCcw, label: "30-day returns" },
-  { Icon: Star, label: "Verified purchase reviews" },
+  { Icon: Star, label: "Verified-order reviews only" },
 ];
 
 export function TrustBar({ tone = "cream" }: { tone?: "cream" | "ink" }) {

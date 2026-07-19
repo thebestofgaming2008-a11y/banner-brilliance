@@ -51,6 +51,7 @@ export type Account = {
 
 type ContextValue = {
   account: Account | null;
+  isAdmin: boolean;
   isAuthenticated: boolean;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
@@ -67,6 +68,7 @@ type ContextValue = {
   setMarketingConsent: (consent: boolean) => Promise<void>;
   addAddress: (address: Omit<Address, "id">) => Promise<void>;
   removeAddress: (id: string) => Promise<void>;
+  setDefaultAddress: (id: string) => Promise<void>;
 };
 
 const AccountContext = createContext<ContextValue | null>(null);
@@ -84,12 +86,12 @@ function mapAddress(value: unknown): Address {
     id: String(row.id),
     name: String(row.full_name ?? ""),
     line1: String(row.address_line_1 ?? ""),
-    line2: row.address_line_2 || undefined,
+    line2: typeof row.address_line_2 === "string" ? row.address_line_2 : undefined,
     city: String(row.city ?? ""),
-    state: row.state || undefined,
+    state: typeof row.state === "string" ? row.state : undefined,
     postal: String(row.postal_code ?? ""),
     country: String(row.country ?? ""),
-    phone: row.phone || undefined,
+    phone: typeof row.phone === "string" ? row.phone : undefined,
     isDefault: Boolean(row.is_default),
   };
 }
@@ -102,20 +104,25 @@ function mapOrder(value: unknown): Order {
     backendId: String(row.id),
     date: String(row.created_at ?? new Date().toISOString()),
     status: String(row.status ?? "Processing"),
-    paymentStatus: row.payment_status || undefined,
-    trackingNumber: row.tracking_number || undefined,
-    trackingUrl: row.tracking_url || undefined,
+    paymentStatus: typeof row.payment_status === "string" ? row.payment_status : undefined,
+    trackingNumber: typeof row.tracking_number === "string" ? row.tracking_number : undefined,
+    trackingUrl: typeof row.tracking_url === "string" ? row.tracking_url : undefined,
     total: Number(row.total_inr ?? row.total ?? 0),
     address: {
       id: String(row.id),
       name: String(shipping.full_name ?? row.customer_name ?? ""),
       line1: String(shipping.address_line_1 ?? ""),
-      line2: shipping.address_line_2 || undefined,
+      line2: typeof shipping.address_line_2 === "string" ? shipping.address_line_2 : undefined,
       city: String(shipping.city ?? ""),
-      state: shipping.state || undefined,
+      state: typeof shipping.state === "string" ? shipping.state : undefined,
       postal: String(shipping.postal_code ?? ""),
       country: String(shipping.country ?? ""),
-      phone: shipping.phone ?? row.customer_phone ?? undefined,
+      phone:
+        typeof shipping.phone === "string"
+          ? shipping.phone
+          : typeof row.customer_phone === "string"
+            ? row.customer_phone
+            : undefined,
     },
     items: Array.isArray(row.items)
       ? row.items.map((value) => {
@@ -138,6 +145,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   if (!convex) {
     const unavailable: ContextValue = {
       account: null,
+      isAdmin: false,
       isAuthenticated: false,
       isLoading: false,
       signIn: async () => {
@@ -156,6 +164,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       setMarketingConsent: async () => undefined,
       addAddress: async () => undefined,
       removeAddress: async () => undefined,
+      setDefaultAddress: async () => undefined,
     };
     return <AccountContext.Provider value={unavailable}>{children}</AccountContext.Provider>;
   }
@@ -166,12 +175,14 @@ function ConvexAccountProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const { signIn: authSignIn, signOut: authSignOut } = useAuthActions();
   const profile = useQuery(api.users.currentProfile, isAuthenticated ? {} : "skip");
+  const currentUser = useQuery(api.users.currentUser, isAuthenticated ? {} : "skip");
   const addresses = useQuery(api.addresses.listMine, isAuthenticated ? {} : "skip");
   const orders = useQuery(api.orders.listMine, isAuthenticated ? {} : "skip");
   const ensureProfile = useMutation(api.users.ensureCurrentProfile);
   const updateProfile = useMutation(api.users.updateProfile);
   const createAddress = useMutation(api.addresses.create);
   const deleteAddress = useMutation(api.addresses.remove);
+  const makeDefaultAddress = useMutation(api.addresses.setDefault);
 
   useEffect(() => {
     if (!isAuthenticated || typeof window === "undefined") return;
@@ -208,6 +219,7 @@ function ConvexAccountProvider({ children }: { children: ReactNode }) {
   const value = useMemo<ContextValue>(
     () => ({
       account,
+      isAdmin: Boolean(currentUser?.isAdmin),
       isAuthenticated,
       isLoading:
         authLoading ||
@@ -280,6 +292,9 @@ function ConvexAccountProvider({ children }: { children: ReactNode }) {
       removeAddress: async (id) => {
         await deleteAddress({ id });
       },
+      setDefaultAddress: async (id) => {
+        await makeDefaultAddress({ id });
+      },
     }),
     [
       account,
@@ -288,8 +303,10 @@ function ConvexAccountProvider({ children }: { children: ReactNode }) {
       authSignIn,
       authSignOut,
       createAddress,
+      currentUser,
       deleteAddress,
       isAuthenticated,
+      makeDefaultAddress,
       orders,
       profile,
       updateProfile,

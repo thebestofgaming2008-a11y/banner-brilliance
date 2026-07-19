@@ -14,6 +14,7 @@ import { useCart } from "@/lib/cart";
 import { useWishlist } from "@/lib/wishlist";
 import type { Product } from "@/lib/products";
 import { getProductBySlug } from "@/services/productService";
+import { absoluteUrl, BRAND_NAME, seo } from "@/lib/seo";
 
 export const Route = createFileRoute("/products/$slug")({
   loader: async ({ params }) => {
@@ -23,11 +24,75 @@ export const Route = createFileRoute("/products/$slug")({
   },
   head: ({ loaderData }) => {
     const product = loaderData?.product as Product | undefined;
+    if (!product) return seo({ title: "Product | Fawzaan Store", noIndex: true });
+    const path = `/products/${encodeURIComponent(product.slug)}`;
+    const description = product.short || product.description || `${product.name} from Fawzaan.`;
+    const productUrl = absoluteUrl(path);
     return {
-      meta: [
-        { title: product ? `${product.name} | Fawzaan` : "Product | Fawzaan" },
-        { name: "description", content: product?.short ?? "Premium modest essentials." },
-        ...(product?.images[0] ? [{ property: "og:image", content: product.images[0] }] : []),
+      ...seo({
+        title: `${product.name} | Fawzaan Store`,
+        description,
+        path,
+        image: product.images[0] || "/og-image-v2.jpg",
+        type: "product",
+      }),
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Product",
+            "@id": `${productUrl}#product`,
+            name: product.name,
+            description,
+            image: product.images.map(absoluteUrl),
+            sku: product.id || product.slug,
+            category: product.collectionLabel || product.collection,
+            brand: { "@type": "Brand", name: BRAND_NAME },
+            offers: {
+              "@type": "Offer",
+              url: productUrl,
+              priceCurrency: "INR",
+              price: product.price,
+              itemCondition: "https://schema.org/NewCondition",
+              availability:
+                product.inStock === false
+                  ? "https://schema.org/OutOfStock"
+                  : "https://schema.org/InStock",
+              seller: { "@id": `${absoluteUrl("/")}#store` },
+              shippingDetails: {
+                "@type": "OfferShippingDetails",
+                shippingRate: { "@type": "MonetaryAmount", value: 0, currency: "INR" },
+                shippingDestination: { "@type": "DefinedRegion", addressCountry: "IN" },
+                handlingTime: {
+                  "@type": "QuantitativeValue",
+                  minValue: 1,
+                  maxValue: 2,
+                  unitCode: "DAY",
+                },
+              },
+              hasMerchantReturnPolicy: {
+                "@type": "MerchantReturnPolicy",
+                applicableCountry: "IN",
+                returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
+                merchantReturnDays: 30,
+                returnPolicyUrl: absoluteUrl("/pages/returns"),
+              },
+            },
+          }),
+        },
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Home", item: absoluteUrl("/") },
+              { "@type": "ListItem", position: 2, name: "Shop", item: absoluteUrl("/shop") },
+              { "@type": "ListItem", position: 3, name: product.name, item: productUrl },
+            ],
+          }),
+        },
       ],
     };
   },

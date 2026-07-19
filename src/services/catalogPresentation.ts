@@ -82,7 +82,10 @@ async function fetchCatalogPresentation(): Promise<CatalogPresentation> {
         convexHttp.query(api.catalog.listActiveTaxonomy, {}),
         convexHttp.query(api.catalog.listActiveBanners, {}),
       ]);
-      return { taxonomy, banners } as CatalogPresentation;
+      return {
+        taxonomy: taxonomy.length ? taxonomy : fallbackTaxonomy,
+        banners,
+      } as CatalogPresentation;
     }
   } catch (error) {
     console.warn("Using fallback catalog presentation", error);
@@ -98,7 +101,7 @@ export async function listCatalogPresentation(
     cachedPresentation &&
     cachedCatalogVersion === version &&
     Date.now() - cachedPresentationAt < PRESENTATION_MEMORY_TTL_MS;
-  if (!options.force && fresh) return cachedPresentation;
+  if (!options.force && fresh) return cachedPresentation!;
   if (!options.force && presentationRequest) return presentationRequest;
 
   presentationRequest = fetchCatalogPresentation()

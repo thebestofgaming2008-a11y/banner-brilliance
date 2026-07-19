@@ -1,9 +1,21 @@
-import { ChevronRight, Menu, Minus, Plus, Search, ShoppingBag, Trash2, X } from "lucide-react";
+import {
+  ChevronRight,
+  LayoutDashboard,
+  Menu,
+  Minus,
+  Plus,
+  Search,
+  ShoppingBag,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import logoGold from "@/assets/fawzaan-logo-gold.png";
+import { CurrencySelector } from "@/components/store/currency-selector";
+import { useAccount } from "@/lib/account";
 import { useCart } from "@/lib/cart";
-import { storeCurrencies, type StoreCurrency, useCurrency } from "@/hooks/use-currency";
+import { useCurrency } from "@/hooks/use-currency";
 import { useCatalogPresentation } from "@/services/catalogPresentation";
 
 function ChromeButton({
@@ -28,34 +40,11 @@ function ChromeButton({
   );
 }
 
-function CurrencySelect({ dark = false }: { dark?: boolean }) {
-  const { currency, setCurrency } = useCurrency();
-
-  return (
-    <label
-      className={`flex items-center justify-between gap-4 text-[11px] font-bold uppercase ${dark ? "text-white/70" : "text-black/55"}`}
-    >
-      <span>Currency</span>
-      <select
-        value={currency}
-        onChange={(event) => setCurrency(event.target.value as StoreCurrency)}
-        aria-label="Select currency"
-        className={`min-w-20 border-0 bg-transparent py-2 text-right text-[11px] font-bold outline-none ${dark ? "text-white" : "text-black"}`}
-      >
-        {storeCurrencies.map((item) => (
-          <option key={item} value={item} className="text-black">
-            {item}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 export function StoreHeader() {
   const [drawer, setDrawer] = useState<"menu" | "cart" | null>(null);
   const { items: cartLines, count, subtotal, setQty, remove } = useCart();
   const { formatPrice } = useCurrency();
+  const { isAdmin } = useAccount();
   const { taxonomy } = useCatalogPresentation();
   const collections = taxonomy.filter((item) => item.type === "collection");
 
@@ -74,25 +63,38 @@ export function StoreHeader() {
   return (
     <>
       <header className="site-header sticky top-0 z-50 bg-white">
-        <div className="relative mx-auto flex h-[65px] max-w-[1440px] items-center justify-between px-6 md:px-8">
+        <div className="relative mx-auto flex h-[65px] max-w-[1440px] items-center justify-between px-5 sm:px-6 md:px-8">
           <ChromeButton label="Open menu" onClick={() => setDrawer("menu")}>
             <Menu size={24} />
           </ChromeButton>
           <a
             href="/"
             aria-label="Fawzaan home"
-            className="absolute left-1/2 top-1/2 h-[38px] w-[88px] -translate-x-1/2 -translate-y-1/2"
+            className="absolute left-1/2 top-1/2 h-[42px] w-[100px] -translate-x-1/2 -translate-y-1/2 sm:h-[44px] sm:w-[105px]"
           >
             <img src={logoGold} alt="Fawzaan" className="h-full w-full object-contain" />
           </a>
-          <ChromeButton label="Open cart" onClick={() => setDrawer("cart")}>
-            <span className="relative">
-              <ShoppingBag size={23} />
-              <span className="absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full bg-[#f4b400] px-1 text-[9px] font-bold text-white">
-                {count}
+          <div className="flex items-center gap-2">
+            {isAdmin ? (
+              <a
+                href="/admin"
+                aria-label="Open admin dashboard"
+                title="Admin dashboard"
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#f4b400]/40 px-2.5 text-[10px] font-bold uppercase text-[#a87800] transition hover:bg-[#fff7df] sm:px-3"
+              >
+                <LayoutDashboard size={15} />
+                <span className="hidden sm:inline">Admin</span>
+              </a>
+            ) : null}
+            <ChromeButton label="Open cart" onClick={() => setDrawer("cart")}>
+              <span className="relative">
+                <ShoppingBag size={23} />
+                <span className="absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full bg-[#f4b400] px-1 text-[9px] font-bold text-white">
+                  {count}
+                </span>
               </span>
-            </span>
-          </ChromeButton>
+            </ChromeButton>
+          </div>
         </div>
       </header>
 
@@ -161,8 +163,18 @@ export function StoreHeader() {
             <li>
               <a href="/account">Account</a>
             </li>
+            {isAdmin ? (
+              <li>
+                <a href="/admin" className="inline-flex items-center gap-1.5 font-semibold">
+                  <LayoutDashboard size={14} /> Admin dashboard
+                </a>
+              </li>
+            ) : null}
             <li>
               <a href="/wishlist">Wishlist</a>
+            </li>
+            <li>
+              <a href="/track-order">Track order</a>
             </li>
             <li>
               <a href="/search">Search</a>
@@ -179,7 +191,7 @@ export function StoreHeader() {
           </ul>
         </nav>
         <div className="drawer-reveal drawer-safe-bottom border-t border-black/10 px-5 pt-3 sm:px-6">
-          <CurrencySelect />
+          <CurrencySelector />
         </div>
       </aside>
 
@@ -343,7 +355,7 @@ export function StoreFooter() {
         <div>
           <h3 className="text-[11px] font-bold uppercase text-[#f4b400]">Region</h3>
           <div className="mt-3 border-b border-white/20 pb-1">
-            <CurrencySelect dark />
+            <CurrencySelector dark />
           </div>
           <a href="/account" className="mt-5 block text-[13px] text-white/65">
             Account

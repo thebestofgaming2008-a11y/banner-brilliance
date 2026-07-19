@@ -3,17 +3,15 @@ import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 
 import { StorePage } from "@/components/store/store-chrome";
+import { seo } from "@/lib/seo";
 
 export const Route = createFileRoute("/faq")({
-  head: () => ({
-    meta: [
-      { title: "FAQ | Fawzaan" },
-      {
-        name: "description",
-        content: "Answers to common questions about Fawzaan orders, shipping, returns, and care.",
-      },
-    ],
-  }),
+  head: () =>
+    seo({
+      title: "FAQ | Fawzaan Orders, Shipping & Returns",
+      description: "Answers to common questions about Fawzaan orders, shipping, returns and care.",
+      path: "/faq",
+    }),
   component: FaqPage,
 });
 

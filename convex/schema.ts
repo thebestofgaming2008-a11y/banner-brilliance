@@ -106,6 +106,7 @@ export default defineSchema({
     .index("by_active", ["is_active"]),
   orders: defineTable({
     order_number: v.string(),
+    client_request_id: optionalString,
     user_id: optionalString,
     customer_email: optionalString,
     customer_name: optionalString,
@@ -145,6 +146,7 @@ export default defineSchema({
     .index("by_user_id", ["user_id"])
     .index("by_customer_email", ["customer_email"])
     .index("by_order_number", ["order_number"])
+    .index("by_client_request_id", ["client_request_id"])
     .index("by_payment_order_id", ["payment_order_id"])
     .index("by_payment_id", ["payment_id"])
     .index("by_created_at", ["created_at"]),
@@ -173,6 +175,8 @@ export default defineSchema({
     event_type: v.string(),
     razorpay_order_id: optionalString,
     razorpay_payment_id: optionalString,
+    amount_paise: optionalNumber,
+    currency: optionalString,
     processing_status: optionalString,
     error: optionalString,
     processed_at: optionalString,

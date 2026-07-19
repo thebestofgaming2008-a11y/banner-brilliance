@@ -1,7 +1,7 @@
 // Central product catalog for Fawzaan Store.
 // Prices are in INR (₹). Currency is converted at render via useCurrency().
 
-import shemaghRedHead from "@/assets/shemagh-red-head.jpg";
+import shemaghRedHead from "@/assets/shemagh-red-head.webp";
 import shemaghIvoryFront from "@/assets/shemagh-red-front.jpg";
 import shemaghIvorySide from "@/assets/shemagh-red-side.jpg";
 import shemaghIvoryWrap from "@/assets/shemagh-red-wrap.jpg";
@@ -15,9 +15,9 @@ import niqabKhadija1 from "@/assets/niqab-khadija-1.jpg";
 import niqabKhadija2 from "@/assets/niqab-khadija-2.jpg";
 import niqabKhadija3 from "@/assets/niqab-khadija-3.jpg";
 import niqabKhadija4 from "@/assets/niqab-khadija-4.jpg";
-import honeyMulti from "@/assets/honey-kashmir-multiflora.jpg";
-import honeyAcacia from "@/assets/honey-kashmir-acacia.jpg";
-import honeyBlack from "@/assets/honey-kashmir-black.jpg";
+import honeyMulti from "@/assets/honey-kashmir-multiflora.webp";
+import honeyAcacia from "@/assets/honey-kashmir-acacia.webp";
+import honeyBlack from "@/assets/honey-kashmir-black.webp";
 import sabrWatchBlack from "@/assets/collection-banners/sabr-watch-black.jpg";
 import sabrWatchBlue from "@/assets/collection-banners/sabr-watch-blue.jpg";
 import sabrWatchGreen from "@/assets/collection-banners/sabr-watch-green.jpg";
@@ -62,8 +62,8 @@ export const catalog: Product[] = [
     gender: "men",
     price: 2200,
     compareAt: 2800,
-    rating: 4.9,
-    reviews: 1240,
+    rating: 0,
+    reviews: 0,
     images: [shemaghRedHead],
     sizes: ["Standard · 130 × 130 cm"],
     short: "The heritage red-and-white keffiyeh, hand-loomed in Yemen.",
@@ -85,8 +85,8 @@ export const catalog: Product[] = [
     collection: "shemaghs",
     gender: "men",
     price: 2400,
-    rating: 4.8,
-    reviews: 312,
+    rating: 0,
+    reviews: 0,
     images: [
       shemaghIvoryFront,
       shemaghIvorySide,
@@ -114,8 +114,8 @@ export const catalog: Product[] = [
     collection: "niqabs",
     gender: "women",
     price: 650,
-    rating: 4.9,
-    reviews: 986,
+    rating: 0,
+    reviews: 0,
     images: [niqabKhadija2, niqabKhadija1, niqabKhadija3, niqabKhadija4],
     colors: [{ name: "Onyx Black", swatch: "#000000" }],
     sizes: ["One Size"],
@@ -139,8 +139,8 @@ export const catalog: Product[] = [
     collection: "niqabs",
     gender: "women",
     price: 720,
-    rating: 4.8,
-    reviews: 214,
+    rating: 0,
+    reviews: 0,
     images: [niqabRedFront, niqabRedSide],
     colors: [
       { name: "Rouge", swatch: "#a22222" },
@@ -161,8 +161,8 @@ export const catalog: Product[] = [
     collection: "kufis",
     gender: "men",
     price: 450,
-    rating: 4.7,
-    reviews: 148,
+    rating: 0,
+    reviews: 0,
     images: [kufiFront, kufiSide],
     colors: [{ name: "Ivory White", swatch: "#f5f2ea" }],
     sizes: ["S", "M", "L"],
@@ -178,8 +178,8 @@ export const catalog: Product[] = [
     collection: "honey",
     gender: "unisex",
     price: 850,
-    rating: 4.9,
-    reviews: 621,
+    rating: 0,
+    reviews: 0,
     images: [honeyMulti],
     sizes: ["500g"],
     short: "Pure Kashmiri highland honey — no adulteration.",
@@ -202,8 +202,8 @@ export const catalog: Product[] = [
     collection: "honey",
     gender: "unisex",
     price: 900,
-    rating: 4.8,
-    reviews: 187,
+    rating: 0,
+    reviews: 0,
     images: [honeyAcacia],
     sizes: ["500g"],
     short: "Light, floral Kashmiri acacia. Slow to crystallise.",
@@ -225,8 +225,8 @@ export const catalog: Product[] = [
     collection: "honey",
     gender: "unisex",
     price: 1200,
-    rating: 4.9,
-    reviews: 92,
+    rating: 0,
+    reviews: 0,
     images: [honeyBlack],
     sizes: ["500g"],
     short: "Rare dark-forest honey — intense, minerally, wild.",

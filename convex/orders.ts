@@ -518,42 +518,161 @@ export const quoteCheckout = query({
   },
 });
 
+function buildWhatsAppOrderMessage(
+  orderNumber: string,
+  customer: Record<string, any>,
+  cart: Array<any>,
+  subtotal: number,
+) {
+  const productBase = String(process.env.PUBLIC_SITE_URL ?? process.env.SITE_URL ?? "")
+    .trim()
+    .replace(/\/+$/, "");
+  return cleanLongMessage(
+    [
+      `Assalamu alaikum. I would like to order to ${customer.country}.`,
+      `Order request: ${orderNumber}`,
+      "",
+      `Name: ${customer.name}`,
+      `Email: ${customer.email}`,
+      `WhatsApp number: ${customer.phone}`,
+      "",
+      `Country: ${customer.country}`,
+      `Address: ${customer.address_line_1}${customer.address_line_2 ? `, ${customer.address_line_2}` : ""}`,
+      `City: ${customer.city}`,
+      `State / province / region: ${customer.state ?? ""}`,
+      `Postal code: ${customer.postal_code ?? ""}`,
+      "",
+      ...cart.flatMap((item, index) => [
+        `${index + 1}. ${productNameWithOptions(item.name, item.selectedColor, item.selectedSize)}`,
+        `   Quantity: ${item.qty}`,
+        item.slug && productBase
+          ? `   Product page: ${productBase}/products/${encodeURIComponent(item.slug)}`
+          : "",
+        "",
+      ]),
+      `Product subtotal: INR ${subtotal.toLocaleString("en-IN")}`,
+      "Please confirm availability, international shipping, and payment details.",
+    ]
+      .filter((line) => line !== "")
+      .join("\n"),
+  );
+}
+
+export const createWhatsAppOrder = mutation({
+  args: {
+    cart: v.array(cartItem),
+    customer: checkoutCustomer,
+    client_request_id: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const requestId = cleanText(args.client_request_id, 100);
+    if (!/^[a-zA-Z0-9_-]{8,100}$/.test(requestId)) {
+      throw new Error("Invalid checkout request ID.");
+    }
+    const existing = await ctx.db
+      .query("orders")
+      .withIndex("by_client_request_id", (q) => q.eq("client_request_id", requestId))
+      .first();
+    if (existing) return await orderWithItems(ctx, existing);
+
+    const customer = {
+      email: cleanEmail(args.customer.email),
+      phone: cleanPhone(args.customer.phone),
+      name: cleanText(args.customer.name, 120),
+      address_line_1: cleanText(args.customer.address_line_1, 180),
+      address_line_2: cleanNullable(args.customer.address_line_2, 180) ?? undefined,
+      city: cleanText(args.customer.city, 80),
+      state: cleanNullable(args.customer.state, 80) ?? undefined,
+      postal_code: cleanText(args.customer.postal_code, 24),
+      country: cleanText(args.customer.country, 80),
+    };
+    if (!customer.name || !customer.address_line_1 || !customer.city || !customer.country) {
+      throw new Error("Complete shipping details are required.");
+    }
+    const shipping = checkoutShippingForCountry(customer.country);
+    if (shipping.countryType === "india") {
+      throw new Error("India orders must use the secure Razorpay checkout.");
+    }
+
+    const quote = await checkoutQuote(ctx, args.cart);
+    const identity = await ctx.auth.getUserIdentity();
+    const userId = identity ? await getAuthUserId(ctx) : null;
+    const timestamp = nowIso();
+    const orderNumber = await nextOrderNumber(ctx);
+    const whatsappMessage = buildWhatsAppOrderMessage(
+      orderNumber,
+      customer,
+      quote.validatedCart,
+      quote.subtotal,
+    );
+    const orderId = await ctx.db.insert("orders", {
+      order_number: orderNumber,
+      client_request_id: requestId,
+      user_id: userId ?? null,
+      customer_email: customer.email,
+      customer_name: customer.name,
+      customer_phone: customer.phone,
+      status: "whatsapp_pending",
+      payment_status: "unconfirmed",
+      subtotal: quote.subtotal,
+      tax: 0,
+      shipping_cost: 0,
+      shipping_payment_status: "to_confirm",
+      shipping_payment_note:
+        "International shipping and payment are confirmed manually on WhatsApp.",
+      customer_country_type: "international",
+      discount: 0,
+      total: quote.subtotal,
+      total_inr: quote.subtotal,
+      currency: "INR",
+      shipping_address: customer,
+      payment_provider: "WHATSAPP",
+      payment_method: "manual_confirmation",
+      whatsapp_message: whatsappMessage,
+      created_at: timestamp,
+      updated_at: timestamp,
+    });
+
+    for (const item of quote.validatedCart) {
+      await ctx.db.insert("order_items", {
+        order_id: orderId,
+        product_id: item.productId,
+        product_name: productNameWithOptions(item.name, item.selectedColor, item.selectedSize),
+        product_image_url: item.image ?? null,
+        selected_color: item.selectedColor ?? null,
+        selected_size: item.selectedSize ?? null,
+        quantity: item.qty,
+        unit_price: item.priceInr,
+        subtotal: item.priceInr * item.qty,
+      });
+    }
+    const saved = await ctx.db.get(orderId);
+    return saved ? await orderWithItems(ctx, saved) : null;
+  },
+});
+
 function razorpayKeys() {
-  const keyId = process.env.RAZORPAY_KEY_ID;
-  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  const keyId = process.env.RAZORPAY_KEY_ID?.trim();
+  const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
   if (!keyId || !keySecret) throw new Error("Razorpay keys are not configured.");
   return { keyId, keySecret };
 }
 
-function basicAuth(keyId: string, keySecret: string) {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  const bytes = Array.from(new TextEncoder().encode(`${keyId}:${keySecret}`));
-  let encoded = "";
-  for (let index = 0; index < bytes.length; index += 3) {
-    const first = bytes[index];
-    const second = bytes[index + 1];
-    const third = bytes[index + 2];
-    encoded += alphabet[first >> 2];
-    encoded += alphabet[((first & 3) << 4) | ((second ?? 0) >> 4)];
-    encoded += second === undefined ? "=" : alphabet[((second & 15) << 2) | ((third ?? 0) >> 6)];
-    encoded += third === undefined ? "=" : alphabet[third & 63];
-  }
-  return `Basic ${encoded}`;
-}
-
-async function razorpayRequest(path: string, init: RequestInit = {}) {
-  const { keyId, keySecret } = razorpayKeys();
-  const response = await fetch(`https://api.razorpay.com/v1${path}`, {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      authorization: basicAuth(keyId, keySecret),
-      ...(init.headers ?? {}),
-    },
+async function razorpayRequest(ctx: any, path: string, init: RequestInit = {}) {
+  const result: any = await ctx.runAction((internal as any).razorpay.request, {
+    path,
+    method: init.method ?? "GET",
+    body: typeof init.body === "string" ? init.body : undefined,
   });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body?.error?.description ?? "Razorpay request failed.");
-  return body;
+  if (!result?.ok) {
+    const code = cleanText(result?.error?.code ?? "PROVIDER_ERROR", 80);
+    const description = cleanText(
+      result?.error?.description ?? "Payment provider request failed.",
+      240,
+    );
+    throw new Error(`Payment provider error (${result?.status ?? 500}/${code}): ${description}`);
+  }
+  return result.data;
 }
 
 async function hmacSha256Hex(secret: string, message: string) {
@@ -612,8 +731,8 @@ export const createRazorpayCheckoutOrder = action({
     const quote = await ctx.runQuery(api.orders.quoteCheckout, { cart: args.cart });
     if (quote.amountPaise < 100) throw new Error("Order total must be at least INR 1.");
     const { keyId } = razorpayKeys();
-    const receipt = `FZ-${Date.now().toString().slice(-8)}`;
-    const order = await razorpayRequest("/orders", {
+    const receipt = `FZ-${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`.slice(0, 40);
+    const order = await razorpayRequest(ctx, "/orders", {
       method: "POST",
       body: JSON.stringify({
         amount: quote.amountPaise,
@@ -625,6 +744,14 @@ export const createRazorpayCheckoutOrder = action({
         },
       }),
     });
+    if (
+      typeof order?.id !== "string" ||
+      order.amount !== quote.amountPaise ||
+      order.currency !== "INR" ||
+      order.status !== "created"
+    ) {
+      throw new Error("Payment provider returned an invalid checkout order.");
+    }
     const identity = await ctx.auth.getUserIdentity();
     const userId = identity ? await getAuthUserId(ctx) : null;
     await ctx.runMutation(internal.orders.reserveCheckoutIntent, {
@@ -839,8 +966,8 @@ export const verifyRazorpayPayment = action({
       (await ctx.runQuery(api.orders.quoteCheckout, { cart: args.cart })).amountPaise;
 
     const [razorpayOrder, fetchedPayment] = await Promise.all([
-      razorpayRequest(`/orders/${args.razorpay_order_id}`),
-      razorpayRequest(`/payments/${args.razorpay_payment_id}`),
+      razorpayRequest(ctx, `/orders/${args.razorpay_order_id}`),
+      razorpayRequest(ctx, `/payments/${args.razorpay_payment_id}`),
     ]);
     if (razorpayOrder.amount !== expectedAmountPaise || razorpayOrder.currency !== "INR") {
       throw new Error("Razorpay amount does not match the current cart total.");
@@ -855,13 +982,13 @@ export const verifyRazorpayPayment = action({
     let payment = fetchedPayment;
     if (fetchedPayment.status === "authorized") {
       try {
-        payment = await razorpayRequest(`/payments/${args.razorpay_payment_id}/capture`, {
+        payment = await razorpayRequest(ctx, `/payments/${args.razorpay_payment_id}/capture`, {
           method: "POST",
           body: JSON.stringify({ amount: expectedAmountPaise, currency: "INR" }),
         });
       } catch {
         // A repeated callback can race with capture. Refetch before treating it as a failed paid order.
-        payment = await razorpayRequest(`/payments/${args.razorpay_payment_id}`);
+        payment = await razorpayRequest(ctx, `/payments/${args.razorpay_payment_id}`);
       }
     }
     if (payment.status !== "captured") throw new Error("Razorpay payment has not been captured.");
@@ -997,8 +1124,8 @@ export const listUnresolvedCheckoutIntents = internalQuery({
   },
 });
 
-async function capturedPaymentForIntent(intent: any) {
-  const result = await razorpayRequest(`/orders/${intent.razorpay_order_id}/payments`);
+async function capturedPaymentForIntent(ctx: any, intent: any) {
+  const result = await razorpayRequest(ctx, `/orders/${intent.razorpay_order_id}/payments`);
   const payments = Array.isArray(result?.items) ? result.items : [];
   let payment = payments.find(
     (item: any) =>
@@ -1009,12 +1136,12 @@ async function capturedPaymentForIntent(intent: any) {
   );
   if (payment?.status === "authorized") {
     try {
-      payment = await razorpayRequest(`/payments/${payment.id}/capture`, {
+      payment = await razorpayRequest(ctx, `/payments/${payment.id}/capture`, {
         method: "POST",
         body: JSON.stringify({ amount: intent.amount_paise, currency: "INR" }),
       });
     } catch {
-      payment = await razorpayRequest(`/payments/${payment.id}`);
+      payment = await razorpayRequest(ctx, `/payments/${payment.id}`);
     }
   }
   return payment?.status === "captured" ? payment : null;
@@ -1035,7 +1162,7 @@ export const reconcileCapturedPayments = internalAction({
         razorpay_order_id: intent.razorpay_order_id,
       });
       try {
-        const captured = await capturedPaymentForIntent(intent);
+        const captured = await capturedPaymentForIntent(ctx, intent);
         if (!captured?.id) continue;
         let order;
         try {
@@ -1078,7 +1205,7 @@ export const retryPaymentRecovery = action({
     if (intent.status === "completed") {
       return { status: "completed", order: null };
     }
-    const payment = await capturedPaymentForIntent(intent);
+    const payment = await capturedPaymentForIntent(ctx, intent);
     if (!payment?.id) {
       return { status: "not_captured", order: null };
     }
@@ -1098,6 +1225,46 @@ export const retryPaymentRecovery = action({
       });
       throw new Error(error instanceof Error ? error.message : "Manual recovery failed.");
     }
+  },
+});
+
+export const checkRazorpayConnection = action({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!isAdminEmail(identity?.email)) throw new Error("Admin access required.");
+    const { keyId } = razorpayKeys();
+    const result = await razorpayRequest(ctx, "/orders?count=1");
+    return {
+      ok: Array.isArray(result?.items),
+      mode: keyId.startsWith("rzp_live_") ? "live" : "test",
+      webhookConfigured: Boolean(process.env.RAZORPAY_WEBHOOK_SECRET?.trim()),
+    };
+  },
+});
+
+export const releaseUnpaidCheckoutIntent = action({
+  args: { razorpay_order_id: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!isAdminEmail(identity?.email)) throw new Error("Admin access required.");
+    const razorpayOrderId = cleanText(args.razorpay_order_id, 120);
+    const intent: any = await ctx.runQuery(internal.orders.findCheckoutIntent, {
+      razorpay_order_id: razorpayOrderId,
+    });
+    if (!intent || intent.status !== "pending") {
+      return { released: false, status: intent?.status ?? "not_found" };
+    }
+    const result = await razorpayRequest(ctx, `/orders/${razorpayOrderId}/payments`);
+    const payments = Array.isArray(result?.items) ? result.items : [];
+    if (payments.some((payment: any) => ["authorized", "captured"].includes(payment?.status))) {
+      throw new Error("This checkout has a payment and cannot be released.");
+    }
+    await ctx.runMutation(internal.orders.markCheckoutFailed, {
+      razorpay_order_id: razorpayOrderId,
+      error: "Unpaid checkout released by an administrator.",
+    });
+    return { released: true, status: "failed" };
   },
 });
 
@@ -1135,6 +1302,8 @@ export const recordRazorpayWebhook = internalMutation({
       event_type: args.event_type,
       razorpay_order_id: args.razorpay_order_id,
       razorpay_payment_id: args.razorpay_payment_id,
+      amount_paise: args.amount_paise,
+      currency: args.currency,
       processing_status: "received",
       created_at: nowIso(),
     });
@@ -1183,7 +1352,7 @@ export const razorpayWebhook = httpAction(async (ctx, request) => {
   const order = payload?.payload?.order?.entity;
   const eventType = cleanText(payload?.event, 80);
   if (eventType === "order.paid" && !payment?.id && order?.id) {
-    const result = await razorpayRequest(`/orders/${cleanText(order.id, 120)}/payments`);
+    const result = await razorpayRequest(ctx, `/orders/${cleanText(order.id, 120)}/payments`);
     const payments = Array.isArray(result?.items) ? result.items : [];
     payment = payments.find(
       (item: any) =>
@@ -1200,7 +1369,7 @@ export const razorpayWebhook = httpAction(async (ctx, request) => {
       ? cleanText(order.id, 120)
       : undefined;
   const razorpayPaymentId = payment?.id ? cleanText(payment.id, 120) : undefined;
-  await ctx.runMutation(internal.orders.recordRazorpayWebhook, {
+  const recorded = await ctx.runMutation(internal.orders.recordRazorpayWebhook, {
     event_id: eventId,
     event_type: effectiveEventType,
     razorpay_order_id: razorpayOrderId,
@@ -1208,6 +1377,9 @@ export const razorpayWebhook = httpAction(async (ctx, request) => {
     amount_paise: Number.isFinite(payment?.amount) ? payment.amount : undefined,
     currency: payment?.currency ? cleanText(payment.currency, 12) : undefined,
   });
+  if (recorded.duplicate && ["processed", "ignored", "failed"].includes(recorded.status)) {
+    return new Response("ok", { status: 200 });
+  }
 
   try {
     if (effectiveEventType === "payment.captured" && razorpayOrderId && razorpayPaymentId) {

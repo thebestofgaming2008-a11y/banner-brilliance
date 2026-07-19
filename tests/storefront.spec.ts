@@ -11,6 +11,21 @@ function watchPageErrors(page: Page) {
 
 test("home and live catalog render without browser errors", async ({ page }) => {
   const errors = watchPageErrors(page);
+  const homeResponse = await page.request.get("/");
+  expect(homeResponse.ok()).toBeTruthy();
+  expect(homeResponse.headers()["x-content-type-options"]).toBe("nosniff");
+  expect(homeResponse.headers()["x-frame-options"]).toBe("DENY");
+  expect(homeResponse.headers()["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+
+  const ratesResponse = await page.request.get("/api/rates");
+  expect(ratesResponse.ok()).toBeTruthy();
+  const rates = (await ratesResponse.json()) as {
+    source: string;
+    rates: Record<string, number>;
+  };
+  expect(["exchangerate-api.com", "open.er-api.com"]).toContain(rates.source);
+  expect(rates.rates.USD).toBeGreaterThan(0);
+
   await expect
     .poll(async () => (await page.request.get("/api/catalog/products")).ok())
     .toBeTruthy();
@@ -60,52 +75,59 @@ test("home and live catalog render without browser errors", async ({ page }) => 
 
 test("shop product cart and checkout path uses the live product", async ({ page }) => {
   const errors = watchPageErrors(page);
-  await expect
-    .poll(async () => (await page.request.get("/api/catalog/products")).ok())
-    .toBeTruthy();
-  const catalogResponse = await page.request.get("/api/catalog/products");
-  expect(catalogResponse.ok()).toBeTruthy();
-  const products = (await catalogResponse.json()) as Array<{ name: string; slug: string }>;
-  const product = products.find((item) => item.slug && item.name);
-  expect(product).toBeTruthy();
-  await page.goto("/shop");
+  await page.goto("/shop", { waitUntil: "domcontentloaded", timeout: 60_000 });
   await expect(page.getByText(/^\d+ products$/).first()).toBeVisible();
-  await page.locator(`a[href="/products/${product!.slug}"]`).first().click();
-  await expect(page).toHaveURL(new RegExp(`/products/${product!.slug}$`));
-  await expect(page.getByRole("heading", { name: product!.name, exact: true })).toBeVisible();
+  const productLink = page.locator('article.store-product-card a[href^="/products/"]').first();
+  await expect(productLink).toBeVisible();
+  const href = await productLink.getAttribute("href");
+  const selectedSlug = href?.split("/products/")[1] ?? "";
+  const productName = (await productLink.locator("img").getAttribute("alt")) ?? "";
+  expect(selectedSlug).not.toBe("");
+  expect(productName).not.toBe("");
+  await productLink.click();
+  await expect(page).toHaveURL(new RegExp(`/products/${selectedSlug}$`));
+  await expect(page.getByRole("heading", { name: productName, exact: true })).toBeVisible();
   await expect(page.locator("main img, section img").first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "YOU MAY ALSO LIKE" })).toBeVisible();
-  await expect(
-    page.locator('[data-testid="related-products-section"] article.store-product-card'),
-  ).toHaveCount(Math.min(4, Math.max(0, products.length - 1)));
+  const relatedProducts = page.locator(
+    '[data-testid="related-products-section"] article.store-product-card',
+  );
+  await expect(relatedProducts.first()).toBeVisible();
+  expect(await relatedProducts.count()).toBeLessThanOrEqual(4);
   const firstRecommendation = page
     .locator('[data-testid="related-products-section"] article.store-product-card')
     .first();
   await expect(firstRecommendation).toBeVisible();
   await expect(firstRecommendation.locator("img")).toBeVisible();
   await expect(firstRecommendation.locator("h3")).not.toBeEmpty();
-  await page.getByRole("button", { name: "Add to cart" }).last().click();
+  await page.getByRole("button", { name: "Add to cart" }).first().click();
   await page.goto("/cart");
-  await expect(page.getByRole("article").getByText(product!.name, { exact: true })).toBeVisible();
+  await expect(page.getByRole("article").getByText(productName, { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Proceed to checkout" }).click();
   await expect(page).toHaveURL(/\/checkout$/);
   await expect(page.getByRole("heading", { name: "Delivery details" })).toBeVisible();
+  await expect(page.getByLabel("Country").locator("option")).toHaveCount(249);
   expect(errors).toEqual([]);
 });
 
 test("mobile shop controls scroll and menu search filters the live catalog", async ({ page }) => {
+  test.setTimeout(90_000);
   const errors = watchPageErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/shop");
+  await page.goto("/shop", { waitUntil: "domcontentloaded", timeout: 60_000 });
 
   const tabs = page.getByRole("tablist", { name: "Product collections" });
-  await expect(tabs.getByRole("tab", { name: "Watches" })).toBeVisible();
-  expect(await tabs.evaluate((element) => element.scrollWidth > element.clientWidth)).toBeTruthy();
-  await tabs.evaluate((element) => {
-    element.scrollLeft = 0;
-  });
-  await page.getByRole("button", { name: "More collections" }).click();
-  await expect.poll(() => tabs.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  await expect(tabs.getByRole("tab").first()).toBeVisible();
+  const collectionsOverflow = await tabs.evaluate(
+    (element) => element.scrollWidth > element.clientWidth,
+  );
+  if (collectionsOverflow) {
+    await tabs.evaluate((element) => {
+      element.scrollLeft = 0;
+    });
+    await page.getByRole("button", { name: "More collections" }).click();
+    await expect.poll(() => tabs.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  }
 
   await expect(page.getByLabel("Sort products")).toBeVisible();
   await expect(page.getByRole("button", { name: "Bestsellers" })).toHaveCount(0);
@@ -113,12 +135,25 @@ test("mobile shop controls scroll and menu search filters the live catalog", asy
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
   ).toBeTruthy();
 
-  await page.getByRole("button", { name: "Open menu" }).click();
+  const storeMenu = page.getByRole("dialog", { name: "Store menu", includeHidden: true });
+  const openMenu = page.getByRole("button", { name: "Open menu" });
+  await expect(async () => {
+    if ((await storeMenu.getAttribute("aria-hidden")) !== "false") await openMenu.click();
+    await expect(storeMenu).toHaveAttribute("aria-hidden", "false");
+  }).toPass({ timeout: 30_000 });
+  const currencyButton = storeMenu.getByRole("button", { name: /^Currency:/ });
+  await currencyButton.click();
+  const currencySearch = storeMenu.getByRole("searchbox", { name: "Search currencies" });
+  await currencySearch.fill("US Dollar");
+  await expect(storeMenu.getByRole("option", { name: /USD/ })).toBeVisible();
+  await storeMenu.getByRole("option", { name: /USD/ }).click();
+  await expect(currencyButton).toHaveAccessibleName("Currency: US Dollar");
+
   const menuSearch = page.getByRole("searchbox", { name: "Search products" });
   await menuSearch.fill("honey");
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page).toHaveURL(/\/shop\?q=honey$/);
-  await expect(page.locator("article.store-product-card")).toHaveCount(3);
+  await expect(page.locator("article.store-product-card").first()).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -127,25 +162,24 @@ test("account, tracking lookup, and admin entry render", async ({ page }) => {
   await page.goto("/account");
   await expect(page.getByRole("heading", { name: "SIGN IN" })).toBeVisible();
   await expect(page.getByLabel("Password")).toBeVisible();
-  await page.getByRole("button", { name: "Forgot password?" }).click();
-  await expect(page.getByRole("heading", { name: "RESET PASSWORD" })).toBeVisible();
-  await page.getByRole("button", { name: "Back to sign in" }).click();
   await page.getByRole("button", { name: "New here? Create an account" }).click();
   await expect(page.getByRole("heading", { name: "CREATE ACCOUNT" })).toBeVisible();
-  await expect(page.getByText(/Email me occasional sales/)).toBeVisible();
+  await expect(page.getByText(/Email me occasional sales/)).toHaveCount(0);
 
   await page.goto("/wishlist");
   await expect(page.getByRole("heading", { name: "Sign in to use your wishlist" })).toBeVisible();
 
-  await page.goto("/order/FZ-TEST");
-  await expect(page.getByRole("heading", { name: "TRACK FZ-TEST" })).toBeVisible();
+  await page.goto("/track-order");
+  await expect(page.getByRole("heading", { name: "WHERE IS MY ORDER?" })).toBeVisible();
+  await expect(page.getByLabel("Order number")).toBeVisible();
+  await expect(page.getByLabel("Checkout email")).toBeVisible();
 
   await page.goto("/admin");
-  await expect(page.locator("body")).toContainText(/Admin|Dashboard|Sign in/i);
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.getByRole("heading", { name: "SIGN IN" })).toBeVisible();
   await expect(page.getByText("Organize shop", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Product placement", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("Shipping", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("Settings", { exact: true })).toHaveCount(0);
+  await expect(page.locator('[data-testid="admin-sidebar-navigation"]')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

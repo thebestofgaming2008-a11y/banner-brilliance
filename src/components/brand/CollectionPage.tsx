@@ -18,13 +18,12 @@ export type Filter = {
 export function CollectionPage({ title, breadcrumb, eyebrow, where, hero }: Filter) {
   const { products } = useCatalogProducts();
   const items = useMemo(() => products.filter(where), [products, where]);
-  const [sort, setSort] = useState<"featured" | "price-asc" | "price-desc" | "rating">("featured");
+  const [sort, setSort] = useState<"featured" | "price-asc" | "price-desc">("featured");
 
   const sorted = useMemo(() => {
     const arr = [...items];
     if (sort === "price-asc") arr.sort((a, b) => a.price - b.price);
     else if (sort === "price-desc") arr.sort((a, b) => b.price - a.price);
-    else if (sort === "rating") arr.sort((a, b) => b.rating - a.rating);
     return arr;
   }, [items, sort]);
 
@@ -77,7 +76,6 @@ export function CollectionPage({ title, breadcrumb, eyebrow, where, hero }: Filt
               <option value="featured">Featured</option>
               <option value="price-asc">Price: Low → High</option>
               <option value="price-desc">Price: High → Low</option>
-              <option value="rating">Top rated</option>
             </select>
             <ChevronDown className="h-3.5 w-3.5 absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none" />
           </label>

@@ -6,14 +6,14 @@ import {
   localBackendProducts,
   type BackendProduct,
 } from "@/lib/catalogBackend";
-import { catalog, type Product } from "@/lib/products";
+import { catalog, type Product as StorefrontProduct } from "@/lib/products";
 
-export type { BackendProduct as Product };
+export type Product = BackendProduct & { id: string };
 
-let cachedProducts: Product[] | null = null;
+let cachedProducts: StorefrontProduct[] | null = null;
 let cachedProductsAt = 0;
 let cachedCatalogVersion = "";
-let productsRequest: Promise<Product[]> | null = null;
+let productsRequest: Promise<StorefrontProduct[]> | null = null;
 const CATALOG_MEMORY_TTL_MS = 5 * 60 * 1000;
 
 function catalogVersion() {
@@ -22,7 +22,7 @@ function catalogVersion() {
     : (window.localStorage.getItem("fawzaan.catalogVersion") ?? "default");
 }
 
-async function fetchCatalogProducts(): Promise<Product[]> {
+async function fetchCatalogProducts(): Promise<StorefrontProduct[]> {
   if (typeof window !== "undefined") {
     const response = await fetch(
       `/api/catalog/products?version=${encodeURIComponent(catalogVersion())}`,
@@ -37,19 +37,23 @@ async function fetchCatalogProducts(): Promise<Product[]> {
 
   if (convexHttp) {
     const rows = (await convexHttp.query(api.products.listActiveProducts, {})) as BackendProduct[];
-    return rows.map(backendProductToProduct).filter((product) => product.slug);
+    const products = rows.map(backendProductToProduct).filter((product) => product.slug);
+    return products.length ? products : localBackendProducts.map(backendProductToProduct);
   }
 
   return localBackendProducts.map(backendProductToProduct);
 }
 
-export async function listActiveProducts(options: { force?: boolean } = {}): Promise<Product[]> {
+export async function listActiveProducts(
+  options: { force?: boolean } = {},
+): Promise<StorefrontProduct[]> {
+  if (typeof window === "undefined") return await fetchCatalogProducts();
   const version = catalogVersion();
   const fresh =
     cachedProducts &&
     cachedCatalogVersion === version &&
     Date.now() - cachedProductsAt < CATALOG_MEMORY_TTL_MS;
-  if (!options.force && fresh) return cachedProducts;
+  if (!options.force && fresh) return cachedProducts!;
   if (!options.force && productsRequest) return productsRequest;
 
   productsRequest = fetchCatalogProducts()
@@ -69,8 +73,11 @@ export async function listActiveProducts(options: { force?: boolean } = {}): Pro
   return productsRequest;
 }
 
-export async function getProductBySlug(slug: string): Promise<Product | null> {
-  const cached = cachedProducts?.find((product) => product.slug === slug);
+export async function getProductBySlug(slug: string): Promise<StorefrontProduct | null> {
+  const cached =
+    typeof window === "undefined"
+      ? undefined
+      : cachedProducts?.find((product) => product.slug === slug);
   if (
     cached &&
     cachedCatalogVersion === catalogVersion() &&
@@ -106,7 +113,7 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
 export function useCatalogProducts() {
   // SSR workers are reused across requests. Always start from the same snapshot
   // in the browser and on the server, then replace it with the live catalog.
-  const [products, setProducts] = useState<Product[]>(catalog);
+  const [products, setProducts] = useState<StorefrontProduct[]>(catalog);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -126,8 +133,8 @@ export function useCatalogProducts() {
   return useMemo(() => ({ products, loading }), [products, loading]);
 }
 
-export function useCatalogProduct(slug: string, initial?: Product) {
-  const [product, setProduct] = useState<Product | null>(initial ?? null);
+export function useCatalogProduct(slug: string, initial?: StorefrontProduct) {
+  const [product, setProduct] = useState<StorefrontProduct | null>(initial ?? null);
 
   useEffect(() => {
     let alive = true;

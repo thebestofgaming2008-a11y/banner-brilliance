@@ -1,6 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { InfoPage } from "@/components/store/info-page";
-export const Route = createFileRoute("/pages/privacy")({ component: PrivacyPage });
+import { seo } from "@/lib/seo";
+export const Route = createFileRoute("/pages/privacy")({
+  head: () =>
+    seo({
+      title: "Privacy Policy | Fawzaan Store",
+      description: "How Fawzaan Store collects, uses and protects customer information.",
+      path: "/pages/privacy",
+    }),
+  component: PrivacyPage,
+});
 function PrivacyPage() {
   return (
     <InfoPage

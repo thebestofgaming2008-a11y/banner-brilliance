@@ -4,6 +4,8 @@ import { useState } from "react";
 
 import { api } from "../../convex/_generated/api";
 import { StorePage } from "@/components/store/store-chrome";
+import { convex } from "@/lib/backend";
+import { seo } from "@/lib/seo";
 
 type UnsubscribeSearch = { email?: string; token?: string };
 
@@ -12,16 +14,30 @@ export const Route = createFileRoute("/unsubscribe")({
     email: typeof search.email === "string" ? search.email : undefined,
     token: typeof search.token === "string" ? search.token : undefined,
   }),
-  head: () => ({ meta: [{ title: "Email preferences | Fawzaan" }] }),
+  head: () =>
+    seo({ title: "Email Preferences | Fawzaan Store", path: "/unsubscribe", noIndex: true }),
   component: UnsubscribePage,
 });
 
 function UnsubscribePage() {
-  const { email, token } = Route.useSearch();
+  if (!convex) return <UnsubscribeContent unsubscribe={null} />;
+  return <ConnectedUnsubscribePage />;
+}
+
+function ConnectedUnsubscribePage() {
   const unsubscribe = useAction(api.marketing.unsubscribe);
+  return <UnsubscribeContent unsubscribe={unsubscribe} />;
+}
+
+function UnsubscribeContent({
+  unsubscribe,
+}: {
+  unsubscribe: ((args: { email: string; token: string }) => Promise<unknown>) | null;
+}) {
+  const { email, token } = Route.useSearch();
   const [state, setState] = useState<"ready" | "saving" | "done" | "error">("ready");
   const [error, setError] = useState("");
-  const validLink = Boolean(email && token);
+  const validLink = Boolean(email && token && unsubscribe);
 
   return (
     <StorePage>
@@ -47,7 +63,7 @@ function UnsubscribePage() {
                 setState("saving");
                 setError("");
                 try {
-                  await unsubscribe({ email: email!, token: token! });
+                  await unsubscribe!({ email: email!, token: token! });
                   setState("done");
                 } catch (caught) {
                   setError(

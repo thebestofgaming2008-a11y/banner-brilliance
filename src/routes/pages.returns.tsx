@@ -1,6 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { InfoPage } from "@/components/store/info-page";
-export const Route = createFileRoute("/pages/returns")({ component: ReturnsPage });
+import { seo } from "@/lib/seo";
+export const Route = createFileRoute("/pages/returns")({
+  head: () =>
+    seo({
+      title: "Returns Policy | Fawzaan Store",
+      description:
+        "Read the Fawzaan Store 30-day return window, eligibility rules and return process.",
+      path: "/pages/returns",
+    }),
+  component: ReturnsPage,
+});
 function ReturnsPage() {
   return (
     <InfoPage

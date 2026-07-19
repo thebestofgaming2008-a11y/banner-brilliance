@@ -5,9 +5,10 @@ import { SiteHeader } from "@/components/brand/SiteHeader";
 import { SiteFooter } from "@/components/brand/SiteFooter";
 import { ProductCard } from "@/components/brand/ProductCard";
 import { useCatalogProducts } from "@/services/productService";
+import { seo } from "@/lib/seo";
 
 export const Route = createFileRoute("/search")({
-  head: () => ({ meta: [{ title: "Search — Fawzaan.store" }] }),
+  head: () => seo({ title: "Search | Fawzaan Store", path: "/search", noIndex: true }),
   component: SearchPage,
 });
 

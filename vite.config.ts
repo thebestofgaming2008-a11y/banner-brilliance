@@ -8,6 +8,7 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
   nitro: {
+    // @ts-expect-error The wrapper's narrowed Nitro type omits this supported runtime option.
     compatibilityDate: "2026-07-16",
   },
   tanstackStart: {

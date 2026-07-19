@@ -6,6 +6,7 @@ import { StoreFooter, StoreHeader } from "@/components/store/store-chrome";
 import { merchandiseProducts, type StoreProduct, useStoreProducts } from "@/data/store";
 import { useCurrency } from "@/hooks/use-currency";
 import { useCatalogPresentation } from "@/services/catalogPresentation";
+import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, seo } from "@/lib/seo";
 
 import logoGold from "@/assets/fawzaan-logo-gold.png";
 import makkahGloves from "@/assets/collection-banners/makkah-gloves.jpg";
@@ -34,6 +35,16 @@ import shemaghRedFront from "@/assets/product-photos/shemagh-red-front.jpg";
 import shemaghRedFull from "@/assets/product-photos/shemagh-red-full.jpg";
 
 export const Route = createFileRoute("/")({
+  head: () => {
+    const metadata = seo({ title: DEFAULT_TITLE, description: DEFAULT_DESCRIPTION, path: "/" });
+    return {
+      ...metadata,
+      links: [
+        ...metadata.links,
+        { rel: "preload", as: "image", href: heroShemaghFull, fetchPriority: "high" },
+      ],
+    };
+  },
   component: Index,
 });
 
@@ -50,6 +61,7 @@ type Banner = {
 type Product = StoreProduct & {
   audience?: "Men" | "Women" | "Unisex";
   short?: string;
+  tag?: "Bestseller" | "New" | "Limited";
 };
 
 type CollectionName = Product["collection"];
@@ -86,8 +98,8 @@ const catalog: Product[] = [
     audience: "Men",
     price: 2200,
     compareAt: 2800,
-    rating: 4.9,
-    reviews: 1240,
+    rating: 0,
+    reviews: 0,
     images: [shemaghRedFull, shemaghRedFront, shemaghManBack],
     short: "The heritage red-and-white keffiyeh, hand-loomed in Yemen.",
     tag: "Bestseller",
@@ -99,8 +111,8 @@ const catalog: Product[] = [
     collection: "Shemaghs",
     audience: "Men",
     price: 2400,
-    rating: 4.8,
-    reviews: 312,
+    rating: 0,
+    reviews: 0,
     images: [shemaghIvorySideFront, shemaghProfile, shemaghRearSide, shemaghBackCover],
     short: "Ivory shemagh with rose-red embroidered borders.",
     tag: "New",
@@ -112,8 +124,8 @@ const catalog: Product[] = [
     collection: "Niqabs",
     audience: "Women",
     price: 650,
-    rating: 4.9,
-    reviews: 986,
+    rating: 0,
+    reviews: 0,
     images: [
       niqabKhadijaFull,
       niqabKhadijaClose,
@@ -131,8 +143,8 @@ const catalog: Product[] = [
     collection: "Niqabs",
     audience: "Women",
     price: 720,
-    rating: 4.8,
-    reviews: 214,
+    rating: 0,
+    reviews: 0,
     images: [niqabRedFront, niqabRedAngle],
     short: "A quiet colour statement in premium chiffon.",
     tag: "New",
@@ -144,8 +156,8 @@ const catalog: Product[] = [
     collection: "Kufis",
     audience: "Men",
     price: 450,
-    rating: 4.7,
-    reviews: 148,
+    rating: 0,
+    reviews: 0,
     images: [kufiFront, kufiSide],
     short: "Breathable openwork kufi for daily wear.",
     imageClassName: "origin-bottom scale-[1.22] translate-y-[5%]",
@@ -156,8 +168,8 @@ const catalog: Product[] = [
     collection: "Honey",
     audience: "Unisex",
     price: 850,
-    rating: 4.9,
-    reviews: 621,
+    rating: 0,
+    reviews: 0,
     images: [honeyMulti],
     short: "Pure Kashmiri highland honey with a full floral finish.",
     tag: "Bestseller",
@@ -168,8 +180,8 @@ const catalog: Product[] = [
     collection: "Honey",
     audience: "Unisex",
     price: 900,
-    rating: 4.8,
-    reviews: 187,
+    rating: 0,
+    reviews: 0,
     images: [honeyAcacia],
     short: "Light, floral Kashmiri acacia. Slow to crystallise.",
     tag: "New",
@@ -180,15 +192,15 @@ const catalog: Product[] = [
     collection: "Honey",
     audience: "Unisex",
     price: 1200,
-    rating: 4.9,
-    reviews: 92,
+    rating: 0,
+    reviews: 0,
     images: [honeyBlack],
     short: "Rare dark-forest honey - intense, minerally, wild.",
     tag: "Limited",
   },
 ];
 
-const productShots = [
+const productShots: Array<{ label: string; image: string; imageClassName?: string }> = [
   { label: "Yemeni shemagh front", image: shemaghRedFull },
   { label: "Yemeni shemagh bust", image: shemaghRedFront },
   { label: "Ivory shemagh front", image: shemaghIvorySideFront },
@@ -407,7 +419,7 @@ function Header() {
   };
 
   const subtotal = cartItems.reduce((total, product, index) => {
-    const numericPrice = Number(product.price.replace(/[^0-9]/g, ""));
+    const numericPrice = Number(product.price);
     return total + numericPrice * quantities[index];
   }, 0);
 
@@ -418,14 +430,14 @@ function Header() {
       <header
         className={`site-header sticky top-0 z-50 bg-white ${isScrolled ? "is-scrolled" : ""}`}
       >
-        <div className="site-header__inner relative mx-auto flex h-[65px] w-full max-w-[1440px] items-center justify-between px-8">
+        <div className="site-header__inner relative mx-auto flex h-[65px] w-full max-w-[1440px] items-center justify-between px-5 sm:px-8">
           <IconButton label="Open menu" onClick={() => setOpenDrawer("menu")}>
             <Menu size={24} strokeWidth={2.2} />
           </IconButton>
 
           <a
             href="/"
-            className="absolute left-1/2 top-1/2 flex h-[37px] w-[83px] -translate-x-1/2 -translate-y-1/2 items-center justify-center"
+            className="absolute left-1/2 top-1/2 flex h-[42px] w-[100px] -translate-x-1/2 -translate-y-1/2 items-center justify-center sm:h-[44px] sm:w-[105px]"
             aria-label="Fawzaan home"
           >
             <img
@@ -610,6 +622,9 @@ function HeroBanner({ banner, isPriority }: { banner: Banner; isPriority?: boole
         src={heroBg}
         alt=""
         aria-hidden
+        loading={isPriority ? "eager" : "lazy"}
+        fetchPriority={isPriority ? "high" : "low"}
+        decoding="async"
         className="absolute inset-0 h-full w-full object-cover"
       />
       <a
@@ -628,8 +643,8 @@ function HeroBanner({ banner, isPriority }: { banner: Banner; isPriority?: boole
         <img
           src={banner.product}
           alt={banner.productAlt}
-          loading="eager"
-          fetchPriority={isPriority ? "high" : "auto"}
+          loading={isPriority ? "eager" : "lazy"}
+          fetchPriority={isPriority ? "high" : "low"}
           decoding="async"
           className="absolute inset-x-0 bottom-0 z-10 mx-auto h-auto w-full"
         />
@@ -873,7 +888,7 @@ function BestSellers() {
     "white-kufi",
     "kashmir-multiflora-honey",
   ];
-  const bestSellers = featuredSlugs
+  const featuredProducts = featuredSlugs
     .map((slug) => catalog.find((product) => product.slug === slug))
     .filter((product): product is Product => Boolean(product));
 
@@ -882,9 +897,9 @@ function BestSellers() {
       <div className="mx-auto max-w-[1120px]">
         <div className="flex items-end justify-between gap-6" data-reveal>
           <div>
-            <p className="section-kicker text-black/50">Our best sellers</p>
+            <p className="section-kicker text-black/50">A considered edit</p>
             <h2 className="section-heading mt-2 text-[34px] text-black md:text-[52px]">
-              BEST SELLERS
+              FEATURED PICKS
             </h2>
           </div>
           <a
@@ -896,7 +911,7 @@ function BestSellers() {
         </div>
 
         <div className="no-scrollbar -mx-[22px] mt-9 flex snap-x snap-mandatory gap-3 overflow-x-auto px-[22px] pb-2 md:mx-0 md:grid md:grid-cols-4 md:gap-4 md:overflow-visible md:px-0">
-          {bestSellers.map((product, index) => (
+          {featuredProducts.map((product, index) => (
             <div
               key={product.slug}
               className="w-[72vw] max-w-[290px] shrink-0 snap-start md:w-auto md:max-w-none"
@@ -1341,15 +1356,15 @@ function WatchCollection() {
           </div>
         </a>
 
-        <div className="grid grid-cols-2 gap-2 md:gap-4">
+        <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 md:gap-4">
           {watches.map((watch) => (
             <a
               key={watch.slug}
               href={`/products/${watch.slug}`}
-              className="product-card group block border border-black/[0.07] bg-white p-2 md:p-3"
+              className="product-card group grid grid-cols-[112px_minmax(0,1fr)] items-center gap-3 border border-black/[0.07] bg-white p-2 min-[360px]:block md:p-3"
               data-reveal
             >
-              <div className="product-card__media aspect-[4/5] overflow-hidden bg-[#f4f1eb]">
+              <div className="product-card__media aspect-square overflow-hidden bg-[#f4f1eb] min-[360px]:aspect-[4/5]">
                 <img
                   src={watch.images[0]}
                   alt={watch.name.replace(" Watch", "")}
@@ -1357,7 +1372,7 @@ function WatchCollection() {
                   className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-[1.018]"
                 />
               </div>
-              <div className="pb-2 pt-3 text-center">
+              <div className="py-2 text-left min-[360px]:pb-2 min-[360px]:pt-3 min-[360px]:text-center">
                 <p className="section-kicker text-black/45">SABR</p>
                 <h3 className="mt-1 text-[13px] leading-tight text-black md:text-[14px]">
                   {watch.name.replace(" Watch", "")}

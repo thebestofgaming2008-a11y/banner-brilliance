@@ -6,6 +6,14 @@ export type BackendProduct = {
   slug?: string | null;
   short_description?: string | null;
   description?: string | null;
+  author?: string | null;
+  publisher?: string | null;
+  language?: string | null;
+  pages?: number | null;
+  isbn?: string | null;
+  binding?: string | null;
+  edition?: string | null;
+  sku?: string | null;
   price?: number | null;
   price_inr?: number | null;
   sale_price?: number | null;
@@ -17,6 +25,8 @@ export type BackendProduct = {
   cover_image_url?: string | null;
   images?: string[] | null;
   hidden_image_urls?: string[] | null;
+  linked_product_ids?: string[] | null;
+  variant_label?: string | null;
   color_options?: string[] | null;
   size_options?: string[] | null;
   option_types?: Array<{ name?: string; values?: string[] }> | null;
@@ -115,14 +125,6 @@ function genderFromBackend(
   return fallback?.gender ?? "unisex";
 }
 
-function tagFromBackend(product: BackendProduct, fallback?: Product): Product["tag"] {
-  const badge = String(product.badge ?? "").toLowerCase();
-  if (product.is_bestseller || badge.includes("best")) return "Bestseller";
-  if (product.is_new_arrival || badge.includes("new")) return "New";
-  if (badge.includes("limited")) return "Limited";
-  return fallback?.tag;
-}
-
 export function backendProductToProduct(product: BackendProduct): Product {
   const fallbackSlug = product.slug === "yemeni-shemagh" ? "yemeni-shemagh-red" : product.slug;
   const fallback = catalog.find((item) => item.slug === fallbackSlug);
@@ -170,7 +172,8 @@ export function backendProductToProduct(product: BackendProduct): Product {
     features: fallback?.features ?? [],
     materials: fallback?.materials ?? "",
     care: fallback?.care ?? "",
-    tag: tagFromBackend(product, fallback),
+    // Public merchandising labels are omitted until they can be backed by real sales or dates.
+    tag: undefined,
     inStock: product.in_stock !== false && Number(product.stock_quantity ?? 1) > 0,
     stockQuantity: Number(product.stock_quantity ?? 0),
   };
