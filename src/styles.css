@@ -100,13 +100,18 @@
   --ivory: #ffffff;
   --cream: #faf8f2;
   --ink: #000000;
-  --mango-yellow: #f8c247;
-  --mango-orange: #e96a3a;
-  --mango-solid: #f39a3b;
-  --mango-gradient: linear-gradient(110deg, var(--mango-yellow), var(--mango-orange));
+  --mango-yellow: #fbcb3d;
+  --mango-orange: #f18532;
+  --mango-solid: #f6ad32;
+  --mango-gradient: linear-gradient(
+    105deg,
+    var(--mango-yellow) 0%,
+    #f8b937 58%,
+    var(--mango-orange) 100%
+  );
   --gold: var(--mango-solid);
-  --gold-deep: #bd4b25;
-  --gold-soft: #ffe0a1;
+  --gold-deep: #b95720;
+  --gold-soft: #ffebb2;
   --brand: #111827;
   --brand-foreground: #ffffff;
   --placeholder: #f3f4f6;

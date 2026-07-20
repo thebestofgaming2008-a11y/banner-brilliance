@@ -138,6 +138,29 @@ export type SpacerProps = {
   backgroundColor: string;
 };
 
+export type FeatureStripItem = {
+  title: string;
+  body: string;
+};
+
+export type FeatureStripProps = {
+  items: FeatureStripItem[];
+  backgroundColor: string;
+  textColor: string;
+  columns: "2" | "3" | "4";
+};
+
+export type ImageGalleryProps = {
+  eyebrow: string;
+  title: string;
+  cards: CollectionCard[];
+  backgroundColor: string;
+  titleFont: HomepageFont;
+  titleSize: number;
+  columns: "2" | "3" | "4";
+  imageRatio: "portrait" | "square" | "landscape";
+};
+
 export type HomepageComponentProps = {
   Hero: HeroProps;
   CollectionBanners: CollectionBannersProps;
@@ -147,6 +170,8 @@ export type HomepageComponentProps = {
   PromoBanner: PromoBannerProps;
   TextSection: TextSectionProps;
   Spacer: SpacerProps;
+  FeatureStrip: FeatureStripProps;
+  ImageGallery: ImageGalleryProps;
 };
 
 export type HomepageComponentType = keyof HomepageComponentProps;

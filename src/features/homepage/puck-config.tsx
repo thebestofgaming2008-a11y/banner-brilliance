@@ -5,6 +5,8 @@ import {
   HomepageCollectionBanners,
   HomepageCollectionFeature,
   HomepageHero,
+  HomepageFeatureStrip,
+  HomepageImageGallery,
   HomepageProductGrid,
   HomepagePromoBanner,
   HomepageSpacer,
@@ -114,7 +116,7 @@ const defaultSlide = (index: number): HeroSlide => ({
   buttonUrl: "/shop",
   backgroundImage: "",
   foregroundImage: "",
-  backgroundColor: "#F39A3B",
+  backgroundColor: "#F6AD32",
   imageFocus: "center",
   gradient: { ...DEFAULT_HERO_GRADIENT },
 });
@@ -137,6 +139,7 @@ export function createHomepagePuckConfig(
         components: ["ProductGrid", "CollectionFeature", "CollectionBanners", "SplitEditorial"],
       },
       content: { title: "Text & spacing", components: ["TextSection", "Spacer"] },
+      details: { title: "Details & galleries", components: ["FeatureStrip", "ImageGallery"] },
     },
     root: {
       fields: {
@@ -400,7 +403,7 @@ export function createHomepagePuckConfig(
           buttonUrl: "/shop",
           backgroundImage: "",
           foregroundImage: "",
-          backgroundColor: "#F39A3B",
+          backgroundColor: "#F6AD32",
           textTone: "dark",
           textAlign: "left",
           titleFont: "display",
@@ -452,6 +455,96 @@ export function createHomepagePuckConfig(
         },
         defaultProps: { height: 64, mobileHeight: 32, backgroundColor: "#ffffff" },
         render: (props) => <HomepageSpacer {...props} />,
+      },
+      FeatureStrip: {
+        label: "Benefits strip",
+        fields: {
+          items: {
+            type: "array",
+            label: "Benefits",
+            min: 1,
+            max: 8,
+            defaultItemProps: (index) => ({
+              title: `Benefit ${index + 1}`,
+              body: "Add a short customer benefit.",
+            }),
+            getItemSummary: (item, index) => item.title || `Benefit ${(index ?? 0) + 1}`,
+            arrayFields: {
+              title: text("Title"),
+              body: textarea("Description"),
+            },
+          },
+          backgroundColor: homepageColorField("Background colour"),
+          textColor: homepageColorField("Text colour"),
+          columns: {
+            type: "radio",
+            label: "Desktop columns",
+            options: [
+              { label: "2", value: "2" },
+              { label: "3", value: "3" },
+              { label: "4", value: "4" },
+            ],
+          },
+        },
+        defaultProps: {
+          items: [
+            { title: "Secure checkout", body: "Protected payments for India." },
+            { title: "Worldwide ordering", body: "Personal confirmation through WhatsApp." },
+            { title: "Order tracking", body: "Updates from dispatch to delivery." },
+          ],
+          backgroundColor: "#ffffff",
+          textColor: "#000000",
+          columns: "3",
+        },
+        render: (props) => <HomepageFeatureStrip {...props} />,
+      },
+      ImageGallery: {
+        label: "Image and link gallery",
+        fields: {
+          eyebrow: text("Small heading"),
+          title: text("Title"),
+          cards: {
+            type: "array",
+            label: "Gallery items",
+            min: 1,
+            max: 8,
+            defaultItemProps: defaultCard,
+            getItemSummary: (item, index) => item.title || `Image ${(index ?? 0) + 1}`,
+            arrayFields: cardFields(),
+          },
+          backgroundColor: homepageColorField("Section background"),
+          titleFont,
+          titleSize: number("Heading size", 28, 90),
+          columns: {
+            type: "radio",
+            label: "Desktop columns",
+            options: [
+              { label: "2", value: "2" },
+              { label: "3", value: "3" },
+              { label: "4", value: "4" },
+            ],
+          },
+          imageRatio: {
+            type: "radio",
+            label: "Image shape",
+            options: [
+              { label: "Portrait", value: "portrait" },
+              { label: "Square", value: "square" },
+              { label: "Landscape", value: "landscape" },
+            ],
+          },
+        },
+        defaultProps: {
+          eyebrow: "Discover more",
+          title: "EXPLORE FAWZAAN",
+          cards: [defaultCard(0), defaultCard(1), defaultCard(2)],
+          backgroundColor: "#ffffff",
+          titleFont: "display",
+          titleSize: 52,
+          columns: "3",
+          imageRatio: "portrait",
+        },
+        render: (props) => <HomepageImageGallery {...props} />,
       },
     },
   };

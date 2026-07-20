@@ -102,6 +102,14 @@ function GradientInput({
           className="mt-1.5 block w-full accent-black"
         />
       </label>
+      <button
+        type="button"
+        disabled={readOnly}
+        onClick={() => onChange({ ...DEFAULT_HERO_GRADIENT })}
+        className="h-9 w-full rounded border border-black/15 bg-white text-[11px] font-semibold transition-colors hover:bg-black hover:text-white disabled:opacity-50"
+      >
+        Reset to Fawzaan mango
+      </button>
     </div>
   );
 }

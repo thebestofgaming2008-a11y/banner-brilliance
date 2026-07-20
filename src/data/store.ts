@@ -40,6 +40,7 @@ export type StoreProduct = {
   badge?: string;
   imageClassName?: string;
   mediaFit?: "cover" | "contain";
+  mediaPosition?: string;
   inStock?: boolean;
 };
 
@@ -268,8 +269,11 @@ export function toStoreProduct(product: Product): StoreProduct {
     options: optionGroups[0]?.values,
     optionGroups,
     badge: product.tag,
-    imageClassName: visualFallback?.imageClassName,
-    mediaFit: product.collection === "watches" ? "contain" : visualFallback?.mediaFit,
+    imageClassName: visualFallback?.images.includes(product.images[0])
+      ? visualFallback.imageClassName
+      : undefined,
+    mediaFit: product.mediaFit ?? visualFallback?.mediaFit ?? "cover",
+    mediaPosition: product.mediaPosition ?? "center",
     inStock: product.inStock !== false,
   };
 }

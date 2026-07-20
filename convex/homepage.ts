@@ -15,6 +15,8 @@ const ALLOWED_COMPONENTS = new Set([
   "PromoBanner",
   "TextSection",
   "Spacer",
+  "FeatureStrip",
+  "ImageGallery",
 ]);
 
 function validateValue(value: unknown, path: string, depth = 0): void {

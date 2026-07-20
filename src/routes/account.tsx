@@ -345,7 +345,7 @@ function AddressForm({
           checked={isDefault}
           disabled={makeDefault}
           onChange={(event) => setIsDefault(event.target.checked)}
-          className="h-4 w-4 accent-[#E96A3A]"
+          className="h-4 w-4 accent-[#F18532]"
         />
         Use as my default delivery address
       </label>

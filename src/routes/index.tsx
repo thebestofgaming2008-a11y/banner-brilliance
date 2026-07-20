@@ -274,11 +274,13 @@ function IconButton({
   children,
   className = "",
   onClick,
+  accent = false,
 }: {
   label: string;
   children: ReactNode;
   className?: string;
   onClick?: () => void;
+  accent?: boolean;
 }) {
   return (
     <button
@@ -286,7 +288,7 @@ function IconButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`grid h-6 w-6 place-items-center text-[#E96A3A] transition-opacity hover:opacity-70 ${className}`}
+      className={`${accent ? "brand-mango-bg h-9 w-9 text-black shadow-sm" : "h-7 w-7 text-[#C85F22]"} grid place-items-center transition-opacity hover:opacity-75 ${className}`}
     >
       {children}
     </button>
@@ -432,7 +434,7 @@ function Header() {
         className={`site-header sticky top-0 z-50 bg-white ${isScrolled ? "is-scrolled" : ""}`}
       >
         <div className="site-header__inner relative mx-auto flex h-[65px] w-full max-w-[1440px] items-center justify-between px-5 sm:px-8">
-          <IconButton label="Open menu" onClick={() => setOpenDrawer("menu")}>
+          <IconButton label="Open menu" onClick={() => setOpenDrawer("menu")} accent>
             <Menu size={24} strokeWidth={2.2} />
           </IconButton>
 
@@ -760,7 +762,7 @@ function ManagedHeroBanner({
       style={{
         width: `${100 / slideCount}%`,
         height: "clamp(560px, 145vw, 820px)",
-        backgroundColor: banner.background_color || "#F39A3B",
+        backgroundColor: banner.background_color || "#F6AD32",
       }}
     >
       <ManagedBannerArtwork banner={banner} priority={isPriority} />
@@ -1547,7 +1549,7 @@ function WatchCollection() {
 
 function Footer() {
   return (
-    <footer className="border-t-[6px] border-[#E96A3A] bg-black px-[22px] pb-7 pt-12 text-white md:px-8 md:pt-16">
+    <footer className="border-t-[6px] border-[#F18532] bg-black px-[22px] pb-7 pt-12 text-white md:px-8 md:pt-16">
       <div className="mx-auto grid max-w-[1120px] gap-11 md:grid-cols-[1.4fr_0.8fr_0.8fr] md:gap-16">
         <div>
           <img src={logoGold} alt="Fawzaan" className="h-14 w-auto object-contain" />

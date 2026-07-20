@@ -22,10 +22,12 @@ function ChromeButton({
   label,
   children,
   onClick,
+  accent = false,
 }: {
   label: string;
   children: ReactNode;
   onClick: () => void;
+  accent?: boolean;
 }) {
   return (
     <button
@@ -33,7 +35,11 @@ function ChromeButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="grid h-8 w-8 place-items-center text-[#E96A3A] transition-opacity hover:opacity-65"
+      className={
+        accent
+          ? "brand-mango-bg grid h-9 w-9 place-items-center text-black shadow-sm transition-transform hover:scale-[1.03]"
+          : "grid h-8 w-8 place-items-center text-[#C85F22] transition-opacity hover:opacity-65"
+      }
     >
       {children}
     </button>
@@ -64,7 +70,7 @@ export function StoreHeader() {
     <>
       <header className="site-header sticky top-0 z-50 bg-white">
         <div className="relative mx-auto flex h-[65px] max-w-[1440px] items-center justify-between px-5 sm:px-6 md:px-8">
-          <ChromeButton label="Open menu" onClick={() => setDrawer("menu")}>
+          <ChromeButton label="Open menu" onClick={() => setDrawer("menu")} accent>
             <Menu size={24} />
           </ChromeButton>
           <a
@@ -80,7 +86,7 @@ export function StoreHeader() {
                 href="/admin"
                 aria-label="Open admin dashboard"
                 title="Admin dashboard"
-                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#E96A3A]/40 px-2.5 text-[10px] font-bold uppercase text-[#BD4B25] transition hover:bg-[#FFF1D5] sm:px-3"
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#F18532]/40 px-2.5 text-[10px] font-bold uppercase text-[#B95720] transition hover:bg-[#FFF1D5] sm:px-3"
               >
                 <LayoutDashboard size={15} />
                 <span className="hidden sm:inline">Admin</span>
@@ -308,7 +314,7 @@ export function StoreFooter() {
   const { taxonomy } = useCatalogPresentation();
   const collections = taxonomy.filter((item) => item.type === "collection");
   return (
-    <footer className="border-t-[6px] border-[#E96A3A] bg-black px-[22px] pb-7 pt-12 text-white md:px-8 md:pt-16">
+    <footer className="border-t-[6px] border-[#F18532] bg-black px-[22px] pb-7 pt-12 text-white md:px-8 md:pt-16">
       <div className="mx-auto grid max-w-[1120px] gap-11 md:grid-cols-[1.3fr_0.7fr_0.7fr_0.65fr] md:gap-12">
         <div>
           <img src={logoGold} alt="Fawzaan" className="h-14 w-auto" />

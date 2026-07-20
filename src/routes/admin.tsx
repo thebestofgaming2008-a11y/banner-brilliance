@@ -2847,7 +2847,7 @@ function MarketingPanel({
             <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.14em] text-[rgb(var(--vibe-muted))]">
               Customer preview
             </p>
-            <div className="border-t-[5px] border-[#E96A3A] bg-white p-6 shadow-sm">
+            <div className="border-t-[5px] border-[#F18532] bg-white p-6 shadow-sm">
               <p className="text-center font-serif text-2xl">Fawzaan</p>
               <h3 className="mt-8 font-serif text-2xl leading-tight">
                 {draft.subject || "Your email subject"}
@@ -3513,7 +3513,7 @@ function BannerAdminPanel({
     button_label: "",
     button_url: "/shop",
     image_url: "",
-    background_color: "#F39A3B",
+    background_color: "#F6AD32",
     image_position: "center",
     overlay_image_url: "",
     overlay_position: "right",
@@ -3545,7 +3545,7 @@ function BannerAdminPanel({
       button_label: banner.button_label ?? "",
       button_url: banner.button_url ?? "",
       image_url: banner.image_url ?? "",
-      background_color: banner.background_color ?? "#F39A3B",
+      background_color: banner.background_color ?? "#F6AD32",
       image_position: banner.image_position ?? "center",
       overlay_image_url: banner.overlay_image_url ?? "",
       overlay_position: banner.overlay_position ?? "right",
@@ -3835,7 +3835,7 @@ function BannerAdminPanel({
                   value={
                     /^#[0-9a-f]{6}$/i.test(draft.background_color)
                       ? draft.background_color
-                      : "#F39A3B"
+                      : "#F6AD32"
                   }
                   onChange={(event) => setField("background_color", event.target.value)}
                 />
@@ -4046,7 +4046,7 @@ function BannerAdminPanel({
               >
                 <div
                   className="relative aspect-[16/9] overflow-hidden"
-                  style={{ backgroundColor: banner.background_color || "#F39A3B" }}
+                  style={{ backgroundColor: banner.background_color || "#F6AD32" }}
                 >
                   {banner.image_url ? (
                     <img
@@ -4824,6 +4824,11 @@ function ProductDrawer({
     slug: CATEGORIES[0].key,
     name: CATEGORIES[0].label,
   };
+  const catalogFallback = storefrontCatalog.find(
+    (item) =>
+      item.slug === product?.slug ||
+      (product?.slug === "yemeni-shemagh" && item.slug === "yemeni-shemagh-red"),
+  );
   const [form, setForm] = useState<ProductInput>({
     name: product?.name ?? "",
     slug: product?.slug ?? null,
@@ -4835,8 +4840,11 @@ function ProductDrawer({
     sale_price_inr: product?.sale_price_inr ?? null,
     category: product?.category ?? defaultCollection.name,
     category_id: product?.category_id ?? defaultCollection.slug,
+    highlights: product?.highlights ?? catalogFallback?.features ?? [],
     cover_image_url: product?.cover_image_url ?? null,
     images: product?.images ?? [],
+    media_fit: product?.media_fit === "contain" ? "contain" : "cover",
+    media_position: product?.media_position ?? "center",
     hidden_image_urls: product?.hidden_image_urls ?? [],
     linked_product_ids: product?.linked_product_ids ?? [],
     variant_label: product?.variant_label ?? "",
@@ -5546,6 +5554,67 @@ function ProductDrawer({
             onChange={(v) => setForm({ ...form, description: v || null })}
             rows={5}
           />
+
+          <div className="rounded-xl border border-[#E5E7EB] bg-white p-4 lg:col-span-2">
+            <p className="text-sm font-semibold text-[#111827]">Product page details</p>
+            <p className="mt-1 text-xs leading-5 text-[#6B7280]">
+              These short highlights appear below the wishlist button. Enter one benefit or fact per
+              line.
+            </p>
+            <textarea
+              value={(form.highlights ?? []).join("\n")}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  highlights: event.target.value
+                    .split("\n")
+                    .map((item) => item.trim())
+                    .filter(Boolean)
+                    .slice(0, 12),
+                })
+              }
+              rows={5}
+              maxLength={2200}
+              placeholder={"Soft breathable fabric\nComfortable everyday fit\nEasy-care finish"}
+              className="mt-3 w-full rounded-md border border-border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-brand"
+            />
+            <p className="mt-1.5 text-[11px] text-[#6B7280]">
+              {(form.highlights ?? []).length}/12 highlights
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-[#E5E7EB] bg-white p-4 lg:col-span-2">
+            <p className="text-sm font-semibold text-[#111827]">Image display</p>
+            <p className="mt-1 text-xs leading-5 text-[#6B7280]">
+              Cover fills the product frame. Contain keeps the entire item visible and may leave
+              breathing room around it.
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <SelectField
+                label="Image fit"
+                value={form.media_fit ?? "cover"}
+                onChange={(value) =>
+                  setForm({ ...form, media_fit: value === "contain" ? "contain" : "cover" })
+                }
+                options={[
+                  { value: "cover", label: "Fill frame (recommended)" },
+                  { value: "contain", label: "Show entire image" },
+                ]}
+              />
+              <SelectField
+                label="Image focus"
+                value={form.media_position ?? "center"}
+                onChange={(value) => setForm({ ...form, media_position: value })}
+                options={[
+                  { value: "center", label: "Centre" },
+                  { value: "center top", label: "Top" },
+                  { value: "center bottom", label: "Bottom" },
+                  { value: "left center", label: "Left" },
+                  { value: "right center", label: "Right" },
+                ]}
+              />
+            </div>
+          </div>
 
           <div className="rounded-xl border border-[#E5E7EB] bg-white p-4 lg:col-span-2">
             <div className="flex items-start justify-between gap-3">

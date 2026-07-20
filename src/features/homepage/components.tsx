@@ -9,6 +9,8 @@ import type {
   CollectionBannersProps,
   CollectionFeatureProps,
   HeroProps,
+  FeatureStripProps,
+  ImageGalleryProps,
   HomepageData,
   HomepageFont,
   ProductGridProps,
@@ -95,10 +97,10 @@ export function HomepageHero({
   const selectedLayout = layout === "banner" ? "banner" : "original";
   const gradient = {
     enabled: "on" as const,
-    startColor: "#F8C247",
-    endColor: "#E96A3A",
-    angle: 110,
-    opacity: 72,
+    startColor: "#FBCB3D",
+    endColor: "#F18532",
+    angle: 105,
+    opacity: 84,
     ...(slide.gradient ?? {}),
   };
   const gradientLayer =
@@ -152,7 +154,7 @@ export function HomepageHero({
       <section
         className={`relative overflow-hidden ${lightText ? "text-white" : "text-black"}`}
         style={{
-          backgroundColor: slide.backgroundColor || "#F39A3B",
+          backgroundColor: slide.backgroundColor || "#F6AD32",
           height: "clamp(560px, 166.41vw, 820px)",
         }}
         aria-label="Featured collection"
@@ -218,7 +220,7 @@ export function HomepageHero({
   return (
     <section
       className={`relative min-h-[560px] overflow-hidden md:min-h-[720px] ${lightText ? "text-white" : "text-black"}`}
-      style={{ backgroundColor: slide.backgroundColor || "#F39A3B" }}
+      style={{ backgroundColor: slide.backgroundColor || "#F6AD32" }}
       aria-label="Featured collection"
     >
       {artwork}
@@ -710,6 +712,97 @@ export function HomepageSpacer({
   );
 }
 
+export function HomepageFeatureStrip({
+  items,
+  backgroundColor,
+  textColor,
+  columns,
+}: FeatureStripProps & EditorAware) {
+  const desktopColumns =
+    columns === "2" ? "md:grid-cols-2" : columns === "3" ? "md:grid-cols-3" : "md:grid-cols-4";
+  return (
+    <section
+      className="border-y border-black/10 px-[22px] py-8 md:px-8 md:py-10"
+      style={{ backgroundColor, color: textColor }}
+    >
+      <div className={`mx-auto grid max-w-[1180px] grid-cols-2 gap-x-5 gap-y-7 ${desktopColumns}`}>
+        {(items ?? []).slice(0, 8).map((item, index) => (
+          <div key={`${item.title}-${index}`} className="min-w-0">
+            <span className="brand-mango-bg mb-3 block h-1 w-8" />
+            <h3 className="text-[11px] font-bold uppercase">{item.title}</h3>
+            {item.body ? <p className="mt-1.5 text-xs leading-5 opacity-65">{item.body}</p> : null}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function HomepageImageGallery({
+  eyebrow,
+  title,
+  cards,
+  backgroundColor,
+  titleFont,
+  titleSize,
+  columns,
+  imageRatio,
+}: ImageGalleryProps & EditorAware) {
+  const desktopColumns =
+    columns === "2" ? "md:grid-cols-2" : columns === "3" ? "md:grid-cols-3" : "md:grid-cols-4";
+  const ratio =
+    imageRatio === "square"
+      ? "aspect-square"
+      : imageRatio === "landscape"
+        ? "aspect-[4/3]"
+        : "aspect-[3/4]";
+  return (
+    <section className="px-[22px] py-16 md:px-8 md:py-24" style={{ backgroundColor }}>
+      <div className="mx-auto max-w-[1180px]">
+        {eyebrow ? <p className="section-kicker text-black/50">{eyebrow}</p> : null}
+        <h2
+          className={`mt-2 leading-none ${fontClass(titleFont)}`}
+          style={{ fontSize: `${titleSize}px` }}
+        >
+          {title}
+        </h2>
+        <div className={`mt-8 grid grid-cols-2 gap-3 md:mt-10 md:gap-4 ${desktopColumns}`}>
+          {(cards ?? []).slice(0, 8).map((card, index) => (
+            <a
+              key={`${card.title}-${index}`}
+              href={safeLink(card.buttonUrl)}
+              className="group min-w-0"
+            >
+              <div className={`${ratio} overflow-hidden bg-[#F7F7F5]`}>
+                {card.image ? (
+                  <img
+                    src={card.image}
+                    alt=""
+                    loading="lazy"
+                    className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.02]"
+                  />
+                ) : null}
+              </div>
+              {card.eyebrow ? (
+                <p className="section-kicker mt-3 text-black/45">{card.eyebrow}</p>
+              ) : null}
+              <h3 className="mt-1 text-sm font-bold uppercase">{card.title}</h3>
+              {card.body ? (
+                <p className="mt-1.5 text-xs leading-5 text-black/60">{card.body}</p>
+              ) : null}
+              {card.buttonLabel ? (
+                <span className="mt-3 inline-flex border-b border-black pb-1 text-[10px] font-bold uppercase">
+                  {card.buttonLabel}
+                </span>
+              ) : null}
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 const renderers = {
   Hero: HomepageHero,
   CollectionBanners: HomepageCollectionBanners,
@@ -719,6 +812,8 @@ const renderers = {
   PromoBanner: HomepagePromoBanner,
   TextSection: HomepageTextSection,
   Spacer: HomepageSpacer,
+  FeatureStrip: HomepageFeatureStrip,
+  ImageGallery: HomepageImageGallery,
 } as const;
 
 export function HomepageRenderer({

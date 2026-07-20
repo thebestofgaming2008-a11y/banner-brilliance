@@ -38,8 +38,11 @@ const productInput = {
   category: v.optional(v.union(v.string(), v.null())),
   category_id: v.optional(v.union(v.string(), v.null())),
   tags: v.optional(v.union(v.array(v.string()), v.null())),
+  highlights: v.optional(v.union(v.array(v.string()), v.null())),
   cover_image_url: v.optional(v.union(v.string(), v.null())),
   images: v.optional(v.union(v.array(v.string()), v.null())),
+  media_fit: v.optional(v.union(v.string(), v.null())),
+  media_position: v.optional(v.union(v.string(), v.null())),
   hidden_image_urls: v.optional(v.union(v.array(v.string()), v.null())),
   linked_product_ids: v.optional(v.union(v.array(v.string()), v.null())),
   variant_label: v.optional(v.union(v.string(), v.null())),
@@ -84,8 +87,11 @@ const productPatch = {
   category: v.optional(v.union(v.string(), v.null())),
   category_id: v.optional(v.union(v.string(), v.null())),
   tags: v.optional(v.union(v.array(v.string()), v.null())),
+  highlights: v.optional(v.union(v.array(v.string()), v.null())),
   cover_image_url: v.optional(v.union(v.string(), v.null())),
   images: v.optional(v.union(v.array(v.string()), v.null())),
+  media_fit: v.optional(v.union(v.string(), v.null())),
+  media_position: v.optional(v.union(v.string(), v.null())),
   hidden_image_urls: v.optional(v.union(v.array(v.string()), v.null())),
   linked_product_ids: v.optional(v.union(v.array(v.string()), v.null())),
   variant_label: v.optional(v.union(v.string(), v.null())),
@@ -206,6 +212,8 @@ function normalize(input: any, isPatch = false, existingPrice?: number) {
     ["category_id", 80],
     ["variant_label", 80],
     ["badge", 40],
+    ["media_fit", 20],
+    ["media_position", 30],
   ];
   for (const [field, max] of stringFields) {
     if (input[field] !== undefined || !isPatch) output[field] = cleanNullable(input[field], max);
@@ -227,6 +235,25 @@ function normalize(input: any, isPatch = false, existingPrice?: number) {
           .filter(Boolean)
           .slice(0, 20)
       : [];
+  }
+  if (input.highlights !== undefined || !isPatch) {
+    output.highlights = Array.isArray(input.highlights)
+      ? input.highlights
+          .map((item: string) => cleanText(item, 180))
+          .filter(Boolean)
+          .slice(0, 12)
+      : [];
+  }
+  if (output.media_fit && !["cover", "contain"].includes(output.media_fit)) {
+    throw new Error("Image fit must be cover or contain.");
+  }
+  if (
+    output.media_position &&
+    !["center", "center top", "center bottom", "left center", "right center"].includes(
+      output.media_position,
+    )
+  ) {
+    throw new Error("Image focus is not supported.");
   }
   if (input.images !== undefined || !isPatch) {
     output.images = Array.isArray(input.images)

@@ -64,7 +64,7 @@ export function HomepageContentPreview({
               ? "aspect-[4/5]"
               : "aspect-[16/8]"
         }`}
-        style={{ backgroundColor: content.background_color || "#F39A3B" }}
+        style={{ backgroundColor: content.background_color || "#F6AD32" }}
       >
         {content.image_url ? (
           <img

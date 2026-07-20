@@ -26,13 +26,14 @@ export function StoreProductCard({
 
   return (
     <article className="store-product-card group min-w-0">
-      <div className="relative aspect-[3/4] overflow-hidden bg-white">
+      <div className="relative aspect-[3/4] overflow-hidden bg-[#F7F7F5]">
         <a href={`/products/${product.slug}`} aria-label={`View ${product.name}`}>
           <img
             src={product.images[0]}
             alt={product.name}
             loading={priority ? "eager" : "lazy"}
-            className={`h-full w-full ${product.mediaFit === "contain" ? "object-contain" : "object-cover"} transition-transform duration-500 group-hover:scale-[1.018] ${product.imageClassName ?? ""}`}
+            style={{ objectPosition: product.mediaPosition ?? "center" }}
+            className={`h-full w-full ${product.mediaFit === "contain" ? "object-contain p-3" : "object-cover"} transition-transform duration-500 group-hover:scale-[1.018] ${product.imageClassName ?? ""}`}
           />
         </a>
         {product.badge ? (

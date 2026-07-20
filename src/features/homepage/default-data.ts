@@ -22,7 +22,7 @@ export const DEFAULT_HOMEPAGE_DATA: HomepageData = {
             buttonUrl: "/shop?collection=Shemaghs",
             backgroundImage: "/homepage/hero-bg.png",
             foregroundImage: "/homepage/hero-shemagh.webp",
-            backgroundColor: "#F39A3B",
+            backgroundColor: "#F6AD32",
             imageFocus: "center",
             gradient: { ...DEFAULT_HERO_GRADIENT },
           },
@@ -34,7 +34,7 @@ export const DEFAULT_HOMEPAGE_DATA: HomepageData = {
             buttonUrl: "/shop?collection=Niqabs",
             backgroundImage: "/homepage/hero-bg.png",
             foregroundImage: "/homepage/hero-niqab.webp",
-            backgroundColor: "#F39A3B",
+            backgroundColor: "#F6AD32",
             imageFocus: "center",
             gradient: { ...DEFAULT_HERO_GRADIENT },
           },
@@ -178,11 +178,11 @@ export function cloneDefaultHomepageData(): HomepageData {
   return JSON.parse(JSON.stringify(DEFAULT_HOMEPAGE_DATA)) as HomepageData;
 }
 
-const LEGACY_BRAND_COLOURS = new Set(["#f4b400", "#f5b90a", "#ffbf00"]);
+const LEGACY_BRAND_COLOURS = new Set(["#f4b400", "#f5b90a", "#ffbf00", "#f39a3b"]);
 
 function migrateBrandColours(value: unknown): unknown {
   if (typeof value === "string") {
-    return LEGACY_BRAND_COLOURS.has(value.toLowerCase()) ? "#F39A3B" : value;
+    return LEGACY_BRAND_COLOURS.has(value.toLowerCase()) ? "#F6AD32" : value;
   }
   if (Array.isArray(value)) return value.map(migrateBrandColours);
   if (!value || typeof value !== "object") return value;
@@ -195,6 +195,10 @@ function migrateBrandColours(value: unknown): unknown {
 }
 
 function normalizeSlide(slide: Partial<HeroSlide>): HeroSlide {
+  const incomingGradient = slide.gradient ?? {};
+  const usedPreviousBrandGradient =
+    String(incomingGradient.startColor ?? "").toLowerCase() === "#f8c247" &&
+    String(incomingGradient.endColor ?? "").toLowerCase() === "#e96a3a";
   return {
     eyebrow: String(slide.eyebrow ?? ""),
     title: String(slide.title ?? ""),
@@ -203,9 +207,16 @@ function normalizeSlide(slide: Partial<HeroSlide>): HeroSlide {
     buttonUrl: String(slide.buttonUrl ?? "/shop"),
     backgroundImage: String(slide.backgroundImage ?? ""),
     foregroundImage: String(slide.foregroundImage ?? ""),
-    backgroundColor: String(slide.backgroundColor ?? "#F39A3B"),
+    backgroundColor: String(slide.backgroundColor ?? "#F6AD32"),
     imageFocus: String(slide.imageFocus ?? "center"),
-    gradient: { ...DEFAULT_HERO_GRADIENT, ...(slide.gradient ?? {}) },
+    gradient: usedPreviousBrandGradient
+      ? {
+          ...DEFAULT_HERO_GRADIENT,
+          ...incomingGradient,
+          startColor: DEFAULT_HERO_GRADIENT.startColor,
+          endColor: DEFAULT_HERO_GRADIENT.endColor,
+        }
+      : { ...DEFAULT_HERO_GRADIENT, ...incomingGradient },
   };
 }
 
