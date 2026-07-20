@@ -5,7 +5,7 @@ export const MANGO_ORANGE = "#F18532";
 export const MANGO_SOLID = "#F6AD32";
 
 export const DEFAULT_HERO_GRADIENT: HeroGradient = {
-  enabled: "on",
+  enabled: "off",
   startColor: MANGO_YELLOW,
   endColor: MANGO_ORANGE,
   angle: 105,

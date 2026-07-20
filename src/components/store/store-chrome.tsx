@@ -77,13 +77,13 @@ export function StoreHeader() {
           <div className="flex items-center gap-2">
             {isAdmin ? (
               <a
-                href="/admin"
-                aria-label="Open admin dashboard"
-                title="Admin dashboard"
+                href="/admin?tab=homepage"
+                aria-label="Edit storefront"
+                title="Edit storefront"
                 className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#F18532]/40 px-2.5 text-[10px] font-bold uppercase text-[#B95720] transition hover:bg-[#FFF1D5] sm:px-3"
               >
                 <LayoutDashboard size={15} />
-                <span className="hidden sm:inline">Admin</span>
+                <span className="hidden sm:inline">Edit site</span>
               </a>
             ) : null}
             <ChromeButton label="Open cart" onClick={() => setDrawer("cart")}>
@@ -165,8 +165,11 @@ export function StoreHeader() {
             </li>
             {isAdmin ? (
               <li>
-                <a href="/admin" className="inline-flex items-center gap-1.5 font-semibold">
-                  <LayoutDashboard size={14} /> Admin dashboard
+                <a
+                  href="/admin?tab=homepage"
+                  className="inline-flex items-center gap-1.5 font-semibold"
+                >
+                  <LayoutDashboard size={14} /> Edit homepage
                 </a>
               </li>
             ) : null}

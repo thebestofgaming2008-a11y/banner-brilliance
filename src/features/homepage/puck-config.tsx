@@ -1,6 +1,7 @@
 import type { Config, Field } from "@puckeditor/core";
 
 import type { AdminCategory } from "@/services/adminService";
+import { StoreFooter, StoreHeader } from "@/components/store/store-chrome";
 import {
   HomepageCollectionBanners,
   HomepageCollectionFeature,
@@ -119,10 +120,22 @@ const defaultSlide = (index: number): HeroSlide => ({
   backgroundColor: "#F6AD32",
   imageFocus: "center",
   gradient: { ...DEFAULT_HERO_GRADIENT },
+  layout: "original",
+  textAlign: "left",
+  textTone: "light",
+  titleFont: "display",
+  titleSize: 76,
+  mobileTitleSize: 48,
+  contentWidth: 650,
+  contentOffsetX: 6,
+  contentOffsetY: 9,
+  foregroundScale: 100,
+  overlayOpacity: 12,
 });
 
 export function createHomepagePuckConfig(
   categories: AdminCategory[],
+  options: { previewStoreChrome?: boolean } = {},
 ): Config<HomepageComponentProps, { title: string; backgroundColor: string }> {
   const collectionOptions = [
     { label: "All products", value: "all" },
@@ -147,21 +160,24 @@ export function createHomepagePuckConfig(
       },
       defaultProps: { title: "Fawzaan homepage", backgroundColor: "#ffffff" },
       render: ({ children, backgroundColor }) => (
-        <div style={{ minHeight: "100%", backgroundColor }}>{children}</div>
+        <main
+          className={
+            options.previewStoreChrome
+              ? "store-page min-h-screen font-sans-ui text-black"
+              : undefined
+          }
+          style={{ minHeight: "100%", backgroundColor }}
+        >
+          {options.previewStoreChrome ? <StoreHeader /> : null}
+          {children}
+          {options.previewStoreChrome ? <StoreFooter /> : null}
+        </main>
       ),
     },
     components: {
       Hero: {
         label: "Hero slider",
         fields: {
-          layout: {
-            type: "radio",
-            label: "Hero layout",
-            options: [
-              { label: "Original portrait", value: "original" },
-              { label: "Standard banner", value: "banner" },
-            ],
-          },
           editorSlide: heroPreviewSlide,
           slides: {
             type: "array",
@@ -180,6 +196,24 @@ export function createHomepagePuckConfig(
               foregroundImage: homepageImageField("Image on top"),
               backgroundColor: homepageColorField("Background colour"),
               gradient: homepageGradientField("Gradient overlay"),
+              layout: {
+                type: "radio",
+                label: "Slide layout",
+                options: [
+                  { label: "Original portrait", value: "original" },
+                  { label: "Standard banner", value: "banner" },
+                ],
+              },
+              textAlign,
+              textTone,
+              titleFont,
+              titleSize: number("Desktop title size", 36, 140),
+              mobileTitleSize: number("Mobile title size", 26, 84),
+              contentWidth: number("Text width", 280, 1000, 10),
+              contentOffsetX: number("Horizontal position (%)", 2, 80),
+              contentOffsetY: number("Vertical position (%)", 3, 55),
+              foregroundScale: number("Image on top size (%)", 25, 150),
+              overlayOpacity: number("Image overlay strength (%)", 0, 80),
               imageFocus: {
                 type: "select",
                 label: "Background focus",
@@ -193,16 +227,6 @@ export function createHomepagePuckConfig(
               },
             },
           },
-          textAlign,
-          textTone,
-          titleFont,
-          titleSize: number("Desktop title size", 36, 140),
-          mobileTitleSize: number("Mobile title size", 26, 84),
-          contentWidth: number("Text width", 280, 1000, 10),
-          contentOffsetX: number("Horizontal position (%)", 2, 80),
-          contentOffsetY: number("Vertical text position (%)", 3, 55),
-          foregroundScale: number("Foreground image size (%)", 25, 150),
-          overlayOpacity: number("Overlay strength (%)", 0, 80),
           autoplay: {
             type: "radio",
             label: "Automatic slides",

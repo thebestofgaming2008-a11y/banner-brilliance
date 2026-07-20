@@ -1,18 +1,27 @@
-import { Puck, type Data } from "@puckeditor/core";
+import { Puck, usePuck, type Data } from "@puckeditor/core";
 import "@puckeditor/core/puck.css";
 import {
   AlertTriangle,
   CheckCircle2,
   Eye,
   History,
+  Layers3,
   Loader2,
+  Monitor,
+  MousePointer2,
+  Plus,
+  Redo2,
   RotateCcw,
   Save,
+  Smartphone,
   Store,
+  Tablet,
+  Type,
+  Undo2,
   UploadCloud,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import type { AdminCategory } from "@/services/adminService";
@@ -29,6 +38,148 @@ import { createHomepagePuckConfig } from "./puck-config";
 import type { HomepageData, HomepageVersion } from "./types";
 
 const AUTOSAVE_DELAY_MS = 4_000;
+
+type StudioPanel = "blocks" | "outline";
+
+function HomepageStudioShell({ children }: { children: ReactNode }) {
+  const { appState, dispatch, history, selectedItem } = usePuck();
+  const [panel, setPanel] = useState<StudioPanel>("outline");
+  const viewportWidth = appState.ui.viewports.current.width;
+
+  const openPanel = (next: StudioPanel) => {
+    setPanel(next);
+    dispatch({
+      type: "setUi",
+      ui: {
+        plugin: { current: next },
+        leftSideBarVisible: true,
+      },
+      recordHistory: false,
+    });
+  };
+
+  const setViewport = (width: number | "100%") => {
+    dispatch({
+      type: "setUi",
+      ui: (current) => ({
+        ...current,
+        viewports: {
+          ...current.viewports,
+          current: { width, height: "auto" },
+        },
+      }),
+      recordHistory: false,
+    });
+  };
+
+  const setPreviewMode = (previewMode: "edit" | "interactive") => {
+    dispatch({ type: "setUi", ui: { previewMode }, recordHistory: false });
+  };
+
+  return (
+    <div className="homepage-studio-shell">
+      <div className="homepage-studio-workspace">{children}</div>
+      <div className="homepage-studio-selection" aria-live="polite">
+        {selectedItem ? selectedItem.type : "Page"}
+      </div>
+      <div className="homepage-studio-toolbar" role="toolbar" aria-label="Homepage editor tools">
+        <button
+          type="button"
+          className={appState.ui.previewMode === "edit" ? "is-active" : ""}
+          aria-label="Select and edit elements"
+          title="Select elements"
+          onClick={() => setPreviewMode("edit")}
+        >
+          <MousePointer2 size={17} />
+        </button>
+        <span className="homepage-studio-toolbar__divider" />
+        <button
+          type="button"
+          className={panel === "outline" ? "is-active" : ""}
+          aria-label="Show page layers"
+          title="Layers"
+          onClick={() => openPanel("outline")}
+        >
+          <Layers3 size={17} />
+        </button>
+        <button
+          type="button"
+          className={panel === "blocks" ? "is-active" : ""}
+          aria-label="Add a section"
+          title="Add section"
+          onClick={() => openPanel("blocks")}
+        >
+          <Plus size={18} />
+        </button>
+        <button
+          type="button"
+          aria-label="Add a text section"
+          title="Add text"
+          onClick={() => openPanel("blocks")}
+        >
+          <Type size={17} />
+        </button>
+        <span className="homepage-studio-toolbar__divider" />
+        <button
+          type="button"
+          disabled={!history.hasPast}
+          aria-label="Undo"
+          title="Undo"
+          onClick={history.back}
+        >
+          <Undo2 size={17} />
+        </button>
+        <button
+          type="button"
+          disabled={!history.hasFuture}
+          aria-label="Redo"
+          title="Redo"
+          onClick={history.forward}
+        >
+          <Redo2 size={17} />
+        </button>
+        <span className="homepage-studio-toolbar__divider" />
+        <button
+          type="button"
+          className={viewportWidth === 390 ? "is-active" : ""}
+          aria-label="Mobile preview"
+          title="Mobile preview"
+          onClick={() => setViewport(390)}
+        >
+          <Smartphone size={16} />
+        </button>
+        <button
+          type="button"
+          className={viewportWidth === 768 ? "is-active" : ""}
+          aria-label="Tablet preview"
+          title="Tablet preview"
+          onClick={() => setViewport(768)}
+        >
+          <Tablet size={17} />
+        </button>
+        <button
+          type="button"
+          className={viewportWidth === "100%" || viewportWidth === 1440 ? "is-active" : ""}
+          aria-label="Desktop preview"
+          title="Desktop preview"
+          onClick={() => setViewport("100%")}
+        >
+          <Monitor size={17} />
+        </button>
+        <span className="homepage-studio-toolbar__divider" />
+        <button
+          type="button"
+          className={appState.ui.previewMode === "interactive" ? "is-active" : ""}
+          aria-label="Test links and interactions"
+          title="Preview interactions"
+          onClick={() => setPreviewMode("interactive")}
+        >
+          <Eye size={17} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function cloneData(data: HomepageData) {
   return JSON.parse(JSON.stringify(data)) as HomepageData;
@@ -52,8 +203,17 @@ function isRevisionConflict(error: unknown) {
   return errorMessage(error, "").toLowerCase().includes("changed in another session");
 }
 
-export function HomepageVisualEditor({ categories }: { categories: AdminCategory[] }) {
-  const config = useMemo(() => createHomepagePuckConfig(categories), [categories]);
+export function HomepageVisualEditor({
+  categories,
+  onClose,
+}: {
+  categories: AdminCategory[];
+  onClose?: () => void;
+}) {
+  const config = useMemo(
+    () => createHomepagePuckConfig(categories, { previewStoreChrome: true }),
+    [categories],
+  );
   const [data, setData] = useState<HomepageData | null>(null);
   const dataRef = useRef<HomepageData | null>(null);
   const [revision, setRevision] = useState(0);
@@ -306,10 +466,19 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
   }
 
   return (
-    <div className="homepage-visual-editor overflow-hidden rounded-lg border border-[#D1D5DB] bg-white shadow-sm">
-      <div className="flex flex-col gap-2 border-b bg-[#111827] px-4 py-2.5 text-white sm:flex-row sm:items-center sm:justify-between">
+    <div className="homepage-visual-editor homepage-studio fixed inset-0 z-[1000] overflow-hidden bg-[#1e1e1e] text-white">
+      <div className="homepage-studio-header flex h-[54px] items-center gap-3 border-b border-white/10 bg-[#1f1f1f] px-3 text-white sm:px-4">
+        <button
+          type="button"
+          aria-label="Close homepage editor"
+          title="Back to dashboard"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-white/70 transition hover:bg-white/10 hover:text-white"
+          onClick={onClose}
+        >
+          <X size={17} />
+        </button>
         <div className="min-w-0">
-          <p className="text-sm font-semibold">Homepage visual editor</p>
+          <p className="text-sm font-semibold">Fawzaan homepage</p>
           <p className="truncate text-[11px] text-white/65">
             {saving
               ? "Saving draft..."
@@ -320,10 +489,29 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
                   : `Live and up to date - version ${publishedVersion || "original"}`}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="ml-auto flex min-w-0 items-center gap-1.5 sm:gap-2">
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded border border-white/20 px-3 text-xs hover:bg-white/10"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-white/70 hover:bg-white/10 hover:text-white"
+            onClick={resetOriginal}
+            title="Load the original Fawzaan homepage as a draft"
+          >
+            <RotateCcw size={14} />
+            <span className="hidden lg:inline">Original</span>
+          </button>
+          <button
+            type="button"
+            className="hidden h-8 items-center gap-1.5 rounded-md px-2 text-xs text-white/70 hover:bg-white/10 hover:text-white md:inline-flex"
+            onClick={() => void discard()}
+            title="Discard unpublished changes"
+            disabled={!unpublished}
+          >
+            <X size={14} />
+            <span className="hidden lg:inline">Discard</span>
+          </button>
+          <button
+            type="button"
+            className="hidden h-8 items-center gap-1.5 rounded-md px-2.5 text-xs text-white/70 hover:bg-white/10 hover:text-white sm:inline-flex"
             onClick={() => void saveDraft()}
             disabled={saving}
           >
@@ -331,7 +519,7 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
           </button>
           <button
             type="button"
-            className="brand-mango-bg inline-flex h-9 items-center gap-2 px-4 text-xs font-bold text-black shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-white/10 disabled:bg-none disabled:text-white/45 disabled:shadow-none"
+            className="brand-mango-bg inline-flex h-9 items-center gap-2 rounded-md px-3 text-xs font-bold text-black shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-white/10 disabled:bg-none disabled:text-white/45 disabled:shadow-none sm:px-4"
             onClick={() => dataRef.current && void publish(dataRef.current)}
             disabled={publishing || Boolean(conflict) || !unpublished}
             title={unpublished ? "Publish this draft to the live storefront" : "Homepage is live"}
@@ -347,7 +535,7 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
           </button>
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded border border-white/20 px-3 text-xs hover:bg-white/10"
+            className="hidden h-8 items-center gap-1.5 rounded-md px-2.5 text-xs text-white/70 hover:bg-white/10 hover:text-white sm:inline-flex"
             onClick={() => setHistoryOpen(true)}
           >
             <History size={14} /> History
@@ -356,9 +544,10 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
             href="/"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex h-8 items-center gap-1.5 rounded border border-white/20 px-3 text-xs hover:bg-white/10"
+            className="grid h-8 w-8 place-items-center rounded-md text-white/70 hover:bg-white/10 hover:text-white"
+            title="Open live store"
           >
-            <Eye size={14} /> View store
+            <Store size={15} />
           </a>
         </div>
       </div>
@@ -407,12 +596,26 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
         key={editorKey}
         config={config}
         data={data as Data}
-        height="calc(100dvh - 190px)"
+        height="calc(100dvh - 54px)"
+        ui={{
+          leftSideBarVisible: true,
+          rightSideBarVisible: true,
+          previewMode: "edit",
+          viewports: {
+            current: { width: 390, height: "auto" },
+            controlsVisible: false,
+            options: [],
+          },
+        }}
         viewports={[
           { width: 390, height: "auto", label: "Mobile", icon: <span>M</span> },
           { width: 768, height: "auto", label: "Tablet", icon: <span>T</span> },
-          { width: 1440, height: "auto", label: "Desktop", icon: <span>D</span> },
+          { width: "100%", height: "auto", label: "Desktop", icon: <span>D</span> },
         ]}
+        overrides={{
+          puck: HomepageStudioShell,
+          header: () => null,
+        }}
         onChange={(next) => {
           const homepage = next as HomepageData;
           dataRef.current = homepage;
@@ -422,37 +625,6 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
           setUnpublished(true);
         }}
         onPublish={(next) => void publish(next as HomepageData)}
-        headerTitle="Fawzaan"
-        headerPath="Homepage"
-        renderHeaderActions={() => (
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              title="Discard unpublished changes"
-              className="inline-flex h-8 items-center gap-1 rounded border border-black/10 px-2.5 text-xs"
-              onClick={() => void discard()}
-            >
-              <X size={13} /> Discard
-            </button>
-            <button
-              type="button"
-              title="Load original design"
-              className="inline-flex h-8 items-center gap-1 rounded border border-black/10 px-2.5 text-xs"
-              onClick={resetOriginal}
-            >
-              <RotateCcw size={13} /> Original
-            </button>
-            <a
-              href="/"
-              target="_blank"
-              rel="noreferrer"
-              title="Open storefront"
-              className="grid h-8 w-8 place-items-center rounded border border-black/10"
-            >
-              <Store size={14} />
-            </a>
-          </div>
-        )}
       />
 
       {publishing ? (

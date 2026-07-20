@@ -330,7 +330,11 @@ const Admin = () => {
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const { signOut } = useAuthActions();
   const currentUser = useQuery(api.users.currentUser, isAuthenticated ? {} : "skip");
-  const [tab, setTab] = useState<TabKey>("dash");
+  const [tab, setTab] = useState<TabKey>(() => {
+    if (typeof window === "undefined") return "dash";
+    const requested = new URLSearchParams(window.location.search).get("tab");
+    return NAV.some((item) => item.key === requested) ? (requested as TabKey) : "dash";
+  });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileNavClosing, setMobileNavClosing] = useState(false);
   const [dashboardRange, setDashboardRange] = useState<"7d" | "30d" | "90d">("7d");
@@ -1266,7 +1270,7 @@ const Admin = () => {
                   </div>
                 }
               >
-                <HomepageVisualEditor categories={categories} />
+                <HomepageVisualEditor categories={categories} onClose={() => setTab("dash")} />
               </Suspense>
             )}
 

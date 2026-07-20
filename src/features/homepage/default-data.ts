@@ -25,6 +25,17 @@ export const DEFAULT_HOMEPAGE_DATA: HomepageData = {
             backgroundColor: "#F6AD32",
             imageFocus: "center",
             gradient: { ...DEFAULT_HERO_GRADIENT },
+            layout: "original",
+            textAlign: "left",
+            textTone: "light",
+            titleFont: "display",
+            titleSize: 76,
+            mobileTitleSize: 50,
+            contentWidth: 650,
+            contentOffsetX: 6,
+            contentOffsetY: 9,
+            foregroundScale: 100,
+            overlayOpacity: 12,
           },
           {
             eyebrow: "New collection",
@@ -37,6 +48,17 @@ export const DEFAULT_HOMEPAGE_DATA: HomepageData = {
             backgroundColor: "#F6AD32",
             imageFocus: "center",
             gradient: { ...DEFAULT_HERO_GRADIENT },
+            layout: "original",
+            textAlign: "left",
+            textTone: "light",
+            titleFont: "display",
+            titleSize: 76,
+            mobileTitleSize: 50,
+            contentWidth: 650,
+            contentOffsetX: 6,
+            contentOffsetY: 9,
+            foregroundScale: 100,
+            overlayOpacity: 12,
           },
         ],
         layout: "original",
@@ -194,7 +216,7 @@ function migrateBrandColours(value: unknown): unknown {
   );
 }
 
-function normalizeSlide(slide: Partial<HeroSlide>): HeroSlide {
+function normalizeSlide(slide: Partial<HeroSlide>, defaults: Partial<HeroProps>): HeroSlide {
   const incomingGradient = slide.gradient ?? {};
   const usedPreviousBrandGradient =
     String(incomingGradient.startColor ?? "").toLowerCase() === "#f8c247" &&
@@ -217,6 +239,21 @@ function normalizeSlide(slide: Partial<HeroSlide>): HeroSlide {
           endColor: DEFAULT_HERO_GRADIENT.endColor,
         }
       : { ...DEFAULT_HERO_GRADIENT, ...incomingGradient },
+    layout: (slide.layout ?? defaults.layout) === "banner" ? "banner" : "original",
+    textAlign:
+      (slide.textAlign ?? defaults.textAlign) === "center" ||
+      (slide.textAlign ?? defaults.textAlign) === "right"
+        ? (slide.textAlign ?? defaults.textAlign)
+        : "left",
+    textTone: (slide.textTone ?? defaults.textTone) === "dark" ? "dark" : "light",
+    titleFont: (slide.titleFont ?? defaults.titleFont) === "sans" ? "sans" : "display",
+    titleSize: Number(slide.titleSize ?? defaults.titleSize ?? 76),
+    mobileTitleSize: Number(slide.mobileTitleSize ?? defaults.mobileTitleSize ?? 50),
+    contentWidth: Number(slide.contentWidth ?? defaults.contentWidth ?? 650),
+    contentOffsetX: Number(slide.contentOffsetX ?? defaults.contentOffsetX ?? 6),
+    contentOffsetY: Number(slide.contentOffsetY ?? defaults.contentOffsetY ?? 9),
+    foregroundScale: Number(slide.foregroundScale ?? defaults.foregroundScale ?? 100),
+    overlayOpacity: Number(slide.overlayOpacity ?? defaults.overlayOpacity ?? 12),
   };
 }
 
@@ -231,7 +268,7 @@ export function normalizeHomepageData(data: HomepageData): HomepageData {
         ...props,
         layout: props.layout === "banner" ? "banner" : "original",
         editorSlide: Math.min(6, Math.max(1, Number(props.editorSlide || 1))),
-        slides: (props.slides ?? []).map((slide) => normalizeSlide(slide)),
+        slides: (props.slides ?? []).map((slide) => normalizeSlide(slide, props)),
       },
     } as typeof item;
   });

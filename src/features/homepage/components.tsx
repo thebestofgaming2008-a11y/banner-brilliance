@@ -92,9 +92,19 @@ export function HomepageHero({
   }
 
   const slide = safeSlides[active];
-  const lightText = textTone === "light";
-  const align = textAlignClass(textAlign);
-  const selectedLayout = layout === "banner" ? "banner" : "original";
+  const slideTextTone = slide.textTone ?? textTone;
+  const slideTextAlign = slide.textAlign ?? textAlign;
+  const slideTitleFont = slide.titleFont ?? titleFont;
+  const slideTitleSize = slide.titleSize ?? titleSize;
+  const slideMobileTitleSize = slide.mobileTitleSize ?? mobileTitleSize;
+  const slideContentWidth = slide.contentWidth ?? contentWidth;
+  const slideContentOffsetX = slide.contentOffsetX ?? contentOffsetX;
+  const slideContentOffsetY = slide.contentOffsetY ?? contentOffsetY;
+  const slideForegroundScale = slide.foregroundScale ?? foregroundScale;
+  const slideOverlayOpacity = slide.overlayOpacity ?? overlayOpacity;
+  const lightText = slideTextTone === "light";
+  const align = textAlignClass(slideTextAlign);
+  const selectedLayout = (slide.layout ?? layout) === "banner" ? "banner" : "original";
   const gradient = {
     enabled: "on" as const,
     startColor: "#FBCB3D",
@@ -129,7 +139,7 @@ export function HomepageHero({
       {gradientLayer}
       <div
         className={`pointer-events-none absolute inset-0 z-[3] ${lightText ? "bg-black" : "bg-white"}`}
-        style={{ opacity: Math.min(0.8, Math.max(0, overlayOpacity / 100)) }}
+        style={{ opacity: Math.min(0.8, Math.max(0, slideOverlayOpacity / 100)) }}
       />
     </>
   );
@@ -170,16 +180,16 @@ export function HomepageHero({
               alt=""
               fetchPriority="high"
               className="absolute inset-x-0 bottom-0 z-10 mx-auto h-auto max-w-none object-contain object-bottom"
-              style={{ width: `${Math.min(150, Math.max(25, foregroundScale))}%` }}
+              style={{ width: `${Math.min(150, Math.max(25, slideForegroundScale))}%` }}
             />
           ) : null}
           <div
             className={`absolute z-20 flex flex-col ${align}`}
             style={{
-              left: `${Math.max(2, contentOffsetX)}%`,
-              top: `${Math.max(3, contentOffsetY)}%`,
-              width: `${Math.max(24, 100 - Math.max(2, contentOffsetX) * 2)}%`,
-              maxWidth: `${Math.max(280, contentWidth)}px`,
+              left: `${Math.max(2, slideContentOffsetX)}%`,
+              top: `${Math.max(3, slideContentOffsetY)}%`,
+              width: `${Math.max(24, 100 - Math.max(2, slideContentOffsetX) * 2)}%`,
+              maxWidth: `${Math.max(280, slideContentWidth)}px`,
             }}
           >
             {slide.eyebrow ? (
@@ -188,9 +198,9 @@ export function HomepageHero({
               </p>
             ) : null}
             <h1
-              className={`mt-3 leading-[0.92] ${fontClass(titleFont)}`}
+              className={`mt-3 leading-[0.92] ${fontClass(slideTitleFont)}`}
               style={{
-                fontSize: `clamp(${Math.max(28, mobileTitleSize)}px, 13.35cqw, ${Math.max(36, titleSize)}px)`,
+                fontSize: `clamp(${Math.max(28, slideMobileTitleSize)}px, 13.35cqw, ${Math.max(36, slideTitleSize)}px)`,
               }}
             >
               {slide.title}
@@ -230,28 +240,28 @@ export function HomepageHero({
             src={slide.foregroundImage}
             alt=""
             className="max-h-full max-w-none object-contain object-bottom"
-            style={{ width: `${Math.min(150, Math.max(25, foregroundScale))}%` }}
+            style={{ width: `${Math.min(150, Math.max(25, slideForegroundScale))}%` }}
           />
         </div>
       ) : null}
       <div
         className={`relative z-20 flex min-h-[560px] flex-col justify-end px-[22px] md:min-h-[720px] md:px-8 ${align}`}
         style={{
-          paddingLeft: `${Math.max(2, contentOffsetX)}%`,
-          paddingRight: `${Math.max(2, 100 - contentOffsetX - 88)}%`,
-          paddingBottom: `${Math.max(3, contentOffsetY)}%`,
+          paddingLeft: `${Math.max(2, slideContentOffsetX)}%`,
+          paddingRight: `${Math.max(2, 100 - slideContentOffsetX - 88)}%`,
+          paddingBottom: `${Math.max(3, slideContentOffsetY)}%`,
         }}
       >
-        <div style={{ maxWidth: `${Math.max(280, contentWidth)}px` }}>
+        <div style={{ maxWidth: `${Math.max(280, slideContentWidth)}px` }}>
           {slide.eyebrow ? (
             <p className={`section-kicker ${lightText ? "text-white/75" : "text-black/65"}`}>
               {slide.eyebrow}
             </p>
           ) : null}
           <h1
-            className={`mt-3 leading-[0.92] ${fontClass(titleFont)}`}
+            className={`mt-3 leading-[0.92] ${fontClass(slideTitleFont)}`}
             style={{
-              fontSize: `clamp(${Math.max(28, mobileTitleSize)}px, 7vw, ${Math.max(36, titleSize)}px)`,
+              fontSize: `clamp(${Math.max(28, slideMobileTitleSize)}px, 7vw, ${Math.max(36, slideTitleSize)}px)`,
             }}
           >
             {slide.title}

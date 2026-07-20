@@ -21,6 +21,17 @@ export type HeroSlide = {
   backgroundColor: string;
   imageFocus: string;
   gradient: HeroGradient;
+  layout?: "original" | "banner";
+  textAlign?: HomepageTextAlign;
+  textTone?: HomepageTextTone;
+  titleFont?: HomepageFont;
+  titleSize?: number;
+  mobileTitleSize?: number;
+  contentWidth?: number;
+  contentOffsetX?: number;
+  contentOffsetY?: number;
+  foregroundScale?: number;
+  overlayOpacity?: number;
 };
 
 export type CollectionCard = {
