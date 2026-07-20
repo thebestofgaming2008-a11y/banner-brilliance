@@ -85,6 +85,16 @@
   --shadow-elegant: 0 20px 60px -20px rgb(0 0 0 / 0.3);
 }
 
+.homepage-spacer {
+  height: var(--spacer-mobile, 32px);
+}
+
+@media (min-width: 768px) {
+  .homepage-spacer {
+    height: var(--spacer-desktop, 64px);
+  }
+}
+
 :root {
   --radius: 0.625rem;
   --ivory: #ffffff;

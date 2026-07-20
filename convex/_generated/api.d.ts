@@ -13,6 +13,7 @@ import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
 import type * as catalog from "../catalog.js";
 import type * as crons from "../crons.js";
+import type * as homepage from "../homepage.js";
 import type * as http from "../http.js";
 import type * as lib from "../lib.js";
 import type * as marketing from "../marketing.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   catalog: typeof catalog;
   crons: typeof crons;
+  homepage: typeof homepage;
   http: typeof http;
   lib: typeof lib;
   marketing: typeof marketing;

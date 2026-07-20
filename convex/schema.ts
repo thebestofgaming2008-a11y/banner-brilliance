@@ -294,6 +294,27 @@ export default defineSchema({
   })
     .index("by_placement", ["placement"])
     .index("by_active", ["is_active"]),
+  homepage_documents: defineTable({
+    page_key: v.string(),
+    draft_data: v.any(),
+    published_data: v.optional(v.any()),
+    draft_revision: v.number(),
+    published_version: v.number(),
+    updated_by: optionalString,
+    created_at: v.string(),
+    updated_at: v.string(),
+    published_at: optionalString,
+  }).index("by_page_key", ["page_key"]),
+  homepage_versions: defineTable({
+    page_key: v.string(),
+    version: v.number(),
+    data: v.any(),
+    summary: optionalString,
+    created_by: optionalString,
+    created_at: v.string(),
+  })
+    .index("by_page_key", ["page_key"])
+    .index("by_page_version", ["page_key", "version"]),
   marketing_campaigns: defineTable({
     name: v.string(),
     subject: v.string(),

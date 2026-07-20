@@ -244,12 +244,13 @@ async function handleCatalogRequest(request: Request, env: unknown): Promise<Res
     const client = convexClient(env, request);
     if (!client)
       return jsonResponse({ taxonomy: FALLBACK_TAXONOMY, banners: [] }, 200, CATALOG_CACHE_HEADERS);
-    const [taxonomy, banners] = await Promise.all([
+    const [taxonomy, banners, homepage] = await Promise.all([
       client.query(api.catalog.listActiveTaxonomy, {}),
       client.query(api.catalog.listActiveBanners, {}),
+      client.query(api.homepage.getPublished, {}),
     ]);
     return jsonResponse(
-      { taxonomy: taxonomy.length ? taxonomy : FALLBACK_TAXONOMY, banners },
+      { taxonomy: taxonomy.length ? taxonomy : FALLBACK_TAXONOMY, banners, homepage },
       200,
       CATALOG_CACHE_HEADERS,
     );

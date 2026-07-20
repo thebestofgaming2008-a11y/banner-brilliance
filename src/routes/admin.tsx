@@ -1,7 +1,7 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import Cropper, { type Area as CropArea } from "react-easy-crop";
 import "react-easy-crop/react-easy-crop.css";
 import {
@@ -119,6 +119,18 @@ import {
   HomepageContentPreview,
   type HomepagePreviewProduct,
 } from "@/components/admin/homepage-content-preview";
+
+function ServerHomepageEditorPlaceholder() {
+  return null;
+}
+
+const HomepageVisualEditor = import.meta.env.SSR
+  ? ServerHomepageEditorPlaceholder
+  : lazy(() =>
+      import("@/features/homepage/homepage-visual-editor").then((module) => ({
+        default: module.HomepageVisualEditor,
+      })),
+    );
 
 const CATEGORIES = [
   {
@@ -1247,73 +1259,15 @@ const Admin = () => {
             )}
 
             {!loading && !adminLoadError && tab === "homepage" && (
-              <BannerAdminPanel
-                banners={storefrontBanners}
-                categories={categories}
-                products={products}
-                onSave={async (input) => {
-                  try {
-                    const saved = await upsertStorefrontBanner(input);
-                    if (!saved) throw new Error("The homepage item was not saved.");
-                    await Promise.all([refreshStorefrontBanners(), refreshPublicCatalog()]);
-                    notify({
-                      title: input.id ? "Homepage item updated" : "Homepage item added",
-                      description: "The storefront will use the new content immediately.",
-                    });
-                  } catch (error) {
-                    notify({
-                      title: "Could not save homepage item",
-                      description:
-                        error instanceof Error
-                          ? error.message
-                          : "Please check the fields and try again.",
-                      variant: "destructive",
-                    });
-                    throw error;
-                  }
-                }}
-                onArchive={async (id) => {
-                  if (
-                    !confirm("Hide this homepage item? You can still edit and show it again later.")
-                  )
-                    return;
-                  if (!(await archiveStorefrontBanner(id))) {
-                    notify({ title: "Could not hide homepage item", variant: "destructive" });
-                    return;
-                  }
-                  await Promise.all([refreshStorefrontBanners(), refreshPublicCatalog()]);
-                  notify({ title: "Homepage item hidden" });
-                }}
-                onDelete={async (id) => {
-                  if (!confirm("Permanently delete this homepage item? This cannot be undone."))
-                    return;
-                  if (!(await deleteStorefrontBanner(id))) {
-                    notify({ title: "Could not delete homepage item", variant: "destructive" });
-                    return;
-                  }
-                  await Promise.all([refreshStorefrontBanners(), refreshPublicCatalog()]);
-                  notify({ title: "Homepage item deleted" });
-                }}
-                onReorder={async (ids) => {
-                  await reorderStorefrontBanners(ids);
-                  await Promise.all([refreshStorefrontBanners(), refreshPublicCatalog()]);
-                  notify({ title: "Homepage order updated" });
-                }}
-                onRestoreDefaultHero={async () => {
-                  if (
-                    !confirm(
-                      "Restore the original Fawzaan hero? Custom hero slides will be hidden, not deleted.",
-                    )
-                  )
-                    return;
-                  await restoreDefaultHomepageHero();
-                  await Promise.all([refreshStorefrontBanners(), refreshPublicCatalog()]);
-                  notify({
-                    title: "Original hero restored",
-                    description: "Your custom slides remain saved as hidden items.",
-                  });
-                }}
-              />
+              <Suspense
+                fallback={
+                  <div className="grid min-h-[68vh] place-items-center rounded-lg border bg-white text-sm text-black/55">
+                    Loading visual editor...
+                  </div>
+                }
+              >
+                <HomepageVisualEditor categories={categories} />
+              </Suspense>
             )}
 
             {!loading && !adminLoadError && tab === "customers" && (

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { convexHttp } from "@/lib/backend";
+import type { HomepageData } from "@/features/homepage/types";
 
 export type CatalogTaxonomyItem = {
   id?: string;
@@ -38,6 +39,7 @@ export type CatalogBanner = {
 export type CatalogPresentation = {
   taxonomy: CatalogTaxonomyItem[];
   banners: CatalogBanner[];
+  homepage?: HomepageData | null;
 };
 
 export const fallbackTaxonomy: CatalogTaxonomyItem[] = [
@@ -87,13 +89,15 @@ async function fetchCatalogPresentation(): Promise<CatalogPresentation> {
       );
     }
     if (convexHttp) {
-      const [taxonomy, banners] = await Promise.all([
+      const [taxonomy, banners, homepage] = await Promise.all([
         convexHttp.query(api.catalog.listActiveTaxonomy, {}),
         convexHttp.query(api.catalog.listActiveBanners, {}),
+        convexHttp.query(api.homepage.getPublished, {}),
       ]);
       return {
         taxonomy: taxonomy.length ? taxonomy : fallbackTaxonomy,
         banners,
+        homepage,
       } as CatalogPresentation;
     }
   } catch (error) {

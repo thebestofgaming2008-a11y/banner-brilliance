@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { StoreFooter, StoreHeader } from "@/components/store/store-chrome";
 import { merchandiseProducts, type StoreProduct, useStoreProducts } from "@/data/store";
+import { HomepageRenderer } from "@/features/homepage/components";
 import { useCurrency } from "@/hooks/use-currency";
 import { useCatalogPresentation, type CatalogBanner } from "@/services/catalogPresentation";
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, seo } from "@/lib/seo";
@@ -1620,10 +1621,20 @@ function Footer() {
 function Index() {
   useScrollReveal();
   useHashScroll();
+  const { homepage } = useCatalogPresentation();
 
   return (
     <main className="min-h-screen bg-white font-sans-ui text-black antialiased">
       <StoreHeader />
+      {homepage ? <HomepageRenderer data={homepage} /> : <LegacyHomepageContent />}
+      <StoreFooter />
+    </main>
+  );
+}
+
+function LegacyHomepageContent() {
+  return (
+    <>
       <HeroSlider />
       <CollectionBanners />
       <ShopAllProducts />
@@ -1633,8 +1644,7 @@ function Index() {
       <ManagedCollectionSections />
       <ManagedHomepageBanners />
       <ExploreBeyond />
-      <StoreFooter />
-    </main>
+    </>
   );
 }
 

@@ -1,0 +1,635 @@
+import { ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+
+import { StoreProductCard } from "@/components/store/product-card";
+import { merchandiseProducts, useStoreProducts } from "@/data/store";
+import { useCatalogPresentation } from "@/services/catalogPresentation";
+import type {
+  CollectionBannersProps,
+  CollectionFeatureProps,
+  HeroProps,
+  HomepageData,
+  HomepageFont,
+  ProductGridProps,
+  PromoBannerProps,
+  SpacerProps,
+  SplitEditorialProps,
+  TextSectionProps,
+} from "./types";
+
+type EditorAware = { editMode?: boolean };
+
+function fontClass(font: HomepageFont) {
+  return font === "sans" ? "font-sans-ui font-bold" : "font-serif-display font-normal";
+}
+
+function normalized(value: string | null | undefined) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-");
+}
+
+function textAlignClass(value: "left" | "center" | "right") {
+  if (value === "center") return "items-center text-center";
+  if (value === "right") return "items-end text-right";
+  return "items-start text-left";
+}
+
+function safeLink(url: string) {
+  const value = String(url || "#").trim();
+  return value.startsWith("/") || value.startsWith("#") || /^https:\/\//i.test(value) ? value : "#";
+}
+
+export function HomepageHero({
+  slides,
+  textAlign,
+  textTone,
+  titleFont,
+  titleSize,
+  mobileTitleSize,
+  contentWidth,
+  contentOffsetX,
+  contentOffsetY,
+  foregroundScale,
+  overlayOpacity,
+  autoplay,
+  editMode,
+}: HeroProps & EditorAware) {
+  const safeSlides = slides?.length ? slides.slice(0, 6) : [];
+  const [active, setActive] = useState(0);
+
+  useEffect(() => {
+    if (editMode || autoplay !== "on" || safeSlides.length < 2) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(
+      () => setActive((current) => (current + 1) % safeSlides.length),
+      5200,
+    );
+    return () => window.clearInterval(timer);
+  }, [autoplay, editMode, safeSlides.length]);
+
+  useEffect(() => {
+    setActive((current) => Math.min(current, Math.max(0, safeSlides.length - 1)));
+  }, [safeSlides.length]);
+
+  if (!safeSlides.length) {
+    return editMode ? (
+      <div className="grid min-h-[420px] place-items-center bg-[#f4b400] p-8 text-center text-sm">
+        Add at least one hero slide from the right panel.
+      </div>
+    ) : null;
+  }
+
+  const slide = safeSlides[active];
+  const lightText = textTone === "light";
+  const align = textAlignClass(textAlign);
+  return (
+    <section
+      className={`relative min-h-[560px] overflow-hidden md:min-h-[720px] ${lightText ? "text-white" : "text-black"}`}
+      style={{ backgroundColor: slide.backgroundColor || "#f4b400" }}
+      aria-label="Featured collection"
+    >
+      {slide.backgroundImage ? (
+        <img
+          src={slide.backgroundImage}
+          alt=""
+          fetchPriority="high"
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ objectPosition: slide.imageFocus || "center" }}
+        />
+      ) : null}
+      {slide.foregroundImage ? (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-end justify-center overflow-hidden">
+          <img
+            src={slide.foregroundImage}
+            alt=""
+            className="max-h-full max-w-none object-contain object-bottom"
+            style={{ width: `${Math.min(150, Math.max(25, foregroundScale))}%` }}
+          />
+        </div>
+      ) : null}
+      <div
+        className={`absolute inset-0 z-[11] ${lightText ? "bg-black" : "bg-white"}`}
+        style={{ opacity: Math.min(0.8, Math.max(0, overlayOpacity / 100)) }}
+      />
+      <div
+        className={`relative z-20 flex min-h-[560px] flex-col justify-end px-[22px] md:min-h-[720px] md:px-8 ${align}`}
+        style={{
+          paddingLeft: `${Math.max(2, contentOffsetX)}%`,
+          paddingRight: `${Math.max(2, 100 - contentOffsetX - 88)}%`,
+          paddingBottom: `${Math.max(3, contentOffsetY)}%`,
+        }}
+      >
+        <div style={{ maxWidth: `${Math.max(280, contentWidth)}px` }}>
+          {slide.eyebrow ? (
+            <p className={`section-kicker ${lightText ? "text-white/75" : "text-black/65"}`}>
+              {slide.eyebrow}
+            </p>
+          ) : null}
+          <h1
+            className={`mt-3 leading-[0.92] ${fontClass(titleFont)}`}
+            style={{
+              fontSize: `clamp(${Math.max(28, mobileTitleSize)}px, 7vw, ${Math.max(36, titleSize)}px)`,
+            }}
+          >
+            {slide.title}
+          </h1>
+          {slide.body ? (
+            <p
+              className={`mt-4 max-w-lg text-sm leading-6 ${lightText ? "text-white/78" : "text-black/70"}`}
+            >
+              {slide.body}
+            </p>
+          ) : null}
+          {slide.buttonLabel ? (
+            <a
+              href={safeLink(slide.buttonUrl)}
+              className={`mt-7 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase ${lightText ? "bg-white text-black" : "bg-black text-white"}`}
+            >
+              {slide.buttonLabel}
+            </a>
+          ) : null}
+        </div>
+      </div>
+      {safeSlides.length > 1 ? (
+        <div className="absolute bottom-4 right-5 z-30 flex gap-2" aria-label="Choose hero slide">
+          {safeSlides.map((item, index) => (
+            <button
+              key={`${item.title}-${index}`}
+              type="button"
+              aria-label={`Show ${item.title || `slide ${index + 1}`}`}
+              aria-current={active === index}
+              onClick={() => setActive(index)}
+              className={`h-1.5 rounded-full transition-all ${lightText ? "bg-white" : "bg-black"} ${active === index ? "w-8" : "w-3 opacity-45"}`}
+            />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+export function HomepageCollectionBanners({
+  eyebrow,
+  title,
+  cards,
+  backgroundColor,
+  titleFont,
+  titleSize,
+}: CollectionBannersProps & EditorAware) {
+  return (
+    <section className="px-[18px] py-14 md:px-8 md:py-20" style={{ backgroundColor }}>
+      <div className="mx-auto max-w-[1120px]">
+        <div className="text-center">
+          {eyebrow ? <p className="section-kicker text-black/50">{eyebrow}</p> : null}
+          <h2
+            className={`mt-2 text-black ${fontClass(titleFont)}`}
+            style={{ fontSize: `${titleSize}px`, lineHeight: 1 }}
+          >
+            {title}
+          </h2>
+        </div>
+        <div className="mt-9 grid gap-4 md:mt-12 md:grid-cols-2">
+          {(cards ?? []).slice(0, 6).map((card, index) => (
+            <a
+              key={`${card.title}-${index}`}
+              href={safeLink(card.buttonUrl)}
+              className="group relative min-h-[520px] overflow-hidden bg-black text-white md:min-h-[600px]"
+            >
+              {card.image ? (
+                <img
+                  src={card.image}
+                  alt=""
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.015]"
+                />
+              ) : null}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-6 md:p-9">
+                {card.eyebrow ? (
+                  <p className="section-kicker text-white/72">{card.eyebrow}</p>
+                ) : null}
+                <h3
+                  className={`mt-3 text-[42px] leading-none md:text-[60px] ${fontClass(titleFont)}`}
+                >
+                  {card.title}
+                </h3>
+                {card.body ? (
+                  <p className="mt-4 max-w-sm text-sm leading-6 text-white/75">{card.body}</p>
+                ) : null}
+                {card.buttonLabel ? (
+                  <span className="mt-7 inline-flex h-11 items-center bg-white px-5 text-[10px] font-bold uppercase text-black">
+                    {card.buttonLabel}
+                  </span>
+                ) : null}
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function HomepageProductGrid({
+  eyebrow,
+  title,
+  collection,
+  productLimit,
+  showFilters,
+  backgroundColor,
+  titleFont,
+  titleSize,
+  columns,
+}: ProductGridProps & EditorAware) {
+  const { products } = useStoreProducts();
+  const { taxonomy } = useCatalogPresentation();
+  const [activeCollection, setActiveCollection] = useState(collection || "all");
+  const collectionRows = useMemo(
+    () => taxonomy.filter((item) => item.type === "collection" && item.is_active !== false),
+    [taxonomy],
+  );
+  useEffect(() => setActiveCollection(collection || "all"), [collection]);
+  const visible = merchandiseProducts(
+    products.filter((product) => {
+      if (normalized(activeCollection) === "all") return true;
+      return (
+        normalized(product.collectionSlug) === normalized(activeCollection) ||
+        normalized(product.collection) === normalized(activeCollection)
+      );
+    }),
+  ).slice(0, Math.min(48, Math.max(1, productLimit)));
+  const desktopColumns =
+    columns === "2" ? "md:grid-cols-2" : columns === "3" ? "md:grid-cols-3" : "md:grid-cols-4";
+
+  return (
+    <section id="shop-all" className="px-[22px] py-16 md:px-8 md:py-24" style={{ backgroundColor }}>
+      <div className="mx-auto max-w-[1180px]">
+        <div className="flex items-end justify-between gap-6">
+          <div>
+            {eyebrow ? <p className="section-kicker text-black/50">{eyebrow}</p> : null}
+            <h2
+              className={`mt-2 text-black ${fontClass(titleFont)}`}
+              style={{ fontSize: `${titleSize}px`, lineHeight: 1 }}
+            >
+              {title}
+            </h2>
+          </div>
+          <p className="hidden text-xs text-black/50 md:block">{visible.length} products</p>
+        </div>
+        {showFilters === "yes" ? (
+          <div
+            className="no-scrollbar -mx-[22px] mt-7 flex gap-6 overflow-x-auto border-b border-black/10 px-[22px] md:mx-0 md:px-0"
+            role="tablist"
+            aria-label="Filter products"
+          >
+            {[{ slug: "all", name: "All" }, ...collectionRows].map((item) => (
+              <button
+                key={item.slug}
+                type="button"
+                role="tab"
+                aria-selected={normalized(activeCollection) === normalized(item.slug)}
+                onClick={() => setActiveCollection(item.slug)}
+                className={`relative shrink-0 pb-3 text-[11px] font-bold uppercase ${normalized(activeCollection) === normalized(item.slug) ? "text-black" : "text-black/40"}`}
+              >
+                {item.name}
+                {normalized(activeCollection) === normalized(item.slug) ? (
+                  <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#f4b400]" />
+                ) : null}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <div
+          className={`mt-8 grid grid-cols-2 gap-x-3 gap-y-11 ${desktopColumns} md:gap-x-4 md:gap-y-14`}
+        >
+          {visible.map((product) => (
+            <StoreProductCard key={product.slug} product={product} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function HomepageSplitEditorial({
+  eyebrow,
+  title,
+  cards,
+  backgroundColor,
+  titleFont,
+  titleSize,
+}: SplitEditorialProps & EditorAware) {
+  return (
+    <section className="px-[18px] py-14 md:px-8 md:py-24" style={{ backgroundColor }}>
+      <div className="mx-auto max-w-[1120px]">
+        <div className="text-center">
+          {eyebrow ? <p className="section-kicker text-black/50">{eyebrow}</p> : null}
+          <h2
+            className={`mt-2 text-black ${fontClass(titleFont)}`}
+            style={{ fontSize: `${titleSize}px`, lineHeight: 1 }}
+          >
+            {title}
+          </h2>
+        </div>
+        <div className="mt-9 grid gap-4 md:mt-12 md:grid-cols-2 md:gap-5">
+          {(cards ?? []).slice(0, 4).map((card, index) => (
+            <a
+              key={`${card.title}-${index}`}
+              href={safeLink(card.buttonUrl)}
+              className="group relative min-h-[520px] overflow-hidden bg-black text-white md:min-h-[650px]"
+            >
+              {card.image ? (
+                <img
+                  src={card.image}
+                  alt=""
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.015]"
+                />
+              ) : null}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/18 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-6 md:p-8">
+                {card.eyebrow ? (
+                  <p className="section-kicker text-white/70">{card.eyebrow}</p>
+                ) : null}
+                <h3
+                  className={`mt-3 text-[42px] leading-none md:text-[58px] ${fontClass(titleFont)}`}
+                >
+                  {card.title}
+                </h3>
+                {card.body ? (
+                  <p className="mt-4 max-w-sm text-sm leading-6 text-white/74">{card.body}</p>
+                ) : null}
+                {card.buttonLabel ? (
+                  <span className="mt-7 inline-flex h-11 items-center gap-2 bg-white px-5 text-[10px] font-bold uppercase text-black">
+                    {card.buttonLabel}
+                    <ChevronRight size={14} />
+                  </span>
+                ) : null}
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function HomepageCollectionFeature({
+  eyebrow,
+  title,
+  body,
+  buttonLabel,
+  buttonUrl,
+  collection,
+  image,
+  backgroundColor,
+  bannerColor,
+  textTone,
+  textAlign,
+  titleFont,
+  titleSize,
+  mobileTitleSize,
+  productLimit,
+  layout,
+  editMode,
+}: CollectionFeatureProps & EditorAware) {
+  const { products } = useStoreProducts();
+  const selected = merchandiseProducts(
+    products.filter(
+      (product) =>
+        normalized(product.collectionSlug) === normalized(collection) ||
+        normalized(product.collection) === normalized(collection),
+    ),
+  ).slice(0, Math.min(8, Math.max(1, productLimit)));
+  if (!selected.length && !editMode) return null;
+  const lightText = textTone === "light";
+  const banner = (
+    <a
+      href={safeLink(buttonUrl)}
+      className={`group relative block min-h-[460px] overflow-hidden md:min-h-[620px] ${lightText ? "text-white" : "text-black"}`}
+      style={{ backgroundColor: bannerColor }}
+    >
+      {image ? (
+        <img
+          src={image}
+          alt=""
+          loading="lazy"
+          className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.015]"
+        />
+      ) : null}
+      <div
+        className={`absolute inset-0 bg-gradient-to-t ${lightText ? "from-black/80 via-black/15" : "from-white/85 via-white/15"} to-transparent`}
+      />
+      <div
+        className={`absolute inset-x-0 bottom-0 flex flex-col p-6 md:p-9 ${textAlignClass(textAlign)}`}
+      >
+        {eyebrow ? (
+          <p className={`section-kicker ${lightText ? "text-white/72" : "text-black/60"}`}>
+            {eyebrow}
+          </p>
+        ) : null}
+        <h2
+          className={`mt-2 leading-none ${fontClass(titleFont)}`}
+          style={{ fontSize: `clamp(${mobileTitleSize}px, 6vw, ${titleSize}px)` }}
+        >
+          {title}
+        </h2>
+        {body ? (
+          <p
+            className={`mt-4 max-w-sm text-sm leading-6 ${lightText ? "text-white/75" : "text-black/70"}`}
+          >
+            {body}
+          </p>
+        ) : null}
+        {buttonLabel ? (
+          <span
+            className={`mt-7 inline-flex h-11 items-center px-5 text-[10px] font-bold uppercase ${lightText ? "bg-white text-black" : "bg-black text-white"}`}
+          >
+            {buttonLabel}
+          </span>
+        ) : null}
+      </div>
+    </a>
+  );
+  const grid = selected.length ? (
+    <div
+      className={`grid grid-cols-2 gap-x-3 gap-y-10 ${layout === "banner-left" ? "md:grid-cols-2" : "md:grid-cols-4"} md:gap-x-4`}
+    >
+      {selected.map((product) => (
+        <StoreProductCard key={product.slug} product={product} />
+      ))}
+    </div>
+  ) : (
+    <div className="grid min-h-60 place-items-center border border-dashed border-black/20 p-8 text-center text-sm text-black/50">
+      No visible products match “{collection}”. Change the collection field or add products to it.
+    </div>
+  );
+  return (
+    <section className="px-[18px] py-14 md:px-8 md:py-20" style={{ backgroundColor }}>
+      <div
+        className={`mx-auto max-w-[1120px] ${layout === "banner-left" ? "grid gap-6 md:grid-cols-[0.9fr_1.1fr]" : "space-y-10"}`}
+      >
+        {banner}
+        {grid}
+      </div>
+    </section>
+  );
+}
+
+export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
+  const lightText = props.textTone === "light";
+  return (
+    <section className="bg-white px-[18px] py-10 md:px-8 md:py-16">
+      <div
+        className={`relative mx-auto max-w-[1180px] overflow-hidden ${lightText ? "text-white" : "text-black"}`}
+        style={{
+          minHeight: `${Math.max(300, props.minHeight)}px`,
+          backgroundColor: props.backgroundColor,
+        }}
+      >
+        {props.backgroundImage ? (
+          <img
+            src={props.backgroundImage}
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{ objectPosition: props.imageFocus }}
+          />
+        ) : null}
+        {props.foregroundImage ? (
+          <img
+            src={props.foregroundImage}
+            alt=""
+            loading="lazy"
+            className="pointer-events-none absolute bottom-0 right-0 z-10 max-h-full object-contain object-bottom"
+            style={{ width: `${Math.min(100, Math.max(20, props.foregroundScale))}%` }}
+          />
+        ) : null}
+        <div
+          className={`absolute inset-0 z-[11] ${lightText ? "bg-black" : "bg-white"}`}
+          style={{ opacity: props.overlayOpacity / 100 }}
+        />
+        <div
+          className={`relative z-20 flex min-h-[inherit] flex-col justify-end p-7 md:p-12 ${textAlignClass(props.textAlign)}`}
+          style={{ minHeight: `${Math.max(300, props.minHeight)}px` }}
+        >
+          {props.eyebrow ? <p className="section-kicker opacity-65">{props.eyebrow}</p> : null}
+          <h2
+            className={`mt-3 leading-none ${fontClass(props.titleFont)}`}
+            style={{ fontSize: `clamp(${props.mobileTitleSize}px, 6vw, ${props.titleSize}px)` }}
+          >
+            {props.title}
+          </h2>
+          {props.body ? (
+            <p className="mt-4 max-w-lg text-sm leading-6 opacity-75">{props.body}</p>
+          ) : null}
+          {props.buttonLabel ? (
+            <a
+              href={safeLink(props.buttonUrl)}
+              className={`mt-7 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase ${lightText ? "bg-white text-black" : "bg-black text-white"}`}
+            >
+              {props.buttonLabel}
+            </a>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function HomepageTextSection({
+  eyebrow,
+  title,
+  body,
+  buttonLabel,
+  buttonUrl,
+  backgroundColor,
+  textColor,
+  textAlign,
+  titleFont,
+  titleSize,
+  maxWidth,
+}: TextSectionProps & EditorAware) {
+  return (
+    <section
+      className="px-[22px] py-16 md:px-8 md:py-24"
+      style={{ backgroundColor, color: textColor }}
+    >
+      <div
+        className={`mx-auto flex flex-col ${textAlignClass(textAlign)}`}
+        style={{ maxWidth: `${Math.max(320, maxWidth)}px` }}
+      >
+        {eyebrow ? <p className="section-kicker opacity-55">{eyebrow}</p> : null}
+        <h2
+          className={`mt-3 leading-none ${fontClass(titleFont)}`}
+          style={{ fontSize: `${titleSize}px` }}
+        >
+          {title}
+        </h2>
+        {body ? (
+          <p className="mt-5 whitespace-pre-line text-sm leading-7 opacity-70">{body}</p>
+        ) : null}
+        {buttonLabel ? (
+          <a
+            href={safeLink(buttonUrl)}
+            className="mt-7 inline-flex h-11 items-center bg-current px-6 text-[11px] font-bold uppercase"
+          >
+            <span style={{ color: backgroundColor }}>{buttonLabel}</span>
+          </a>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+export function HomepageSpacer({
+  height,
+  mobileHeight,
+  backgroundColor,
+}: SpacerProps & EditorAware) {
+  return (
+    <div
+      aria-hidden
+      className="homepage-spacer"
+      style={
+        {
+          "--spacer-mobile": `${mobileHeight}px`,
+          "--spacer-desktop": `${height}px`,
+          backgroundColor,
+        } as React.CSSProperties
+      }
+    />
+  );
+}
+
+const renderers = {
+  Hero: HomepageHero,
+  CollectionBanners: HomepageCollectionBanners,
+  ProductGrid: HomepageProductGrid,
+  SplitEditorial: HomepageSplitEditorial,
+  CollectionFeature: HomepageCollectionFeature,
+  PromoBanner: HomepagePromoBanner,
+  TextSection: HomepageTextSection,
+  Spacer: HomepageSpacer,
+} as const;
+
+export function HomepageRenderer({
+  data,
+  editMode = false,
+}: {
+  data: HomepageData;
+  editMode?: boolean;
+}) {
+  return (
+    <div style={{ backgroundColor: data.root?.props?.backgroundColor || "#ffffff" }}>
+      {(data.content ?? []).map((item) => {
+        const Renderer = renderers[item.type] as
+          React.ComponentType<Record<string, unknown>> | undefined;
+        if (!Renderer) return null;
+        return <Renderer key={item.props.id} {...item.props} editMode={editMode} />;
+      })}
+    </div>
+  );
+}
