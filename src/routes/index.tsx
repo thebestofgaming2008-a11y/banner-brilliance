@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ChevronRight, Menu, Minus, Plus, Search, ShoppingBag, Star, X } from "lucide-react";
+import { ChevronRight, Minus, Plus, Search, ShoppingBag, Star, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { StoreFooter, StoreHeader } from "@/components/store/store-chrome";
 import { merchandiseProducts, type StoreProduct, useStoreProducts } from "@/data/store";
 import { HomepageRenderer } from "@/features/homepage/components";
+import { MangoMenuIcon } from "@/components/store/mango-menu-icon";
 import { useCurrency } from "@/hooks/use-currency";
 import { useCatalogPresentation, type CatalogBanner } from "@/services/catalogPresentation";
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, seo } from "@/lib/seo";
@@ -274,13 +275,11 @@ function IconButton({
   children,
   className = "",
   onClick,
-  accent = false,
 }: {
   label: string;
   children: ReactNode;
   className?: string;
   onClick?: () => void;
-  accent?: boolean;
 }) {
   return (
     <button
@@ -288,7 +287,7 @@ function IconButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`${accent ? "brand-mango-bg h-9 w-9 text-black shadow-sm" : "h-7 w-7 text-[#C85F22]"} grid place-items-center transition-opacity hover:opacity-75 ${className}`}
+      className={`grid h-9 w-9 place-items-center text-[#C85F22] transition-opacity hover:opacity-75 ${className}`}
     >
       {children}
     </button>
@@ -434,8 +433,8 @@ function Header() {
         className={`site-header sticky top-0 z-50 bg-white ${isScrolled ? "is-scrolled" : ""}`}
       >
         <div className="site-header__inner relative mx-auto flex h-[65px] w-full max-w-[1440px] items-center justify-between px-5 sm:px-8">
-          <IconButton label="Open menu" onClick={() => setOpenDrawer("menu")} accent>
-            <Menu size={24} strokeWidth={2.2} />
+          <IconButton label="Open menu" onClick={() => setOpenDrawer("menu")}>
+            <MangoMenuIcon />
           </IconButton>
 
           <a

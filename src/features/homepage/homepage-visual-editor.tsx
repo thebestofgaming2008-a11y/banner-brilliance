@@ -1,6 +1,17 @@
 import { Puck, type Data } from "@puckeditor/core";
 import "@puckeditor/core/puck.css";
-import { AlertTriangle, Eye, History, Loader2, RotateCcw, Save, Store, X } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Eye,
+  History,
+  Loader2,
+  RotateCcw,
+  Save,
+  Store,
+  UploadCloud,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -52,6 +63,7 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [publishedAt, setPublishedAt] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [unpublished, setUnpublished] = useState(false);
   const changeCounter = useRef(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -78,7 +90,9 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
     setLoading(true);
     try {
       const state = await getHomepageEditorState();
-      applyData(state.draft ?? cloneDefaultHomepageData(), state.draft_revision);
+      const draft = state.draft ?? cloneDefaultHomepageData();
+      applyData(draft, state.draft_revision);
+      setUnpublished(JSON.stringify(draft) !== JSON.stringify(state.published));
       setVersions(state.versions);
       setPublishedVersion(state.published_version);
       setLastSavedAt(state.updated_at ?? null);
@@ -175,6 +189,7 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
       setPublishedAt(result.published_at);
       setLastSavedAt(result.published_at);
       setDirty(false);
+      setUnpublished(false);
       setConflict(null);
       setEditorError("");
       await refreshPublicCatalog();
@@ -208,6 +223,7 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
     try {
       const result = await queueOperation(() => restoreHomepageVersion(version.id));
       applyData(result.data as HomepageData, result.revision);
+      setUnpublished(false);
       setPublishedVersion(result.version);
       setPublishedAt(result.published_at);
       setLastSavedAt(result.published_at);
@@ -237,6 +253,7 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
     setEditorError("");
     changeCounter.current += 1;
     setDirty(true);
+    setUnpublished(true);
     setEditorKey((current) => current + 1);
     toast.success("Original design loaded as a draft");
   };
@@ -252,6 +269,7 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
         return;
       }
       applyData(result.data as HomepageData, result.revision);
+      setUnpublished(false);
       setLastSavedAt(result.updated_at);
       toast.success("Unpublished changes discarded");
     } catch (error) {
@@ -268,6 +286,7 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
   const loadLatestDraft = () => {
     if (!conflict) return;
     applyData(conflict.draft ?? cloneDefaultHomepageData(), conflict.draft_revision);
+    setUnpublished(JSON.stringify(conflict.draft) !== JSON.stringify(conflict.published));
     setVersions(conflict.versions);
     setPublishedVersion(conflict.published_version);
     setLastSavedAt(conflict.updated_at ?? null);
@@ -291,13 +310,14 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
       <div className="flex flex-col gap-2 border-b bg-[#111827] px-4 py-2.5 text-white sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-sm font-semibold">Homepage visual editor</p>
-          <p className="truncate text-[11px] text-white/55">
-            {dirty
-              ? "Unpublished changes"
-              : saving
-                ? "Saving draft..."
-                : `Saved ${timeLabel(lastSavedAt)}`}{" "}
-            | live version {publishedVersion || "original"}
+          <p className="truncate text-[11px] text-white/65">
+            {saving
+              ? "Saving draft..."
+              : dirty
+                ? "Unsaved draft changes"
+                : unpublished
+                  ? `Draft saved ${timeLabel(lastSavedAt)} - not live`
+                  : `Live and up to date - version ${publishedVersion || "original"}`}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -308,6 +328,22 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
             disabled={saving}
           >
             <Save size={14} /> Save draft
+          </button>
+          <button
+            type="button"
+            className="brand-mango-bg inline-flex h-9 items-center gap-2 px-4 text-xs font-bold text-black shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-white/10 disabled:bg-none disabled:text-white/45 disabled:shadow-none"
+            onClick={() => dataRef.current && void publish(dataRef.current)}
+            disabled={publishing || Boolean(conflict) || !unpublished}
+            title={unpublished ? "Publish this draft to the live storefront" : "Homepage is live"}
+          >
+            {publishing ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : unpublished ? (
+              <UploadCloud size={15} />
+            ) : (
+              <CheckCircle2 size={15} />
+            )}
+            {publishing ? "Publishing..." : unpublished ? "Publish changes" : "Published"}
           </button>
           <button
             type="button"
@@ -383,6 +419,7 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
           setData(homepage);
           changeCounter.current += 1;
           setDirty(true);
+          setUnpublished(true);
         }}
         onPublish={(next) => void publish(next as HomepageData)}
         headerTitle="Fawzaan"

@@ -1,7 +1,6 @@
 import {
   ChevronRight,
   LayoutDashboard,
-  Menu,
   Minus,
   Plus,
   Search,
@@ -12,6 +11,7 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 
 import logoGold from "@/assets/fawzaan-logo-gold.png";
+import { MangoMenuIcon } from "@/components/store/mango-menu-icon";
 import { CurrencySelector } from "@/components/store/currency-selector";
 import { useAccount } from "@/lib/account";
 import { useCart } from "@/lib/cart";
@@ -22,12 +22,10 @@ function ChromeButton({
   label,
   children,
   onClick,
-  accent = false,
 }: {
   label: string;
   children: ReactNode;
   onClick: () => void;
-  accent?: boolean;
 }) {
   return (
     <button
@@ -35,11 +33,7 @@ function ChromeButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={
-        accent
-          ? "brand-mango-bg grid h-9 w-9 place-items-center text-black shadow-sm transition-transform hover:scale-[1.03]"
-          : "grid h-8 w-8 place-items-center text-[#C85F22] transition-opacity hover:opacity-65"
-      }
+      className="grid h-9 w-9 place-items-center text-[#C85F22] transition-opacity hover:opacity-65"
     >
       {children}
     </button>
@@ -70,8 +64,8 @@ export function StoreHeader() {
     <>
       <header className="site-header sticky top-0 z-50 bg-white">
         <div className="relative mx-auto flex h-[65px] max-w-[1440px] items-center justify-between px-5 sm:px-6 md:px-8">
-          <ChromeButton label="Open menu" onClick={() => setDrawer("menu")} accent>
-            <Menu size={24} />
+          <ChromeButton label="Open menu" onClick={() => setDrawer("menu")}>
+            <MangoMenuIcon />
           </ChromeButton>
           <a
             href="/"
