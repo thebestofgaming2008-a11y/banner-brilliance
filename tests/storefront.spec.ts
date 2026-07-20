@@ -75,9 +75,21 @@ test("home and live catalog render without browser errors", async ({ page }) => 
 
 test("shop product cart and checkout path uses the live product", async ({ page }) => {
   const errors = watchPageErrors(page);
+  const catalogResponse = await page.request.get("/api/catalog/products");
+  const catalog = (await catalogResponse.json()) as Array<{
+    slug: string;
+    stock_quantity?: number;
+    is_active?: boolean;
+  }>;
+  const inStockProduct = catalog.find(
+    (product) => product.is_active !== false && Number(product.stock_quantity ?? 0) > 0,
+  );
+  expect(inStockProduct, "The live catalog needs at least one in-stock product").toBeTruthy();
   await page.goto("/shop", { waitUntil: "domcontentloaded", timeout: 60_000 });
   await expect(page.getByText(/^\d+ products$/).first()).toBeVisible();
-  const productLink = page.locator('article.store-product-card a[href^="/products/"]').first();
+  const productLink = page
+    .locator(`article.store-product-card a[href="/products/${inStockProduct!.slug}"]`)
+    .first();
   await expect(productLink).toBeVisible();
   const href = await productLink.getAttribute("href");
   const selectedSlug = href?.split("/products/")[1] ?? "";

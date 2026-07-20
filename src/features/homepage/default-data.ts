@@ -1,4 +1,5 @@
-import type { HomepageData } from "./types";
+import { DEFAULT_HERO_GRADIENT } from "./brand";
+import type { HeroProps, HeroSlide, HomepageData } from "./types";
 
 export const DEFAULT_HOMEPAGE_DATA: HomepageData = {
   root: {
@@ -21,8 +22,9 @@ export const DEFAULT_HOMEPAGE_DATA: HomepageData = {
             buttonUrl: "/shop?collection=Shemaghs",
             backgroundImage: "/homepage/hero-bg.png",
             foregroundImage: "/homepage/hero-shemagh.webp",
-            backgroundColor: "#f4b400",
+            backgroundColor: "#F39A3B",
             imageFocus: "center",
+            gradient: { ...DEFAULT_HERO_GRADIENT },
           },
           {
             eyebrow: "New collection",
@@ -32,10 +34,13 @@ export const DEFAULT_HOMEPAGE_DATA: HomepageData = {
             buttonUrl: "/shop?collection=Niqabs",
             backgroundImage: "/homepage/hero-bg.png",
             foregroundImage: "/homepage/hero-niqab.webp",
-            backgroundColor: "#f4b400",
+            backgroundColor: "#F39A3B",
             imageFocus: "center",
+            gradient: { ...DEFAULT_HERO_GRADIENT },
           },
         ],
+        layout: "original",
+        editorSlide: 1,
         textAlign: "left",
         textTone: "light",
         titleFont: "display",
@@ -171,4 +176,53 @@ export const DEFAULT_HOMEPAGE_DATA: HomepageData = {
 
 export function cloneDefaultHomepageData(): HomepageData {
   return JSON.parse(JSON.stringify(DEFAULT_HOMEPAGE_DATA)) as HomepageData;
+}
+
+const LEGACY_BRAND_COLOURS = new Set(["#f4b400", "#f5b90a", "#ffbf00"]);
+
+function migrateBrandColours(value: unknown): unknown {
+  if (typeof value === "string") {
+    return LEGACY_BRAND_COLOURS.has(value.toLowerCase()) ? "#F39A3B" : value;
+  }
+  if (Array.isArray(value)) return value.map(migrateBrandColours);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, nested]) => [
+      key,
+      migrateBrandColours(nested),
+    ]),
+  );
+}
+
+function normalizeSlide(slide: Partial<HeroSlide>): HeroSlide {
+  return {
+    eyebrow: String(slide.eyebrow ?? ""),
+    title: String(slide.title ?? ""),
+    body: String(slide.body ?? ""),
+    buttonLabel: String(slide.buttonLabel ?? ""),
+    buttonUrl: String(slide.buttonUrl ?? "/shop"),
+    backgroundImage: String(slide.backgroundImage ?? ""),
+    foregroundImage: String(slide.foregroundImage ?? ""),
+    backgroundColor: String(slide.backgroundColor ?? "#F39A3B"),
+    imageFocus: String(slide.imageFocus ?? "center"),
+    gradient: { ...DEFAULT_HERO_GRADIENT, ...(slide.gradient ?? {}) },
+  };
+}
+
+export function normalizeHomepageData(data: HomepageData): HomepageData {
+  const normalized = migrateBrandColours(JSON.parse(JSON.stringify(data))) as HomepageData;
+  normalized.content = (normalized.content ?? []).map((item) => {
+    if (item.type !== "Hero") return item;
+    const props = item.props as HeroProps & { id: string };
+    return {
+      ...item,
+      props: {
+        ...props,
+        layout: props.layout === "banner" ? "banner" : "original",
+        editorSlide: Math.min(6, Math.max(1, Number(props.editorSlide || 1))),
+        slides: (props.slides ?? []).map((slide) => normalizeSlide(slide)),
+      },
+    } as typeof item;
+  });
+  return normalized;
 }

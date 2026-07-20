@@ -181,7 +181,7 @@ function ProductPage() {
             type="button"
             onClick={addToCart}
             disabled={!isCartReady || product.inStock === false}
-            className="h-10 shrink-0 bg-[#f4b400] px-5 text-[10px] font-bold uppercase disabled:cursor-not-allowed disabled:bg-black/10 md:px-8"
+            className="brand-mango-bg h-10 shrink-0 px-5 text-[10px] font-bold uppercase disabled:cursor-not-allowed disabled:bg-black/10 disabled:bg-none md:px-8"
           >
             {product.inStock === false ? "Out of stock" : added ? "Added" : "Add to cart"}
           </button>
@@ -273,7 +273,7 @@ function ProductPage() {
               type="button"
               onClick={addToCart}
               disabled={!isCartReady || product.inStock === false}
-              className="h-12 bg-[#f4b400] text-[11px] font-bold uppercase disabled:bg-black/10"
+              className="brand-mango-bg h-12 text-[11px] font-bold uppercase disabled:bg-black/10 disabled:bg-none"
             >
               {product.inStock === false ? "Out of stock" : added ? "Added to cart" : "Add to cart"}
             </button>
@@ -313,7 +313,7 @@ function ProductPage() {
 
       {related.length ? (
         <section
-          className="bg-[#f4b400] px-[22px] py-14 md:px-8 md:py-20"
+          className="brand-mango-bg px-[22px] py-14 md:px-8 md:py-20"
           data-testid="related-products-section"
         >
           <div className="mx-auto max-w-[1180px]">

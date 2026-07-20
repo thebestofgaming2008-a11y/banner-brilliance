@@ -2,6 +2,14 @@ export type HomepageTextAlign = "left" | "center" | "right";
 export type HomepageTextTone = "light" | "dark";
 export type HomepageFont = "display" | "sans";
 
+export type HeroGradient = {
+  enabled: "on" | "off";
+  startColor: string;
+  endColor: string;
+  angle: number;
+  opacity: number;
+};
+
 export type HeroSlide = {
   eyebrow: string;
   title: string;
@@ -12,6 +20,7 @@ export type HeroSlide = {
   foregroundImage: string;
   backgroundColor: string;
   imageFocus: string;
+  gradient: HeroGradient;
 };
 
 export type CollectionCard = {
@@ -25,6 +34,8 @@ export type CollectionCard = {
 
 export type HeroProps = {
   slides: HeroSlide[];
+  layout: "original" | "banner";
+  editorSlide: number;
   textAlign: HomepageTextAlign;
   textTone: HomepageTextTone;
   titleFont: HomepageFont;

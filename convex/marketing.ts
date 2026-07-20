@@ -113,12 +113,12 @@ function campaignEmail(
     .join("");
   const button =
     campaign.button_label && campaign.button_url
-      ? `<p style="margin:28px 0"><a href="${escapeHtml(campaign.button_url)}" style="display:inline-block;background:#f4b400;color:#000;padding:14px 22px;text-decoration:none;font-weight:700;text-transform:uppercase;font-size:12px">${escapeHtml(campaign.button_label)}</a></p>`
+      ? `<p style="margin:28px 0"><a href="${escapeHtml(campaign.button_url)}" style="display:inline-block;background:#F39A3B;background-image:linear-gradient(110deg,#F8C247,#E96A3A);color:#000;padding:14px 22px;text-decoration:none;font-weight:700;text-transform:uppercase;font-size:12px">${escapeHtml(campaign.button_label)}</a></p>`
       : "";
   const preheader = campaign.preheader
     ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(campaign.preheader)}</div>`
     : "";
-  return `<!doctype html><html><body style="margin:0;background:#f6f6f4;color:#111;font-family:Arial,sans-serif">${preheader}<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td style="padding:28px 14px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;margin:auto;background:#fff;border-top:6px solid #f4b400"><tr><td style="padding:34px 30px 12px;text-align:center"><div style="font-family:Georgia,serif;font-size:30px">Fawzaan</div></td></tr><tr><td style="padding:20px 30px 34px"><h1 style="margin:0 0 22px;font-family:Georgia,serif;font-size:28px;line-height:1.2">${escapeHtml(campaign.subject)}</h1>${paragraphs}${button}<p style="margin:30px 0 0;border-top:1px solid #e7e7e3;padding-top:18px;color:#777;font-size:11px;line-height:1.6">You received this because you opted in to Fawzaan offers. <a href="${escapeHtml(unsubscribeUrl)}" style="color:#555">Unsubscribe</a>.</p></td></tr></table></td></tr></table></body></html>`;
+  return `<!doctype html><html><body style="margin:0;background:#f6f6f4;color:#111;font-family:Arial,sans-serif">${preheader}<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td style="padding:28px 14px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;margin:auto;background:#fff;border-top:6px solid #E96A3A"><tr><td style="padding:34px 30px 12px;text-align:center"><div style="font-family:Georgia,serif;font-size:30px">Fawzaan</div></td></tr><tr><td style="padding:20px 30px 34px"><h1 style="margin:0 0 22px;font-family:Georgia,serif;font-size:28px;line-height:1.2">${escapeHtml(campaign.subject)}</h1>${paragraphs}${button}<p style="margin:30px 0 0;border-top:1px solid #e7e7e3;padding-top:18px;color:#777;font-size:11px;line-height:1.6">You received this because you opted in to Fawzaan offers. <a href="${escapeHtml(unsubscribeUrl)}" style="color:#555">Unsubscribe</a>.</p></td></tr></table></td></tr></table></body></html>`;
 }
 
 export const listCampaigns = query({

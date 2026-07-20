@@ -34,7 +34,7 @@ function AboutPage() {
           </div>
         </section>
 
-        <section className="bg-[#f4b400] px-[22px] py-12 md:px-8 md:py-20">
+        <section className="brand-mango-bg px-[22px] py-12 md:px-8 md:py-20">
           <div className="mx-auto grid max-w-[1080px] items-center gap-10 md:grid-cols-2 md:gap-16">
             <img
               src={hero}

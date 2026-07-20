@@ -96,7 +96,7 @@ function OrderLookup({ orderNumber, email }: { orderNumber: string; email: strin
               className="h-12 w-full border border-black/15 px-3 text-sm outline-none focus:border-black"
               placeholder="Email address"
             />
-            <button className="mt-3 h-12 w-full bg-[#f4b400] text-[11px] font-bold uppercase">
+            <button className="brand-mango-bg mt-3 h-12 w-full text-[11px] font-bold uppercase">
               View order
             </button>
           </form>
@@ -132,7 +132,7 @@ function OrderLookup({ orderNumber, email }: { orderNumber: string; email: strin
             <h1 className="section-heading text-[42px] md:text-[58px]">
               ORDER {trackedOrder.order_number}
             </h1>
-            <span className="bg-[#f4b400] px-3 py-2 text-[10px] font-bold uppercase">
+            <span className="brand-mango-bg px-3 py-2 text-[10px] font-bold uppercase">
               {trackedOrder.status ?? "Processing"}
             </span>
           </div>
@@ -331,7 +331,7 @@ function StateMessage({ title, copy }: { title: string; copy: string }) {
       <p className="mt-3 text-sm text-black/55">{copy}</p>
       <a
         href="/shop"
-        className="mt-7 inline-flex bg-[#f4b400] px-6 py-3 text-[11px] font-bold uppercase"
+        className="brand-mango-bg mt-7 inline-flex px-6 py-3 text-[11px] font-bold uppercase"
       >
         Back to shop
       </a>

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { StoreProductCard } from "@/components/store/product-card";
 import { merchandiseProducts, useStoreProducts } from "@/data/store";
 import { useCatalogPresentation } from "@/services/catalogPresentation";
+import { normalizeHomepageData } from "./default-data";
 import type {
   CollectionBannersProps,
   CollectionFeatureProps,
@@ -43,6 +44,8 @@ function safeLink(url: string) {
 
 export function HomepageHero({
   slides,
+  layout,
+  editorSlide,
   textAlign,
   textTone,
   titleFont,
@@ -60,6 +63,11 @@ export function HomepageHero({
   const [active, setActive] = useState(0);
 
   useEffect(() => {
+    if (!editMode) return;
+    setActive(Math.min(safeSlides.length - 1, Math.max(0, Number(editorSlide || 1) - 1)));
+  }, [editMode, editorSlide, safeSlides.length]);
+
+  useEffect(() => {
     if (editMode || autoplay !== "on" || safeSlides.length < 2) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const timer = window.setInterval(
@@ -75,7 +83,7 @@ export function HomepageHero({
 
   if (!safeSlides.length) {
     return editMode ? (
-      <div className="grid min-h-[420px] place-items-center bg-[#f4b400] p-8 text-center text-sm">
+      <div className="brand-mango-bg grid min-h-[420px] place-items-center p-8 text-center text-sm">
         Add at least one hero slide from the right panel.
       </div>
     ) : null;
@@ -84,21 +92,136 @@ export function HomepageHero({
   const slide = safeSlides[active];
   const lightText = textTone === "light";
   const align = textAlignClass(textAlign);
-  return (
-    <section
-      className={`relative min-h-[560px] overflow-hidden md:min-h-[720px] ${lightText ? "text-white" : "text-black"}`}
-      style={{ backgroundColor: slide.backgroundColor || "#f4b400" }}
-      aria-label="Featured collection"
-    >
+  const selectedLayout = layout === "banner" ? "banner" : "original";
+  const gradient = {
+    enabled: "on" as const,
+    startColor: "#F8C247",
+    endColor: "#E96A3A",
+    angle: 110,
+    opacity: 72,
+    ...(slide.gradient ?? {}),
+  };
+  const gradientLayer =
+    gradient.enabled === "on" ? (
+      <div
+        data-hero-gradient
+        data-gradient-angle={gradient.angle}
+        className="pointer-events-none absolute inset-0 z-[2]"
+        style={{
+          backgroundImage: `linear-gradient(${Math.min(360, Math.max(0, gradient.angle))}deg, ${gradient.startColor}, ${gradient.endColor})`,
+          opacity: Math.min(1, Math.max(0, gradient.opacity / 100)),
+        }}
+      />
+    ) : null;
+  const artwork = (
+    <>
       {slide.backgroundImage ? (
         <img
           src={slide.backgroundImage}
           alt=""
           fetchPriority="high"
-          className="absolute inset-0 h-full w-full object-cover"
+          className="absolute inset-0 z-[1] h-full w-full object-cover"
           style={{ objectPosition: slide.imageFocus || "center" }}
         />
       ) : null}
+      {gradientLayer}
+      <div
+        className={`pointer-events-none absolute inset-0 z-[3] ${lightText ? "bg-black" : "bg-white"}`}
+        style={{ opacity: Math.min(0.8, Math.max(0, overlayOpacity / 100)) }}
+      />
+    </>
+  );
+  const slidePicker =
+    safeSlides.length > 1 ? (
+      <div className="absolute bottom-4 right-5 z-30 flex gap-2" aria-label="Choose hero slide">
+        {safeSlides.map((item, index) => (
+          <button
+            key={`${item.title}-${index}`}
+            type="button"
+            aria-label={`Show ${item.title || `slide ${index + 1}`}`}
+            aria-current={active === index}
+            onClick={() => setActive(index)}
+            className={`h-1.5 rounded-full transition-all ${lightText ? "bg-white" : "bg-black"} ${active === index ? "w-8" : "w-3 opacity-45"}`}
+          />
+        ))}
+      </div>
+    ) : null;
+
+  if (selectedLayout === "original") {
+    return (
+      <section
+        className={`relative overflow-hidden ${lightText ? "text-white" : "text-black"}`}
+        style={{
+          backgroundColor: slide.backgroundColor || "#F39A3B",
+          height: "clamp(560px, 166.41vw, 820px)",
+        }}
+        aria-label="Featured collection"
+      >
+        {artwork}
+        <div
+          className="pointer-events-none absolute left-1/2 top-0 z-10 h-full -translate-x-1/2 overflow-hidden"
+          style={{ aspectRatio: "390 / 649", containerType: "inline-size" }}
+        >
+          {slide.foregroundImage ? (
+            <img
+              src={slide.foregroundImage}
+              alt=""
+              fetchPriority="high"
+              className="absolute inset-x-0 bottom-0 z-10 mx-auto h-auto max-w-none object-contain object-bottom"
+              style={{ width: `${Math.min(150, Math.max(25, foregroundScale))}%` }}
+            />
+          ) : null}
+          <div
+            className={`absolute z-20 flex flex-col ${align}`}
+            style={{
+              left: `${Math.max(2, contentOffsetX)}%`,
+              top: `${Math.max(3, contentOffsetY)}%`,
+              width: `${Math.max(24, 100 - Math.max(2, contentOffsetX) * 2)}%`,
+              maxWidth: `${Math.max(280, contentWidth)}px`,
+            }}
+          >
+            {slide.eyebrow ? (
+              <p className={`section-kicker ${lightText ? "text-white/75" : "text-black/65"}`}>
+                {slide.eyebrow}
+              </p>
+            ) : null}
+            <h1
+              className={`mt-3 leading-[0.92] ${fontClass(titleFont)}`}
+              style={{
+                fontSize: `clamp(${Math.max(28, mobileTitleSize)}px, 13.35cqw, ${Math.max(36, titleSize)}px)`,
+              }}
+            >
+              {slide.title}
+            </h1>
+            {slide.body ? (
+              <p
+                className={`mt-4 text-sm leading-6 ${lightText ? "text-white/80" : "text-black/70"}`}
+              >
+                {slide.body}
+              </p>
+            ) : null}
+          </div>
+          {slide.buttonLabel ? (
+            <a
+              href={safeLink(slide.buttonUrl)}
+              className={`pointer-events-auto absolute bottom-[5%] left-[6%] z-20 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase underline-offset-4 ${lightText ? "bg-white text-black" : "bg-black text-white"}`}
+            >
+              {slide.buttonLabel}
+            </a>
+          ) : null}
+        </div>
+        {slidePicker}
+      </section>
+    );
+  }
+
+  return (
+    <section
+      className={`relative min-h-[560px] overflow-hidden md:min-h-[720px] ${lightText ? "text-white" : "text-black"}`}
+      style={{ backgroundColor: slide.backgroundColor || "#F39A3B" }}
+      aria-label="Featured collection"
+    >
+      {artwork}
       {slide.foregroundImage ? (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-end justify-center overflow-hidden">
           <img
@@ -109,10 +232,6 @@ export function HomepageHero({
           />
         </div>
       ) : null}
-      <div
-        className={`absolute inset-0 z-[11] ${lightText ? "bg-black" : "bg-white"}`}
-        style={{ opacity: Math.min(0.8, Math.max(0, overlayOpacity / 100)) }}
-      />
       <div
         className={`relative z-20 flex min-h-[560px] flex-col justify-end px-[22px] md:min-h-[720px] md:px-8 ${align}`}
         style={{
@@ -152,20 +271,7 @@ export function HomepageHero({
           ) : null}
         </div>
       </div>
-      {safeSlides.length > 1 ? (
-        <div className="absolute bottom-4 right-5 z-30 flex gap-2" aria-label="Choose hero slide">
-          {safeSlides.map((item, index) => (
-            <button
-              key={`${item.title}-${index}`}
-              type="button"
-              aria-label={`Show ${item.title || `slide ${index + 1}`}`}
-              aria-current={active === index}
-              onClick={() => setActive(index)}
-              className={`h-1.5 rounded-full transition-all ${lightText ? "bg-white" : "bg-black"} ${active === index ? "w-8" : "w-3 opacity-45"}`}
-            />
-          ))}
-        </div>
-      ) : null}
+      {slidePicker}
     </section>
   );
 }
@@ -295,7 +401,7 @@ export function HomepageProductGrid({
               >
                 {item.name}
                 {normalized(activeCollection) === normalized(item.slug) ? (
-                  <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#f4b400]" />
+                  <span className="brand-mango-bg absolute inset-x-0 bottom-0 h-0.5" />
                 ) : null}
               </button>
             ))}
@@ -622,9 +728,10 @@ export function HomepageRenderer({
   data: HomepageData;
   editMode?: boolean;
 }) {
+  const normalizedData = useMemo(() => normalizeHomepageData(data), [data]);
   return (
-    <div style={{ backgroundColor: data.root?.props?.backgroundColor || "#ffffff" }}>
-      {(data.content ?? []).map((item) => {
+    <div style={{ backgroundColor: normalizedData.root?.props?.backgroundColor || "#ffffff" }}>
+      {(normalizedData.content ?? []).map((item) => {
         const Renderer = renderers[item.type] as
           React.ComponentType<Record<string, unknown>> | undefined;
         if (!Renderer) return null;

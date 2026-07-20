@@ -2847,7 +2847,7 @@ function MarketingPanel({
             <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.14em] text-[rgb(var(--vibe-muted))]">
               Customer preview
             </p>
-            <div className="border-t-[5px] border-[#f4b400] bg-white p-6 shadow-sm">
+            <div className="border-t-[5px] border-[#E96A3A] bg-white p-6 shadow-sm">
               <p className="text-center font-serif text-2xl">Fawzaan</p>
               <h3 className="mt-8 font-serif text-2xl leading-tight">
                 {draft.subject || "Your email subject"}
@@ -2856,7 +2856,7 @@ function MarketingPanel({
                 {draft.body || "Your offer message will appear here."}
               </div>
               {draft.buttonLabel && draft.buttonUrl ? (
-                <span className="mt-6 inline-flex bg-[#f4b400] px-5 py-3 text-[11px] font-bold uppercase">
+                <span className="brand-mango-bg mt-6 inline-flex px-5 py-3 text-[11px] font-bold uppercase">
                   {draft.buttonLabel}
                 </span>
               ) : null}
@@ -2944,7 +2944,7 @@ function MarketingPanel({
                           setBusy(null);
                         }
                       }}
-                      className="h-9 rounded-lg bg-[#f4b400] px-3 text-xs font-semibold disabled:opacity-40"
+                      className="brand-mango-bg h-9 rounded-lg px-3 text-xs font-semibold disabled:opacity-40"
                     >
                       {busy === "send" ? "Sending..." : `Send to ${optedIn}`}
                     </button>
@@ -3513,7 +3513,7 @@ function BannerAdminPanel({
     button_label: "",
     button_url: "/shop",
     image_url: "",
-    background_color: "#f4b400",
+    background_color: "#F39A3B",
     image_position: "center",
     overlay_image_url: "",
     overlay_position: "right",
@@ -3545,7 +3545,7 @@ function BannerAdminPanel({
       button_label: banner.button_label ?? "",
       button_url: banner.button_url ?? "",
       image_url: banner.image_url ?? "",
-      background_color: banner.background_color ?? "#f4b400",
+      background_color: banner.background_color ?? "#F39A3B",
       image_position: banner.image_position ?? "center",
       overlay_image_url: banner.overlay_image_url ?? "",
       overlay_position: banner.overlay_position ?? "right",
@@ -3835,7 +3835,7 @@ function BannerAdminPanel({
                   value={
                     /^#[0-9a-f]{6}$/i.test(draft.background_color)
                       ? draft.background_color
-                      : "#f4b400"
+                      : "#F39A3B"
                   }
                   onChange={(event) => setField("background_color", event.target.value)}
                 />
@@ -4046,7 +4046,7 @@ function BannerAdminPanel({
               >
                 <div
                   className="relative aspect-[16/9] overflow-hidden"
-                  style={{ backgroundColor: banner.background_color || "#f4b400" }}
+                  style={{ backgroundColor: banner.background_color || "#F39A3B" }}
                 >
                   {banner.image_url ? (
                     <img

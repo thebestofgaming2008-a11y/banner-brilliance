@@ -108,7 +108,7 @@ function CartPage() {
                 </div>
                 <a
                   href="/checkout"
-                  className="mt-6 flex h-12 w-full items-center justify-center bg-[#f4b400] text-[11px] font-bold uppercase"
+                  className="brand-mango-bg mt-6 flex h-12 w-full items-center justify-center text-[11px] font-bold uppercase"
                 >
                   Proceed to checkout
                 </a>
@@ -130,7 +130,7 @@ function CartPage() {
               <h2 className="mt-5 text-[24px] font-bold uppercase">Your cart is empty</h2>
               <a
                 href="/shop"
-                className="mt-7 inline-flex bg-[#f4b400] px-7 py-3 text-[11px] font-bold uppercase"
+                className="brand-mango-bg mt-7 inline-flex px-7 py-3 text-[11px] font-bold uppercase"
               >
                 Start shopping
               </a>

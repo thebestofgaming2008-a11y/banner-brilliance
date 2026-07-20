@@ -33,7 +33,7 @@ function ChromeButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="grid h-8 w-8 place-items-center text-[#f4b400] transition-opacity hover:opacity-65"
+      className="grid h-8 w-8 place-items-center text-[#E96A3A] transition-opacity hover:opacity-65"
     >
       {children}
     </button>
@@ -80,7 +80,7 @@ export function StoreHeader() {
                 href="/admin"
                 aria-label="Open admin dashboard"
                 title="Admin dashboard"
-                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#f4b400]/40 px-2.5 text-[10px] font-bold uppercase text-[#a87800] transition hover:bg-[#fff7df] sm:px-3"
+                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#E96A3A]/40 px-2.5 text-[10px] font-bold uppercase text-[#BD4B25] transition hover:bg-[#FFF1D5] sm:px-3"
               >
                 <LayoutDashboard size={15} />
                 <span className="hidden sm:inline">Admin</span>
@@ -89,7 +89,7 @@ export function StoreHeader() {
             <ChromeButton label="Open cart" onClick={() => setDrawer("cart")}>
               <span className="relative">
                 <ShoppingBag size={23} />
-                <span className="absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full bg-[#f4b400] px-1 text-[9px] font-bold text-white">
+                <span className="brand-mango-bg absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9px] font-bold text-white">
                   {count}
                 </span>
               </span>
@@ -277,7 +277,7 @@ export function StoreHeader() {
               <h2 className="mt-5 text-[22px] font-bold uppercase">Your cart is empty</h2>
               <a
                 href="/shop"
-                className="mt-6 bg-[#f4b400] px-6 py-3 text-[11px] font-bold uppercase"
+                className="brand-mango-bg mt-6 px-6 py-3 text-[11px] font-bold uppercase"
               >
                 Start shopping
               </a>
@@ -293,7 +293,7 @@ export function StoreHeader() {
             <p className="mt-2 text-[11px] text-black/50">Shipping calculated at checkout.</p>
             <a
               href="/cart"
-              className="mt-5 flex h-12 items-center justify-center bg-[#f4b400] text-[11px] font-bold uppercase"
+              className="brand-mango-bg mt-5 flex h-12 items-center justify-center text-[11px] font-bold uppercase"
             >
               View cart
             </a>
@@ -308,7 +308,7 @@ export function StoreFooter() {
   const { taxonomy } = useCatalogPresentation();
   const collections = taxonomy.filter((item) => item.type === "collection");
   return (
-    <footer className="border-t-[6px] border-[#f4b400] bg-black px-[22px] pb-7 pt-12 text-white md:px-8 md:pt-16">
+    <footer className="border-t-[6px] border-[#E96A3A] bg-black px-[22px] pb-7 pt-12 text-white md:px-8 md:pt-16">
       <div className="mx-auto grid max-w-[1120px] gap-11 md:grid-cols-[1.3fr_0.7fr_0.7fr_0.65fr] md:gap-12">
         <div>
           <img src={logoGold} alt="Fawzaan" className="h-14 w-auto" />
@@ -317,7 +317,7 @@ export function StoreFooter() {
           </p>
         </div>
         <div>
-          <h3 className="text-[11px] font-bold uppercase text-[#f4b400]">Shop</h3>
+          <h3 className="brand-mango-text text-[11px] font-bold uppercase">Shop</h3>
           <ul className="mt-5 space-y-3 text-[13px] text-white/65">
             <li>
               <a href="/shop">Shop all</a>
@@ -330,7 +330,7 @@ export function StoreFooter() {
           </ul>
         </div>
         <div>
-          <h3 className="text-[11px] font-bold uppercase text-[#f4b400]">Support</h3>
+          <h3 className="brand-mango-text text-[11px] font-bold uppercase">Support</h3>
           <ul className="mt-5 space-y-3 text-[13px] text-white/65">
             <li>
               <a href="/pages/shipping">Shipping</a>
@@ -353,7 +353,7 @@ export function StoreFooter() {
           </ul>
         </div>
         <div>
-          <h3 className="text-[11px] font-bold uppercase text-[#f4b400]">Region</h3>
+          <h3 className="brand-mango-text text-[11px] font-bold uppercase">Region</h3>
           <div className="mt-3 border-b border-white/20 pb-1">
             <CurrencySelector dark />
           </div>

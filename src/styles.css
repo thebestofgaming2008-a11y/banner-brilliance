@@ -100,9 +100,13 @@
   --ivory: #ffffff;
   --cream: #faf8f2;
   --ink: #000000;
-  --gold: #f4b400;
-  --gold-deep: #b98500;
-  --gold-soft: #ffde80;
+  --mango-yellow: #f8c247;
+  --mango-orange: #e96a3a;
+  --mango-solid: #f39a3b;
+  --mango-gradient: linear-gradient(110deg, var(--mango-yellow), var(--mango-orange));
+  --gold: var(--mango-solid);
+  --gold-deep: #bd4b25;
+  --gold-soft: #ffe0a1;
   --brand: #111827;
   --brand-foreground: #ffffff;
   --placeholder: #f3f4f6;
@@ -202,6 +206,21 @@
 }
 
 @layer utilities {
+  .brand-mango-bg {
+    background-color: var(--mango-solid);
+    background-image: var(--mango-gradient);
+  }
+
+  .bg-gold {
+    background-image: var(--mango-gradient);
+  }
+
+  .brand-mango-text {
+    background-image: var(--mango-gradient);
+    background-clip: text;
+    color: transparent;
+  }
+
   .no-scrollbar {
     scrollbar-width: none;
   }
@@ -484,7 +503,8 @@
 
     .collection-banner:hover span {
       transform: translate3d(0, -1px, 0);
-      background-color: #f4b400;
+      background-color: var(--mango-solid);
+      background-image: var(--mango-gradient);
       color: #000;
     }
   }

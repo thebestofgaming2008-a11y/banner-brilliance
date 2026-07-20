@@ -1,6 +1,6 @@
 import { Puck, type Data } from "@puckeditor/core";
 import "@puckeditor/core/puck.css";
-import { Eye, History, Loader2, RotateCcw, Save, Store, X } from "lucide-react";
+import { AlertTriangle, Eye, History, Loader2, RotateCcw, Save, Store, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -13,7 +13,7 @@ import {
   restoreHomepageVersion,
   saveHomepageDraft,
 } from "@/services/homepageService";
-import { cloneDefaultHomepageData } from "./default-data";
+import { cloneDefaultHomepageData, normalizeHomepageData } from "./default-data";
 import { createHomepagePuckConfig } from "./puck-config";
 import type { HomepageData, HomepageVersion } from "./types";
 
@@ -33,6 +33,14 @@ function timeLabel(value: string | null | undefined) {
   });
 }
 
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function isRevisionConflict(error: unknown) {
+  return errorMessage(error, "").toLowerCase().includes("changed in another session");
+}
+
 export function HomepageVisualEditor({ categories }: { categories: AdminCategory[] }) {
   const config = useMemo(() => createHomepagePuckConfig(categories), [categories]);
   const [data, setData] = useState<HomepageData | null>(null);
@@ -49,16 +57,20 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [conflict, setConflict] = useState<HomepageEditorState | null>(null);
+  const [editorError, setEditorError] = useState("");
   const [editorKey, setEditorKey] = useState(0);
   const operation = useRef<Promise<unknown>>(Promise.resolve());
 
   const applyData = useCallback((next: HomepageData, nextRevision: number) => {
-    const cloned = cloneData(next);
+    const cloned = normalizeHomepageData(cloneData(next));
     dataRef.current = cloned;
     revisionRef.current = nextRevision;
     setData(cloned);
     setRevision(nextRevision);
     setDirty(false);
+    setConflict(null);
+    setEditorError("");
     setEditorKey((current) => current + 1);
   }, []);
 
@@ -72,7 +84,9 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
       setLastSavedAt(state.updated_at ?? null);
       setPublishedAt(state.published_at ?? null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not load the homepage editor.");
+      const message = errorMessage(error, "Could not load the homepage editor.");
+      setEditorError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -99,9 +113,25 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
         setRevision(result.revision);
         setLastSavedAt(result.updated_at);
         if (changeCounter.current === changeAtStart) setDirty(false);
+        setEditorError("");
+        setConflict(null);
         if (!quiet) toast.success("Draft saved");
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Could not save the draft.");
+        if (isRevisionConflict(error)) {
+          try {
+            const latest = await getHomepageEditorState();
+            revisionRef.current = latest.draft_revision;
+            setRevision(latest.draft_revision);
+            setConflict(latest);
+            setEditorError("");
+          } catch (refreshError) {
+            setEditorError(errorMessage(refreshError, "Could not refresh the homepage revision."));
+          }
+        } else {
+          const message = errorMessage(error, "Could not save the draft.");
+          setEditorError(message);
+          if (!quiet) toast.error(message);
+        }
       } finally {
         setSaving(false);
       }
@@ -110,10 +140,10 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
   );
 
   useEffect(() => {
-    if (!dirty || !data) return;
+    if (!dirty || !data || conflict) return;
     const timer = window.setTimeout(() => void saveDraft(data, true), AUTOSAVE_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [data, dirty, saveDraft]);
+  }, [conflict, data, dirty, saveDraft]);
 
   useEffect(() => {
     if (!data) return;
@@ -127,6 +157,10 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
   }, [data]);
 
   const publish = async (nextData: HomepageData) => {
+    if (conflict) {
+      toast.error("Resolve the newer draft before publishing.");
+      return;
+    }
     setPublishing(true);
     try {
       await operation.current;
@@ -141,12 +175,28 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
       setPublishedAt(result.published_at);
       setLastSavedAt(result.published_at);
       setDirty(false);
+      setConflict(null);
+      setEditorError("");
       await refreshPublicCatalog();
       const state = await getHomepageEditorState();
       setVersions(state.versions);
       toast.success(`Homepage version ${result.version} is live`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not publish the homepage.");
+      if (isRevisionConflict(error)) {
+        try {
+          const latest = await getHomepageEditorState();
+          revisionRef.current = latest.draft_revision;
+          setRevision(latest.draft_revision);
+          setConflict(latest);
+          setEditorError("");
+        } catch (refreshError) {
+          setEditorError(errorMessage(refreshError, "Could not refresh the homepage revision."));
+        }
+      } else {
+        const message = errorMessage(error, "Could not publish the homepage.");
+        setEditorError(message);
+        toast.error(message);
+      }
     } finally {
       setPublishing(false);
     }
@@ -183,6 +233,8 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
     const original = cloneDefaultHomepageData();
     dataRef.current = original;
     setData(original);
+    setConflict(null);
+    setEditorError("");
     changeCounter.current += 1;
     setDirty(true);
     setEditorKey((current) => current + 1);
@@ -193,7 +245,8 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
     if (!confirm("Discard unpublished changes and return to the currently published homepage?"))
       return;
     try {
-      const result = await discardHomepageDraft();
+      await operation.current;
+      const result = await queueOperation(() => discardHomepageDraft());
       if (!result) {
         resetOriginal();
         return;
@@ -204,6 +257,22 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not discard the draft.");
     }
+  };
+
+  const keepLocalChanges = async () => {
+    setConflict(null);
+    setEditorError("");
+    await saveDraft(dataRef.current, false);
+  };
+
+  const loadLatestDraft = () => {
+    if (!conflict) return;
+    applyData(conflict.draft ?? cloneDefaultHomepageData(), conflict.draft_revision);
+    setVersions(conflict.versions);
+    setPublishedVersion(conflict.published_version);
+    setLastSavedAt(conflict.updated_at ?? null);
+    setPublishedAt(conflict.published_at ?? null);
+    toast.success("Latest homepage draft loaded");
   };
 
   if (loading || !data) {
@@ -257,6 +326,47 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
           </a>
         </div>
       </div>
+      {conflict ? (
+        <div className="flex flex-col gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 gap-2.5">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="text-xs font-semibold">A newer homepage draft was saved elsewhere.</p>
+              <p className="mt-0.5 text-[11px] text-amber-900/70">
+                Your work is still here. Choose which version to continue with.
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              className="h-8 rounded border border-amber-900/20 bg-white px-3 text-xs font-semibold"
+              onClick={loadLatestDraft}
+            >
+              Load latest
+            </button>
+            <button
+              type="button"
+              className="h-8 rounded bg-black px-3 text-xs font-semibold text-white"
+              onClick={() => void keepLocalChanges()}
+            >
+              Keep my changes
+            </button>
+          </div>
+        </div>
+      ) : editorError ? (
+        <div className="flex items-center gap-2 border-b border-red-200 bg-red-50 px-4 py-2.5 text-xs text-red-800">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="min-w-0 flex-1">{editorError}</span>
+          <button
+            type="button"
+            className="font-semibold underline"
+            onClick={() => void saveDraft()}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
       <Puck
         key={editorKey}
         config={config}

@@ -286,7 +286,7 @@ function IconButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`grid h-6 w-6 place-items-center text-[#f4b400] transition-opacity hover:opacity-70 ${className}`}
+      className={`grid h-6 w-6 place-items-center text-[#E96A3A] transition-opacity hover:opacity-70 ${className}`}
     >
       {children}
     </button>
@@ -450,7 +450,7 @@ function Header() {
 
           <IconButton label="Open cart" className="relative" onClick={() => setOpenDrawer("cart")}>
             <ShoppingBag size={24} strokeWidth={2} />
-            <span className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-[#f4b400] text-[10px] font-bold leading-none text-white">
+            <span className="brand-mango-bg absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full text-[10px] font-bold leading-none text-white">
               {quantities.reduce((total, quantity) => total + quantity, 0)}
             </span>
           </IconButton>
@@ -516,7 +516,7 @@ function Header() {
             ))}
           </ul>
         </nav>
-        <div className="bg-[#f4b400] px-6 py-5 text-[11px] font-bold uppercase text-black">
+        <div className="brand-mango-bg px-6 py-5 text-[11px] font-bold uppercase text-black">
           Premium modest essentials
         </div>
       </aside>
@@ -594,7 +594,7 @@ function Header() {
           <p className="mt-2 text-[11px] text-black/50">Shipping calculated at checkout.</p>
           <button
             type="button"
-            className="mt-5 h-12 w-full bg-[#f4b400] text-[11px] font-bold uppercase text-black"
+            className="brand-mango-bg mt-5 h-12 w-full text-[11px] font-bold uppercase text-black"
           >
             Checkout
           </button>
@@ -621,7 +621,7 @@ function HeroBanner({
 }) {
   return (
     <article
-      className="relative shrink-0 overflow-hidden bg-[#f5b90a]"
+      className="brand-mango-bg relative shrink-0 overflow-hidden"
       style={{
         width: `${100 / slideCount}%`,
         height: `clamp(560px, ${(FRAME_H / FRAME_W) * 100}vw, 820px)`,
@@ -760,7 +760,7 @@ function ManagedHeroBanner({
       style={{
         width: `${100 / slideCount}%`,
         height: "clamp(560px, 145vw, 820px)",
-        backgroundColor: banner.background_color || "#f4b400",
+        backgroundColor: banner.background_color || "#F39A3B",
       }}
     >
       <ManagedBannerArtwork banner={banner} priority={isPriority} />
@@ -855,7 +855,7 @@ function HeroSlider() {
   }, [slideCount]);
 
   return (
-    <section className="relative overflow-hidden bg-[#f5b90a]" aria-label="Featured collections">
+    <section className="brand-mango-bg relative overflow-hidden" aria-label="Featured collections">
       <div
         className="hero-track flex"
         style={{
@@ -1198,7 +1198,7 @@ function KufiCollection() {
   return (
     <section
       id="kufi-collection"
-      className="scroll-mt-[76px] bg-[#f4b400] px-[18px] py-12 md:px-8 md:py-20"
+      className="brand-mango-bg scroll-mt-[76px] px-[18px] py-12 md:px-8 md:py-20"
     >
       <div className="mx-auto grid max-w-[1120px] gap-4 md:grid-cols-[1.18fr_0.82fr] md:gap-5">
         <a
@@ -1324,7 +1324,7 @@ function ShopAllProducts() {
             >
               {filter.name}
               {selectedFilter.key === filter.key ? (
-                <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#f4b400]" />
+                <span className="brand-mango-bg absolute inset-x-0 bottom-0 h-0.5" />
               ) : null}
             </button>
           ))}
@@ -1547,7 +1547,7 @@ function WatchCollection() {
 
 function Footer() {
   return (
-    <footer className="border-t-[6px] border-[#f4b400] bg-black px-[22px] pb-7 pt-12 text-white md:px-8 md:pt-16">
+    <footer className="border-t-[6px] border-[#E96A3A] bg-black px-[22px] pb-7 pt-12 text-white md:px-8 md:pt-16">
       <div className="mx-auto grid max-w-[1120px] gap-11 md:grid-cols-[1.4fr_0.8fr_0.8fr] md:gap-16">
         <div>
           <img src={logoGold} alt="Fawzaan" className="h-14 w-auto object-contain" />
@@ -1556,7 +1556,7 @@ function Footer() {
           </p>
         </div>
         <div>
-          <h3 className="text-[11px] font-bold uppercase text-[#f4b400]">Shop</h3>
+          <h3 className="brand-mango-text text-[11px] font-bold uppercase">Shop</h3>
           <ul className="mt-5 space-y-3 text-[13px] text-white/65">
             <li>
               <a className="transition-colors hover:text-white" href="#shop-all">
@@ -1586,7 +1586,7 @@ function Footer() {
           </ul>
         </div>
         <div>
-          <h3 className="text-[11px] font-bold uppercase text-[#f4b400]">Support</h3>
+          <h3 className="brand-mango-text text-[11px] font-bold uppercase">Support</h3>
           <ul className="mt-5 space-y-3 text-[13px] text-white/65">
             <li>
               <a className="transition-colors hover:text-white" href="#">
