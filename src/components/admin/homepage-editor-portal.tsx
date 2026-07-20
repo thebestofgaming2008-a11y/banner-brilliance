@@ -1,5 +1,4 @@
 import { Component, lazy, Suspense, useEffect, type ErrorInfo, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 
 import type { AdminCategory } from "@/services/adminService";
@@ -63,9 +62,7 @@ export function HomepageEditorPortal({
     };
   }, []);
 
-  if (typeof document === "undefined") return null;
-
-  return createPortal(
+  return (
     <HomepageEditorErrorBoundary>
       <Suspense
         fallback={
@@ -79,7 +76,6 @@ export function HomepageEditorPortal({
       >
         <HomepageVisualEditor categories={categories} onClose={onClose} />
       </Suspense>
-    </HomepageEditorErrorBoundary>,
-    document.body,
+    </HomepageEditorErrorBoundary>
   );
 }

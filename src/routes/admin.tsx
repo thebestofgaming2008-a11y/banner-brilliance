@@ -872,7 +872,13 @@ const Admin = () => {
         )}
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          <div key={tab} className="admin-tab-content mx-auto max-w-[1400px] space-y-6">
+          <div
+            key={tab}
+            className={cn(
+              "admin-tab-content mx-auto max-w-[1400px] space-y-6",
+              tab === "homepage" && "admin-tab-content--editor",
+            )}
+          >
             {loading && (
               <div className="rounded-xl border border-border bg-background p-8 text-center text-foreground/55 text-sm">
                 Loading…

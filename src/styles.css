@@ -708,6 +708,11 @@
     animation: admin-tab-enter 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
+  .admin-tab-content--editor {
+    animation: none;
+    transform: none;
+  }
+
   .admin-mobile-nav-backdrop,
   .admin-drawer-backdrop {
     animation: admin-fade-in 180ms ease-out both;
