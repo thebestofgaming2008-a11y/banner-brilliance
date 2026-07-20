@@ -78,12 +78,12 @@ export function StoreHeader() {
             {isAdmin ? (
               <a
                 href="/admin?tab=homepage"
-                aria-label="Edit storefront"
-                title="Edit storefront"
-                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#F18532]/40 px-2.5 text-[10px] font-bold uppercase text-[#B95720] transition hover:bg-[#FFF1D5] sm:px-3"
+                aria-label="Open homepage editor"
+                title="Open homepage editor"
+                className="inline-flex h-9 items-center gap-1.5 px-1.5 text-[10px] font-bold uppercase text-[#B95720] transition-opacity hover:opacity-65 sm:px-2"
               >
                 <LayoutDashboard size={15} />
-                <span className="hidden sm:inline">Edit site</span>
+                <span>Edit</span>
               </a>
             ) : null}
             <ChromeButton label="Open cart" onClick={() => setDrawer("cart")}>
@@ -163,16 +163,6 @@ export function StoreHeader() {
             <li>
               <a href="/account">Account</a>
             </li>
-            {isAdmin ? (
-              <li>
-                <a
-                  href="/admin?tab=homepage"
-                  className="inline-flex items-center gap-1.5 font-semibold"
-                >
-                  <LayoutDashboard size={14} /> Edit homepage
-                </a>
-              </li>
-            ) : null}
             <li>
               <a href="/wishlist">Wishlist</a>
             </li>

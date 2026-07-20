@@ -1,5 +1,11 @@
-import { ChevronRight } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import { StoreProductCard } from "@/components/store/product-card";
 import { merchandiseProducts, useStoreProducts } from "@/data/store";
@@ -58,11 +64,14 @@ export function HomepageHero({
   contentOffsetY,
   foregroundScale,
   overlayOpacity,
-  autoplay,
   editMode,
 }: HeroProps & EditorAware) {
   const safeSlides = slides?.length ? slides.slice(0, 6) : [];
   const [active, setActive] = useState(0);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragStart = useRef<number | null>(null);
+  const dragged = useRef(false);
 
   useEffect(() => {
     if (!editMode) return;
@@ -70,14 +79,14 @@ export function HomepageHero({
   }, [editMode, editorSlide, safeSlides.length]);
 
   useEffect(() => {
-    if (editMode || autoplay !== "on" || safeSlides.length < 2) return;
+    if (editMode || dragging || safeSlides.length < 2) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const timer = window.setInterval(
+    const timer = window.setTimeout(
       () => setActive((current) => (current + 1) % safeSlides.length),
       5200,
     );
-    return () => window.clearInterval(timer);
-  }, [autoplay, editMode, safeSlides.length]);
+    return () => window.clearTimeout(timer);
+  }, [active, dragging, editMode, safeSlides.length]);
 
   useEffect(() => {
     setActive((current) => Math.min(current, Math.max(0, safeSlides.length - 1)));
@@ -91,199 +100,279 @@ export function HomepageHero({
     ) : null;
   }
 
-  const slide = safeSlides[active];
-  const slideTextTone = slide.textTone ?? textTone;
-  const slideTextAlign = slide.textAlign ?? textAlign;
-  const slideTitleFont = slide.titleFont ?? titleFont;
-  const slideTitleSize = slide.titleSize ?? titleSize;
-  const slideMobileTitleSize = slide.mobileTitleSize ?? mobileTitleSize;
-  const slideContentWidth = slide.contentWidth ?? contentWidth;
-  const slideContentOffsetX = slide.contentOffsetX ?? contentOffsetX;
-  const slideContentOffsetY = slide.contentOffsetY ?? contentOffsetY;
-  const slideForegroundScale = slide.foregroundScale ?? foregroundScale;
-  const slideOverlayOpacity = slide.overlayOpacity ?? overlayOpacity;
-  const lightText = slideTextTone === "light";
-  const align = textAlignClass(slideTextAlign);
-  const selectedLayout = (slide.layout ?? layout) === "banner" ? "banner" : "original";
-  const gradient = {
-    enabled: "on" as const,
-    startColor: "#FBCB3D",
-    endColor: "#F18532",
-    angle: 105,
-    opacity: 84,
-    ...(slide.gradient ?? {}),
+  const goTo = (index: number) => {
+    if (!safeSlides.length) return;
+    setActive((index + safeSlides.length) % safeSlides.length);
   };
-  const gradientLayer =
-    gradient.enabled === "on" ? (
-      <div
-        data-hero-gradient
-        data-gradient-angle={gradient.angle}
-        className="pointer-events-none absolute inset-0 z-[2]"
-        style={{
-          backgroundImage: `linear-gradient(${Math.min(360, Math.max(0, gradient.angle))}deg, ${gradient.startColor}, ${gradient.endColor})`,
-          opacity: Math.min(1, Math.max(0, gradient.opacity / 100)),
-        }}
-      />
-    ) : null;
-  const artwork = (
-    <>
-      {slide.backgroundImage ? (
-        <img
-          src={slide.backgroundImage}
-          alt=""
-          fetchPriority="high"
-          className="absolute inset-0 z-[1] h-full w-full object-cover"
-          style={{ objectPosition: slide.imageFocus || "center" }}
-        />
-      ) : null}
-      {gradientLayer}
-      <div
-        className={`pointer-events-none absolute inset-0 z-[3] ${lightText ? "bg-black" : "bg-white"}`}
-        style={{ opacity: Math.min(0.8, Math.max(0, slideOverlayOpacity / 100)) }}
-      />
-    </>
-  );
-  const slidePicker =
-    safeSlides.length > 1 ? (
-      <div className="absolute bottom-4 right-5 z-30 flex gap-2" aria-label="Choose hero slide">
-        {safeSlides.map((item, index) => (
-          <button
-            key={`${item.title}-${index}`}
-            type="button"
-            aria-label={`Show ${item.title || `slide ${index + 1}`}`}
-            aria-current={active === index}
-            onClick={() => setActive(index)}
-            className={`h-1.5 rounded-full transition-all ${lightText ? "bg-white" : "bg-black"} ${active === index ? "w-8" : "w-3 opacity-45"}`}
-          />
-        ))}
-      </div>
-    ) : null;
 
-  if (selectedLayout === "original") {
-    return (
-      <section
-        className={`relative overflow-hidden ${lightText ? "text-white" : "text-black"}`}
-        style={{
-          backgroundColor: slide.backgroundColor || "#F6AD32",
-          height: "clamp(560px, 166.41vw, 820px)",
-        }}
-        aria-label="Featured collection"
-      >
-        {artwork}
-        <div
-          className="pointer-events-none absolute left-1/2 top-0 z-10 h-full -translate-x-1/2 overflow-hidden"
-          style={{ aspectRatio: "390 / 649", containerType: "inline-size" }}
-        >
-          {slide.foregroundImage ? (
-            <img
-              src={slide.foregroundImage}
-              alt=""
-              fetchPriority="high"
-              className="absolute inset-x-0 bottom-0 z-10 mx-auto h-auto max-w-none object-contain object-bottom"
-              style={{ width: `${Math.min(150, Math.max(25, slideForegroundScale))}%` }}
-            />
-          ) : null}
-          <div
-            className={`absolute z-20 flex flex-col ${align}`}
-            style={{
-              left: `${Math.max(2, slideContentOffsetX)}%`,
-              top: `${Math.max(3, slideContentOffsetY)}%`,
-              width: `${Math.max(24, 100 - Math.max(2, slideContentOffsetX) * 2)}%`,
-              maxWidth: `${Math.max(280, slideContentWidth)}px`,
-            }}
-          >
-            {slide.eyebrow ? (
-              <p className={`section-kicker ${lightText ? "text-white/75" : "text-black/65"}`}>
-                {slide.eyebrow}
-              </p>
-            ) : null}
-            <h1
-              className={`mt-3 leading-[0.92] ${fontClass(slideTitleFont)}`}
-              style={{
-                fontSize: `clamp(${Math.max(28, slideMobileTitleSize)}px, 13.35cqw, ${Math.max(36, slideTitleSize)}px)`,
-              }}
-            >
-              {slide.title}
-            </h1>
-            {slide.body ? (
-              <p
-                className={`mt-4 text-sm leading-6 ${lightText ? "text-white/80" : "text-black/70"}`}
-              >
-                {slide.body}
-              </p>
-            ) : null}
-          </div>
-          {slide.buttonLabel ? (
-            <a
-              href={safeLink(slide.buttonUrl)}
-              className={`pointer-events-auto absolute bottom-[5%] left-[6%] z-20 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase underline-offset-4 ${lightText ? "bg-white text-black" : "bg-black text-white"}`}
-            >
-              {slide.buttonLabel}
-            </a>
-          ) : null}
-        </div>
-        {slidePicker}
-      </section>
-    );
-  }
+  const finishDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    if (dragStart.current === null) return;
+    const threshold = Math.min(72, event.currentTarget.clientWidth * 0.14);
+    const completedOffset = event.clientX - dragStart.current;
+    if (Math.abs(completedOffset) >= threshold) {
+      goTo(active + (completedOffset < 0 ? 1 : -1));
+    }
+    dragStart.current = null;
+    setDragging(false);
+    setDragOffset(0);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    window.setTimeout(() => {
+      dragged.current = false;
+    }, 0);
+  };
+
+  const activeSlide = safeSlides[active];
+  const activeLayout = (activeSlide?.layout ?? layout) === "banner" ? "banner" : "original";
+  const activeLightText = (activeSlide?.textTone ?? textTone) === "light";
 
   return (
     <section
-      className={`relative min-h-[560px] overflow-hidden md:min-h-[720px] ${lightText ? "text-white" : "text-black"}`}
-      style={{ backgroundColor: slide.backgroundColor || "#F6AD32" }}
+      className={`relative overflow-hidden ${activeLightText ? "text-white" : "text-black"} ${dragging ? "cursor-grabbing" : safeSlides.length > 1 ? "cursor-grab" : ""}`}
+      style={{
+        height:
+          activeLayout === "original"
+            ? "clamp(560px, 166.41vw, 820px)"
+            : "clamp(560px, 82vw, 720px)",
+        touchAction: "pan-y",
+      }}
       aria-label="Featured collection"
+      onPointerDown={(event) => {
+        if (editMode || safeSlides.length < 2 || !event.isPrimary || event.button !== 0) return;
+        dragStart.current = event.clientX;
+        dragged.current = false;
+        setDragging(true);
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        if (dragStart.current === null) return;
+        const nextOffset = event.clientX - dragStart.current;
+        if (Math.abs(nextOffset) > 5) dragged.current = true;
+        setDragOffset(nextOffset);
+      }}
+      onPointerUp={finishDrag}
+      onPointerCancel={finishDrag}
+      onClickCapture={(event) => {
+        if (!dragged.current) return;
+        event.preventDefault();
+        event.stopPropagation();
+        dragged.current = false;
+      }}
     >
-      {artwork}
-      {slide.foregroundImage ? (
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-end justify-center overflow-hidden">
-          <img
-            src={slide.foregroundImage}
-            alt=""
-            className="max-h-full max-w-none object-contain object-bottom"
-            style={{ width: `${Math.min(150, Math.max(25, slideForegroundScale))}%` }}
-          />
-        </div>
-      ) : null}
       <div
-        className={`relative z-20 flex min-h-[560px] flex-col justify-end px-[22px] md:min-h-[720px] md:px-8 ${align}`}
+        data-hero-track
+        className="flex h-full will-change-transform"
         style={{
-          paddingLeft: `${Math.max(2, slideContentOffsetX)}%`,
-          paddingRight: `${Math.max(2, 100 - slideContentOffsetX - 88)}%`,
-          paddingBottom: `${Math.max(3, slideContentOffsetY)}%`,
+          transform: `translate3d(calc(-${active * 100}% + ${dragOffset}px), 0, 0)`,
+          transition: dragging ? "none" : "transform 760ms cubic-bezier(0.22, 1, 0.36, 1)",
         }}
       >
-        <div style={{ maxWidth: `${Math.max(280, slideContentWidth)}px` }}>
-          {slide.eyebrow ? (
-            <p className={`section-kicker ${lightText ? "text-white/75" : "text-black/65"}`}>
-              {slide.eyebrow}
-            </p>
-          ) : null}
-          <h1
-            className={`mt-3 leading-[0.92] ${fontClass(slideTitleFont)}`}
-            style={{
-              fontSize: `clamp(${Math.max(28, slideMobileTitleSize)}px, 7vw, ${Math.max(36, slideTitleSize)}px)`,
-            }}
-          >
-            {slide.title}
-          </h1>
-          {slide.body ? (
-            <p
-              className={`mt-4 max-w-lg text-sm leading-6 ${lightText ? "text-white/78" : "text-black/70"}`}
+        {safeSlides.map((slide, index) => {
+          const slideTextTone = slide.textTone ?? textTone;
+          const slideTextAlign = slide.textAlign ?? textAlign;
+          const slideTitleFont = slide.titleFont ?? titleFont;
+          const slideTitleSize = slide.titleSize ?? titleSize;
+          const slideMobileTitleSize = slide.mobileTitleSize ?? mobileTitleSize;
+          const slideContentWidth = slide.contentWidth ?? contentWidth;
+          const slideContentOffsetX = slide.contentOffsetX ?? contentOffsetX;
+          const slideContentOffsetY = slide.contentOffsetY ?? contentOffsetY;
+          const slideForegroundScale = slide.foregroundScale ?? foregroundScale;
+          const slideOverlayOpacity = slide.overlayOpacity ?? overlayOpacity;
+          const lightText = slideTextTone === "light";
+          const align = textAlignClass(slideTextAlign);
+          const selectedLayout = (slide.layout ?? layout) === "banner" ? "banner" : "original";
+          const gradient = {
+            enabled: "on" as const,
+            startColor: "#FBCB3D",
+            endColor: "#F18532",
+            angle: 105,
+            opacity: 84,
+            ...(slide.gradient ?? {}),
+          };
+          const originalTitle =
+            index === 0
+              ? { left: 37, top: 121, width: 316 }
+              : index === 1
+                ? { left: 41, top: 100, width: 319 }
+                : { left: 30, top: 110, width: 330 };
+
+          return (
+            <article
+              key={`${slide.title}-${index}`}
+              className={`relative h-full w-full shrink-0 overflow-hidden ${lightText ? "text-white" : "text-black"}`}
+              style={{ backgroundColor: slide.backgroundColor || "#F6AD32" }}
+              aria-hidden={active !== index}
+              inert={active !== index}
             >
-              {slide.body}
-            </p>
-          ) : null}
-          {slide.buttonLabel ? (
-            <a
-              href={safeLink(slide.buttonUrl)}
-              className={`mt-7 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase ${lightText ? "bg-white text-black" : "bg-black text-white"}`}
-            >
-              {slide.buttonLabel}
-            </a>
-          ) : null}
-        </div>
+              {slide.backgroundImage ? (
+                <img
+                  src={slide.backgroundImage}
+                  alt=""
+                  loading={index === 0 ? "eager" : "lazy"}
+                  fetchPriority={index === 0 ? "high" : "low"}
+                  decoding="async"
+                  draggable={false}
+                  className="pointer-events-none absolute inset-0 z-[1] h-full w-full select-none object-cover"
+                  style={{ objectPosition: slide.imageFocus || "center" }}
+                />
+              ) : null}
+              {gradient.enabled === "on" ? (
+                <div
+                  data-hero-gradient={active === index ? true : undefined}
+                  data-gradient-angle={gradient.angle}
+                  className="pointer-events-none absolute inset-0 z-[2]"
+                  style={{
+                    backgroundImage: `linear-gradient(${Math.min(360, Math.max(0, gradient.angle))}deg, ${gradient.startColor}, ${gradient.endColor})`,
+                    opacity: Math.min(1, Math.max(0, gradient.opacity / 100)),
+                  }}
+                />
+              ) : null}
+              <div
+                className={`pointer-events-none absolute inset-0 z-[3] ${lightText ? "bg-black" : "bg-white"}`}
+                style={{ opacity: Math.min(0.8, Math.max(0, slideOverlayOpacity / 100)) }}
+              />
+              <a
+                href={safeLink(slide.buttonUrl)}
+                aria-label={slide.buttonLabel || `View ${slide.title}`}
+                className="absolute inset-0 z-[15]"
+                draggable={false}
+              />
+
+              {selectedLayout === "original" ? (
+                <div
+                  className="pointer-events-none absolute left-1/2 top-0 z-10 h-full -translate-x-1/2 overflow-hidden"
+                  style={{ aspectRatio: "390 / 649", containerType: "inline-size" }}
+                >
+                  {slide.foregroundImage ? (
+                    <img
+                      src={slide.foregroundImage}
+                      alt=""
+                      loading={index === 0 ? "eager" : "lazy"}
+                      fetchPriority={index === 0 ? "high" : "low"}
+                      decoding="async"
+                      draggable={false}
+                      className="absolute inset-x-0 bottom-0 z-10 mx-auto h-auto w-full select-none object-contain object-bottom"
+                    />
+                  ) : null}
+                  <h1
+                    className="absolute z-20 m-0 whitespace-nowrap text-center font-serif-display font-normal leading-none"
+                    style={{
+                      left: `${(originalTitle.left / 390) * 100}%`,
+                      top: `${(originalTitle.top / 649) * 100}%`,
+                      width: `${(originalTitle.width / 390) * 100}%`,
+                      fontSize: `${(52 / 390) * 100}cqw`,
+                    }}
+                  >
+                    {slide.title}
+                  </h1>
+                  <span
+                    className="absolute z-20 text-[12px] font-semibold uppercase leading-none underline underline-offset-4"
+                    style={{ left: `${(25 / 390) * 100}%`, top: `${(614 / 649) * 100}%` }}
+                  >
+                    Shop the collection
+                  </span>
+                </div>
+              ) : (
+                <>
+                  {slide.foregroundImage ? (
+                    <div className="pointer-events-none absolute inset-0 z-10 flex items-end justify-center overflow-hidden">
+                      <img
+                        src={slide.foregroundImage}
+                        alt=""
+                        loading={index === 0 ? "eager" : "lazy"}
+                        decoding="async"
+                        draggable={false}
+                        className="max-h-full max-w-none select-none object-contain object-bottom"
+                        style={{ width: `${Math.min(150, Math.max(25, slideForegroundScale))}%` }}
+                      />
+                    </div>
+                  ) : null}
+                  <div
+                    className={`pointer-events-none relative z-20 flex h-full flex-col justify-end px-[22px] md:px-8 ${align}`}
+                    style={{
+                      paddingLeft: `${Math.max(2, slideContentOffsetX)}%`,
+                      paddingRight: `${Math.max(2, 100 - slideContentOffsetX - 88)}%`,
+                      paddingBottom: `${Math.max(3, slideContentOffsetY)}%`,
+                    }}
+                  >
+                    <div style={{ maxWidth: `${Math.max(280, slideContentWidth)}px` }}>
+                      {slide.eyebrow ? (
+                        <p
+                          className={`section-kicker ${lightText ? "text-white/75" : "text-black/65"}`}
+                        >
+                          {slide.eyebrow}
+                        </p>
+                      ) : null}
+                      <h1
+                        className={`mt-3 leading-[0.92] ${fontClass(slideTitleFont)}`}
+                        style={{
+                          fontSize: `clamp(${Math.max(28, slideMobileTitleSize)}px, 7vw, ${Math.max(36, slideTitleSize)}px)`,
+                        }}
+                      >
+                        {slide.title}
+                      </h1>
+                      {slide.body ? (
+                        <p
+                          className={`mt-4 max-w-lg text-sm leading-6 ${lightText ? "text-white/78" : "text-black/70"}`}
+                        >
+                          {slide.body}
+                        </p>
+                      ) : null}
+                      {slide.buttonLabel ? (
+                        <span
+                          className={`mt-7 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase ${lightText ? "bg-white text-black" : "bg-black text-white"}`}
+                        >
+                          {slide.buttonLabel}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </>
+              )}
+            </article>
+          );
+        })}
       </div>
-      {slidePicker}
+
+      {safeSlides.length > 1 ? (
+        <>
+          <button
+            type="button"
+            aria-label="Previous hero slide"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => goTo(active - 1)}
+            className="absolute left-3 top-1/2 z-30 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/45 bg-black/20 text-white backdrop-blur-sm transition hover:bg-black/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            <ChevronLeft size={23} />
+          </button>
+          <button
+            type="button"
+            aria-label="Next hero slide"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => goTo(active + 1)}
+            className="absolute right-3 top-1/2 z-30 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/45 bg-black/20 text-white backdrop-blur-sm transition hover:bg-black/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            <ChevronRight size={23} />
+          </button>
+          <div
+            className="absolute bottom-4 right-5 z-30 flex items-center gap-2"
+            aria-label="Choose hero slide"
+          >
+            {safeSlides.map((item, index) => (
+              <button
+                key={`${item.title}-${index}`}
+                type="button"
+                aria-label={`Show ${item.title || `slide ${index + 1}`}`}
+                aria-current={active === index}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => goTo(index)}
+                className={`h-2 rounded-full bg-white shadow-sm transition-all ${active === index ? "w-8 opacity-100" : "w-3 opacity-55 hover:opacity-90"}`}
+              />
+            ))}
+          </div>
+        </>
+      ) : null}
     </section>
   );
 }

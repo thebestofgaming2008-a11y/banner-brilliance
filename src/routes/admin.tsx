@@ -330,11 +330,7 @@ const Admin = () => {
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const { signOut } = useAuthActions();
   const currentUser = useQuery(api.users.currentUser, isAuthenticated ? {} : "skip");
-  const [tab, setTab] = useState<TabKey>(() => {
-    if (typeof window === "undefined") return "dash";
-    const requested = new URLSearchParams(window.location.search).get("tab");
-    return NAV.some((item) => item.key === requested) ? (requested as TabKey) : "dash";
-  });
+  const [tab, setTab] = useState<TabKey>("dash");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileNavClosing, setMobileNavClosing] = useState(false);
   const [dashboardRange, setDashboardRange] = useState<"7d" | "30d" | "90d">("7d");
@@ -356,6 +352,16 @@ const Admin = () => {
   const [productFilter, setProductFilter] = useState<string>("all");
   const [adminLoadError, setAdminLoadError] = useState<string | null>(null);
   const adminEmail = String(currentUser?.email ?? "");
+
+  useEffect(() => {
+    const syncTabFromUrl = () => {
+      const requested = new URLSearchParams(window.location.search).get("tab");
+      if (NAV.some((item) => item.key === requested)) setTab(requested as TabKey);
+    };
+    syncTabFromUrl();
+    window.addEventListener("popstate", syncTabFromUrl);
+    return () => window.removeEventListener("popstate", syncTabFromUrl);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1270,7 +1276,13 @@ const Admin = () => {
                   </div>
                 }
               >
-                <HomepageVisualEditor categories={categories} onClose={() => setTab("dash")} />
+                <HomepageVisualEditor
+                  categories={categories}
+                  onClose={() => {
+                    window.history.replaceState({}, "", "/admin");
+                    setTab("dash");
+                  }}
+                />
               </Suspense>
             )}
 

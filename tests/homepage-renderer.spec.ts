@@ -102,17 +102,34 @@ test("published visual homepage content renders responsively", async ({ page }) 
 
   await page.goto("/");
   const hero = page.getByRole("region", { name: "Featured collection" });
-  await expect(hero.getByRole("heading", { name: "FIRST HERO" })).toBeVisible();
+  await expect(hero.getByRole("heading", { name: "FIRST HERO" })).toBeVisible({ timeout: 2_000 });
   await expect(hero.locator('[data-hero-gradient][data-gradient-angle="110"]')).toHaveCSS(
     "background-image",
     /linear-gradient/,
   );
   await hero.getByRole("button", { name: "Show SECOND HERO" }).click();
   await expect(hero.getByRole("heading", { name: "SECOND HERO" })).toBeVisible();
+  await expect(hero.locator("[data-hero-track]")).toHaveCSS("transition-duration", "0.76s");
   await expect(hero.locator('[data-hero-gradient][data-gradient-angle="145"]')).toHaveCSS(
     "background-image",
     /linear-gradient/,
   );
+  const heroBox = await hero.boundingBox();
+  expect(heroBox).not.toBeNull();
+  if (heroBox) {
+    const viewport = page.viewportSize();
+    const pointerY = Math.max(
+      80,
+      Math.min((viewport?.height ?? 720) - 80, heroBox.y + heroBox.height / 2),
+    );
+    await page.mouse.move(heroBox.x + heroBox.width / 2, pointerY);
+    await page.mouse.down();
+    await page.mouse.move(heroBox.x + heroBox.width / 2 + 120, pointerY, {
+      steps: 5,
+    });
+    await page.mouse.up();
+  }
+  await expect(hero.getByRole("heading", { name: "FIRST HERO" })).toBeVisible({ timeout: 2_000 });
   await expect(page.getByRole("heading", { name: "VISUAL EDITOR TEST" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Shop now" })).toHaveAttribute("href", "/shop");
   await expect(page.getByRole("heading", { name: "SHOP ALL" })).toHaveCount(0);

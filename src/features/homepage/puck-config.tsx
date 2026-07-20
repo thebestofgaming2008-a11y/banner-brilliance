@@ -227,14 +227,6 @@ export function createHomepagePuckConfig(
               },
             },
           },
-          autoplay: {
-            type: "radio",
-            label: "Automatic slides",
-            options: [
-              { label: "On", value: "on" },
-              { label: "Off", value: "off" },
-            ],
-          },
         },
         defaultProps: {
           slides: [defaultSlide(0)],
