@@ -454,12 +454,44 @@ export function HomepageVisualEditor({
     toast.success("Latest homepage draft loaded");
   };
 
-  if (loading || !data) {
+  if (loading) {
     return (
-      <div className="grid min-h-[68vh] place-items-center rounded-lg border bg-white">
+      <div className="fixed inset-0 z-[1000] grid place-items-center bg-[#1e1e1e] text-white">
         <div className="text-center">
-          <Loader2 className="mx-auto h-6 w-6 animate-spin" />
-          <p className="mt-3 text-sm text-black/55">Loading visual editor...</p>
+          <Loader2 className="mx-auto h-6 w-6 animate-spin text-[#F6AD32]" />
+          <p className="mt-3 text-sm text-white/65">Loading visual editor...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="fixed inset-0 z-[1000] grid place-items-center bg-[#1e1e1e] p-5 text-white">
+        <div className="w-full max-w-md rounded-lg border border-white/15 bg-[#292929] p-6 shadow-2xl">
+          <AlertTriangle className="h-6 w-6 text-[#F6AD32]" />
+          <h1 className="mt-4 text-lg font-semibold">The homepage could not be loaded</h1>
+          <p className="mt-2 text-sm leading-6 text-white/65">
+            {editorError || "The editor did not receive homepage data."}
+          </p>
+          <div className="mt-5 flex gap-2">
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="brand-mango-bg inline-flex h-10 items-center gap-2 rounded-md px-4 text-sm font-semibold text-black"
+            >
+              <RotateCcw size={16} /> Retry
+            </button>
+            {onClose ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex h-10 items-center rounded-md border border-white/20 px-4 text-sm font-semibold"
+              >
+                Back to dashboard
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
     );

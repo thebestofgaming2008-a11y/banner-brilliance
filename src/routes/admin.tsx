@@ -1,7 +1,7 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Cropper, { type Area as CropArea } from "react-easy-crop";
 import "react-easy-crop/react-easy-crop.css";
 import {
@@ -119,18 +119,7 @@ import {
   HomepageContentPreview,
   type HomepagePreviewProduct,
 } from "@/components/admin/homepage-content-preview";
-
-function ServerHomepageEditorPlaceholder() {
-  return null;
-}
-
-const HomepageVisualEditor = import.meta.env.SSR
-  ? ServerHomepageEditorPlaceholder
-  : lazy(() =>
-      import("@/features/homepage/homepage-visual-editor").then((module) => ({
-        default: module.HomepageVisualEditor,
-      })),
-    );
+import { HomepageEditorPortal } from "@/components/admin/homepage-editor-portal";
 
 const CATEGORIES = [
   {
@@ -1269,21 +1258,13 @@ const Admin = () => {
             )}
 
             {!loading && !adminLoadError && tab === "homepage" && (
-              <Suspense
-                fallback={
-                  <div className="grid min-h-[68vh] place-items-center rounded-lg border bg-white text-sm text-black/55">
-                    Loading visual editor...
-                  </div>
-                }
-              >
-                <HomepageVisualEditor
-                  categories={categories}
-                  onClose={() => {
-                    window.history.replaceState({}, "", "/admin");
-                    setTab("dash");
-                  }}
-                />
-              </Suspense>
+              <HomepageEditorPortal
+                categories={categories}
+                onClose={() => {
+                  window.history.replaceState({}, "", "/admin");
+                  setTab("dash");
+                }}
+              />
             )}
 
             {!loading && !adminLoadError && tab === "customers" && (
