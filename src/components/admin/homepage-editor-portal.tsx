@@ -3,11 +3,17 @@ import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 
 import type { AdminCategory } from "@/services/adminService";
 
-const HomepageVisualEditor = lazy(() =>
-  import("@/features/homepage/homepage-visual-editor").then((module) => ({
-    default: module.HomepageVisualEditor,
-  })),
-);
+function ServerHomepageEditorPlaceholder() {
+  return null;
+}
+
+const HomepageVisualEditor = import.meta.env.SSR
+  ? ServerHomepageEditorPlaceholder
+  : lazy(() =>
+      import("@/features/homepage/homepage-visual-editor").then((module) => ({
+        default: module.HomepageVisualEditor,
+      })),
+    );
 
 class HomepageEditorErrorBoundary extends Component<
   { children: ReactNode },
