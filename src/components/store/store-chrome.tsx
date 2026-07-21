@@ -297,6 +297,29 @@ export function StoreHeader() {
   );
 }
 
+export function StoreHeaderPreview() {
+  return (
+    <header className="site-header sticky top-0 z-50 bg-white">
+      <div className="relative mx-auto flex h-[65px] max-w-[1440px] items-center justify-between px-5 sm:px-6 md:px-8">
+        <span className="grid h-9 w-9 place-items-center text-[#C85F22]" aria-hidden="true">
+          <MangoMenuIcon />
+        </span>
+        <span className="absolute left-1/2 top-1/2 h-[42px] w-[100px] -translate-x-1/2 -translate-y-1/2 sm:h-[44px] sm:w-[105px]">
+          <img src={logoGold} alt="Fawzaan" className="h-full w-full object-contain" />
+        </span>
+        <span className="grid h-9 w-9 place-items-center text-[#C85F22]" aria-hidden="true">
+          <span className="relative">
+            <ShoppingBag size={23} />
+            <span className="brand-mango-bg absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9px] font-bold text-white">
+              0
+            </span>
+          </span>
+        </span>
+      </div>
+    </header>
+  );
+}
+
 export function StoreFooter() {
   const { taxonomy } = useCatalogPresentation();
   const collections = taxonomy.filter((item) => item.type === "collection");

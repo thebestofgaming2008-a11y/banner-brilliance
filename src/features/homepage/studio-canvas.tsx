@@ -1,8 +1,18 @@
 import Moveable from "react-moveable";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
+import { StoreFooter, StoreHeaderPreview } from "@/components/store/store-chrome";
+import { LegacyHomepageContent } from "@/routes/index";
 import { BannerSceneView } from "./banner-scene";
-import type { BannerFill, BannerLayerStyle, BannerScene, HomepageViewport } from "./types";
+import type { StudioBannerRef } from "./studio-model";
+import type {
+  BannerFill,
+  BannerLayerStyle,
+  BannerScene,
+  HomepageData,
+  HomepageViewport,
+} from "./types";
 
 type Geometry = Pick<BannerLayerStyle, "x" | "y" | "width" | "height" | "rotation">;
 
@@ -10,7 +20,34 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
 }
 
+function editorPreviewData(data: HomepageData, selectedRef: StudioBannerRef) {
+  const next = structuredClone(data);
+  const hero = next.content.find((item) => item.type === "Hero");
+  if (hero?.type === "Hero" && selectedRef.kind === "hero") {
+    hero.props.editorSlide = (selectedRef.index ?? 0) + 1;
+  }
+  return next;
+}
+
+export function StorefrontFramePreview({
+  data,
+  editMode = false,
+}: {
+  data: HomepageData;
+  editMode?: boolean;
+}) {
+  return (
+    <div className="studio-storefront-page min-h-screen bg-white font-sans-ui text-black">
+      <StoreHeaderPreview />
+      <LegacyHomepageContent homepage={data} editMode={editMode} />
+      <StoreFooter />
+    </div>
+  );
+}
+
 export function StudioCanvas({
+  data,
+  selectedRef,
   scene,
   viewport,
   zoom,
@@ -26,6 +63,8 @@ export function StudioCanvas({
   onBackgroundCropChange,
   onCommitGeometry,
 }: {
+  data: HomepageData;
+  selectedRef: StudioBannerRef;
   scene: BannerScene;
   viewport: HomepageViewport;
   zoom: number;
@@ -44,22 +83,56 @@ export function StudioCanvas({
   ) => void;
   onCommitGeometry: (changes: Array<{ id: string; geometry: Geometry }>) => void;
 }) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const editSurfaceRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const [frameRoot, setFrameRoot] = useState<HTMLElement | null>(null);
+  const [surfaceHost, setSurfaceHost] = useState<HTMLElement | null>(null);
   const [targets, setTargets] = useState<HTMLElement[]>([]);
+  const [surfaceSize, setSurfaceSize] = useState({ width: 1200, height: scene.height });
   const scale = zoom / 100;
-  const canvasWidth = viewport === "mobile" ? 390 : 1200;
+  const canvasWidth = viewport === "mobile" ? 390 : 1440;
+  const canvasHeight = viewport === "mobile" ? 844 : 900;
+  const previewData = useMemo(() => editorPreviewData(data, selectedRef), [data, selectedRef]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const frame = frameRef.current;
     if (!frame) return;
+    const host = frame.querySelector<HTMLElement>(
+      `[data-homepage-banner-id="${CSS.escape(selectedRef.itemId)}"]`,
+    );
+    setSurfaceHost(host);
+  }, [frameRoot, selectedRef.itemId, selectedRef.key, viewport]);
+
+  useEffect(() => {
+    if (!surfaceHost) return;
+    const measure = () =>
+      setSurfaceSize({
+        width: Math.max(1, surfaceHost.clientWidth),
+        height: Math.max(1, surfaceHost.clientHeight),
+      });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(surfaceHost);
+    return () => observer.disconnect();
+  }, [surfaceHost]);
+
+  useEffect(() => {
+    if (!surfaceHost) return;
+    surfaceHost.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [selectedRef.key, surfaceHost, viewport]);
+
+  useEffect(() => {
+    const surface = editSurfaceRef.current;
+    if (!surface) return;
     setTargets(
       selectedLayerIds
-        .map((id) => frame.querySelector<HTMLElement>(`[data-banner-layer="${CSS.escape(id)}"]`))
+        .map((id) => surface.querySelector<HTMLElement>(`[data-banner-layer="${CSS.escape(id)}"]`))
         .filter((target): target is HTMLElement => Boolean(target)),
     );
-  }, [scene, selectedLayerIds, viewport]);
+  }, [scene, selectedLayerIds, viewport, surfaceHost]);
 
   const selectedLayers = useMemo(
     () => scene.layers.filter((layer) => selectedLayerIds.includes(layer.id)),
@@ -72,11 +145,10 @@ export function StudioCanvas({
   });
 
   const commitTargets = (changedTargets: Array<HTMLElement | SVGElement>) => {
-    const frame = frameRef.current;
-    if (!frame) return;
-    const width = frame.clientWidth || canvasWidth;
-    const height =
-      frame.clientHeight || (viewport === "mobile" ? scene.mobileHeight : scene.height);
+    const surface = editSurfaceRef.current;
+    if (!surface) return;
+    const width = surface.clientWidth || surfaceSize.width;
+    const height = surface.clientHeight || surfaceSize.height;
     const changes = changedTargets
       .map((target) => {
         if (!(target instanceof HTMLElement)) return null;
@@ -106,48 +178,12 @@ export function StudioCanvas({
     if (changes.length) onCommitGeometry(changes);
   };
 
-  return (
-    <div
-      ref={stageRef}
-      className={`studio-canvas-stage ${activeTool === "hand" ? "is-panning" : ""}`}
-      data-viewport={viewport}
-      onPointerDown={(event) => {
-        if (activeTool !== "hand" || !stageRef.current) return;
-        event.preventDefault();
-        panRef.current = {
-          x: event.clientX,
-          y: event.clientY,
-          left: stageRef.current.scrollLeft,
-          top: stageRef.current.scrollTop,
-        };
-        event.currentTarget.setPointerCapture(event.pointerId);
-      }}
-      onPointerMove={(event) => {
-        if (!panRef.current || !stageRef.current) return;
-        stageRef.current.scrollLeft = panRef.current.left - (event.clientX - panRef.current.x);
-        stageRef.current.scrollTop = panRef.current.top - (event.clientY - panRef.current.y);
-      }}
-      onPointerUp={() => {
-        panRef.current = null;
-      }}
-    >
-      <div className="studio-ruler studio-ruler--horizontal" aria-hidden="true" />
-      <div className="studio-ruler studio-ruler--vertical" aria-hidden="true" />
-      <div
-        className="studio-canvas-scale"
-        style={{
-          width: `${canvasWidth * scale}px`,
-          height: `${(viewport === "mobile" ? scene.mobileHeight : scene.height) * scale}px`,
-        }}
-      >
+  const editableSurface = surfaceHost
+    ? createPortal(
         <div
-          ref={frameRef}
-          className="studio-canvas-frame"
-          style={{
-            width: `${canvasWidth}px`,
-            transform: `scale(${scale})`,
-            transformOrigin: "top left",
-          }}
+          ref={editSurfaceRef}
+          className="studio-edit-surface"
+          data-active-banner={selectedRef.key}
         >
           <BannerSceneView
             scene={scene}
@@ -213,25 +249,20 @@ export function StudioCanvas({
               middle: true,
             }}
             verticalGuidelines={[
-              canvasWidth * 0.05,
-              canvasWidth * 0.25,
-              canvasWidth * 0.5,
-              canvasWidth * 0.75,
-              canvasWidth * 0.95,
+              surfaceSize.width * 0.05,
+              surfaceSize.width * 0.25,
+              surfaceSize.width * 0.5,
+              surfaceSize.width * 0.75,
+              surfaceSize.width * 0.95,
             ]}
             horizontalGuidelines={[
-              (viewport === "mobile" ? scene.mobileHeight : scene.height) * 0.05,
-              (viewport === "mobile" ? scene.mobileHeight : scene.height) * 0.25,
-              (viewport === "mobile" ? scene.mobileHeight : scene.height) * 0.5,
-              (viewport === "mobile" ? scene.mobileHeight : scene.height) * 0.75,
-              (viewport === "mobile" ? scene.mobileHeight : scene.height) * 0.95,
+              surfaceSize.height * 0.05,
+              surfaceSize.height * 0.25,
+              surfaceSize.height * 0.5,
+              surfaceSize.height * 0.75,
+              surfaceSize.height * 0.95,
             ]}
-            bounds={{
-              left: 0,
-              top: 0,
-              right: canvasWidth,
-              bottom: viewport === "mobile" ? scene.mobileHeight : scene.height,
-            }}
+            bounds={{ left: 0, top: 0, right: surfaceSize.width, bottom: surfaceSize.height }}
             throttleDrag={0}
             throttleResize={0}
             throttleRotate={0}
@@ -277,7 +308,91 @@ export function StudioCanvas({
             }
             onRotateGroupEnd={(event) => commitTargets(event.targets)}
           />
-        </div>
+        </div>,
+        surfaceHost,
+      )
+    : null;
+
+  const storefrontDocument = frameRoot
+    ? createPortal(
+        <div
+          ref={frameRef}
+          className="studio-frame-document"
+          onClickCapture={(event) => {
+            if ((event.target as HTMLElement).closest(".studio-edit-surface")) return;
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+        >
+          <StorefrontFramePreview data={previewData} editMode />
+          {editableSurface}
+        </div>,
+        frameRoot,
+      )
+    : null;
+
+  return (
+    <div
+      ref={stageRef}
+      className={`studio-canvas-stage ${activeTool === "hand" ? "is-panning" : ""}`}
+      data-viewport={viewport}
+      onPointerDown={(event) => {
+        if (activeTool !== "hand" || !stageRef.current) return;
+        event.preventDefault();
+        panRef.current = {
+          x: event.clientX,
+          y: event.clientY,
+          left: stageRef.current.scrollLeft,
+          top: stageRef.current.scrollTop,
+        };
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        if (!panRef.current || !stageRef.current) return;
+        stageRef.current.scrollLeft = panRef.current.left - (event.clientX - panRef.current.x);
+        stageRef.current.scrollTop = panRef.current.top - (event.clientY - panRef.current.y);
+      }}
+      onPointerUp={() => {
+        panRef.current = null;
+      }}
+    >
+      <div className="studio-ruler studio-ruler--horizontal" aria-hidden="true" />
+      <div className="studio-ruler studio-ruler--vertical" aria-hidden="true" />
+      <div
+        className="studio-canvas-scale"
+        style={{ width: `${canvasWidth * scale}px`, height: `${canvasHeight * scale}px` }}
+      >
+        <iframe
+          ref={iframeRef}
+          className="studio-canvas-frame"
+          title={`${viewport} storefront preview`}
+          srcDoc="<!doctype html><html><head><base href='/'></head><body></body></html>"
+          style={{
+            width: `${canvasWidth}px`,
+            height: `${canvasHeight}px`,
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+          }}
+          onLoad={() => {
+            const iframe = iframeRef.current;
+            const iframeDocument = iframe?.contentDocument;
+            if (!iframeDocument) return;
+            iframeDocument.head
+              .querySelectorAll("style, link[rel='stylesheet']")
+              .forEach((node) => node.remove());
+            document.head
+              .querySelectorAll("style, link[rel='stylesheet']")
+              .forEach((node) => iframeDocument.head.append(node.cloneNode(true)));
+            iframeDocument.body.replaceChildren();
+            iframeDocument.body.style.margin = "0";
+            iframeDocument.body.style.background = "#ffffff";
+            const root = iframeDocument.createElement("div");
+            root.id = "studio-frame-root";
+            iframeDocument.body.append(root);
+            setFrameRoot(root);
+          }}
+        />
+        {storefrontDocument}
       </div>
     </div>
   );

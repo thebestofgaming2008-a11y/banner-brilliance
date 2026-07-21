@@ -14,8 +14,7 @@ test.describe("focused homepage studio", () => {
   });
 
   test("uses the Figma panel model and protects the coded middle", async ({ page }) => {
-    await expect(page.getByRole("button", { name: "Sections", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Layers", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "File", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Assets", exact: true })).toBeVisible();
     await expect(page.getByText("Original storefront", { exact: true })).toBeVisible();
     await expect(
@@ -24,6 +23,16 @@ test.describe("focused homepage studio", () => {
     await expect(page.getByText("After Honey", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Design", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Prototype", exact: true })).toBeVisible();
+    const storefront = page.frameLocator('iframe[title="desktop storefront preview"]');
+    await expect(storefront.locator("#honey")).toBeAttached();
+    await expect(storefront.locator("footer")).toBeAttached();
+
+    const frameHeight = await storefront.locator("body").evaluate((body) => body.scrollHeight);
+    expect(frameHeight).toBeGreaterThan(4000);
+    const canScroll = await storefront
+      .locator("body")
+      .evaluate((body) => body.scrollHeight > body.ownerDocument.defaultView!.innerHeight);
+    expect(canScroll).toBe(true);
 
     const toolbar = page.getByRole("navigation", { name: "Editor tools" });
     const box = await toolbar.boundingBox();
@@ -32,18 +41,18 @@ test.describe("focused homepage studio", () => {
   });
 
   test("selects, resizes, edits text, and enters image crop mode", async ({ page }) => {
-    await page.getByRole("button", { name: "Layers", exact: true }).click();
     await page.getByRole("button", { name: /Title/ }).first().click();
-    expect(await page.locator(".moveable-control").count()).toBeGreaterThanOrEqual(8);
+    const storefront = page.frameLocator('iframe[title="desktop storefront preview"]');
+    expect(await storefront.locator(".moveable-control").count()).toBeGreaterThanOrEqual(8);
 
-    const title = page.locator('[data-banner-layer="title"]');
+    const title = storefront.locator('.studio-edit-surface [data-banner-layer="title"]');
     await title.dblclick({ force: true });
     await expect(title.locator('[contenteditable="true"]')).toBeVisible();
 
     await page.getByRole("button", { name: /Product image/ }).click();
-    const image = page.locator('[data-banner-layer="foreground"]');
+    const image = storefront.locator('.studio-edit-surface [data-banner-layer="foreground"]');
     await image.dblclick({ force: true });
-    await expect(page.locator(".studio-crop-label")).toBeVisible();
+    await expect(storefront.locator(".studio-crop-label")).toBeVisible();
     await expect(page.getByRole("button", { name: "Done cropping" })).toBeVisible();
     await expect(page.getByText("Crop X", { exact: true })).toBeVisible();
     await expect(page.getByText("Zoom", { exact: true }).last()).toBeVisible();
@@ -57,5 +66,12 @@ test.describe("focused homepage studio", () => {
       "banner-left",
     );
     await expect(page.getByText("Original storefront", { exact: true })).toBeVisible();
+    const storefront = page.frameLocator('iframe[title="desktop storefront preview"]');
+    await expect(storefront.locator(".studio-edit-surface")).toBeVisible();
+    await expect
+      .poll(() =>
+        storefront.locator("body").evaluate((body) => body.ownerDocument.defaultView!.scrollY),
+      )
+      .toBeGreaterThan(2500);
   });
 });

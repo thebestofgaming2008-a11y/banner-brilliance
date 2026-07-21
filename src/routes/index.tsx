@@ -1710,13 +1710,19 @@ function editorSlice(data: HomepageData, mode: "hero" | "after-honey"): Homepage
   };
 }
 
-function LegacyHomepageContent({ homepage }: { homepage?: HomepageData | null }) {
+export function LegacyHomepageContent({
+  homepage,
+  editMode = false,
+}: {
+  homepage?: HomepageData | null;
+  editMode?: boolean;
+}) {
   const editorHomepage = isHomepageEditorData(homepage) ? homepage : null;
   const customSections = editorHomepage ? editorSlice(editorHomepage, "after-honey") : null;
   return (
     <>
       {editorHomepage ? (
-        <HomepageRenderer data={editorSlice(editorHomepage, "hero")} />
+        <HomepageRenderer data={editorSlice(editorHomepage, "hero")} editMode={editMode} />
       ) : (
         <HeroSlider />
       )}
@@ -1725,7 +1731,9 @@ function LegacyHomepageContent({ homepage }: { homepage?: HomepageData | null })
       <ModestEssentials />
       <WatchCollection />
       <HoneyFeature />
-      {customSections?.content.length ? <HomepageRenderer data={customSections} /> : null}
+      {customSections?.content.length ? (
+        <HomepageRenderer data={customSections} editMode={editMode} />
+      ) : null}
       <ManagedCollectionSections />
       <ManagedHomepageBanners />
       <ExploreBeyond />

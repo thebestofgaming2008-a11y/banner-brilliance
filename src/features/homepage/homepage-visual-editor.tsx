@@ -55,8 +55,7 @@ import {
   isHomepageEditorData,
   normalizeHomepageData,
 } from "./default-data";
-import { HomepageRenderer } from "./components";
-import { StudioCanvas } from "./studio-canvas";
+import { StorefrontFramePreview, StudioCanvas } from "./studio-canvas";
 import { StudioInspector } from "./studio-inspector";
 import {
   createCollectionWithProducts,
@@ -212,10 +211,10 @@ export function HomepageVisualEditor({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
-  const [leftTab, setLeftTab] = useState<"sections" | "layers" | "assets">("sections");
+  const [leftTab, setLeftTab] = useState<"file" | "assets">("file");
   const [addOpen, setAddOpen] = useState(false);
   const [viewport, setViewport] = useState<HomepageViewport>("desktop");
-  const [zoom, setZoom] = useState(68);
+  const [zoom, setZoom] = useState(50);
   const [selectedBannerKey, setSelectedBannerKey] = useState("");
   const [selectedLayerIds, setSelectedLayerIds] = useState<string[]>([]);
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
@@ -521,7 +520,7 @@ export function HomepageVisualEditor({
         return { ...current, layers: [...current.layers, layer] };
       });
       setSelectedLayerIds([nextId]);
-      setLeftTab("layers");
+      setLeftTab("file");
       setAddOpen(false);
     },
     [mutateScene],
@@ -1115,17 +1114,10 @@ export function HomepageVisualEditor({
             <div className="studio-left-tabs">
               <button
                 type="button"
-                className={leftTab === "sections" ? "is-active" : ""}
-                onClick={() => setLeftTab("sections")}
+                className={leftTab === "file" ? "is-active" : ""}
+                onClick={() => setLeftTab("file")}
               >
-                Sections
-              </button>
-              <button
-                type="button"
-                className={leftTab === "layers" ? "is-active" : ""}
-                onClick={() => setLeftTab("layers")}
-              >
-                Layers
+                File
               </button>
               <button
                 type="button"
@@ -1137,164 +1129,173 @@ export function HomepageVisualEditor({
             </div>
             {leftTab !== "assets" ? (
               <div className="studio-left-scroll">
-                {leftTab === "sections" ? (
-                  <>
-                    <div className="studio-pages-header">
-                      <span>Hero</span>
-                      <div>
-                        <IconButton label="Move banner up" onClick={() => moveBanner(-1)}>
-                          <ChevronUp size={14} />
-                        </IconButton>
-                        <IconButton label="Move banner down" onClick={() => moveBanner(1)}>
-                          <ChevronDown size={14} />
-                        </IconButton>
-                        <IconButton label="Duplicate banner" onClick={duplicateBanner}>
-                          <Copy size={14} />
-                        </IconButton>
-                        <IconButton label="Delete banner" onClick={deleteBanner}>
-                          <Trash2 size={14} />
-                        </IconButton>
-                      </div>
-                    </div>
-                    <div className="studio-banner-list">
-                      {banners
-                        .filter((banner) => banner.kind === "hero")
-                        .map((banner) => (
-                          <button
-                            type="button"
-                            key={banner.key}
-                            draggable
-                            className={banner.key === selectedRef.key ? "is-active" : ""}
-                            onDragStart={() => setDraggedBannerKey(banner.key)}
-                            onDragOver={(event) => event.preventDefault()}
-                            onDrop={() => {
-                              if (draggedBannerKey) reorderBanner(draggedBannerKey, banner.key);
-                              setDraggedBannerKey(null);
-                            }}
-                            onClick={() => {
-                              setSelectedBannerKey(banner.key);
-                              setSelectedLayerIds([]);
-                              setEditingLayerId(null);
-                            }}
-                          >
-                            <GripVertical size={13} />
-                            <span>
-                              <strong>{banner.label}</strong>
-                              <small>{banner.group}</small>
-                            </span>
-                          </button>
-                        ))}
-                    </div>
-                    <div className="studio-locked-range">
-                      <Lock size={13} />
+                <>
+                  <div className="studio-pages-header">
+                    <span>Pages</span>
+                  </div>
+                  <div className="studio-banner-list studio-page-list">
+                    <button type="button" className="is-active">
+                      <Frame size={13} />
                       <span>
-                        <strong>Original storefront</strong>
-                        <small>Collections through Honey are locked</small>
+                        <strong>Homepage</strong>
+                        <small>Storefront</small>
                       </span>
-                    </div>
-                    <div className="studio-pages-header">
-                      <span>After Honey</span>
-                      <IconButton label="Add section after Honey" onClick={() => setAddOpen(true)}>
-                        <Plus size={14} />
+                    </button>
+                  </div>
+                  <div className="studio-pages-header">
+                    <span>Hero slides</span>
+                    <div>
+                      <IconButton label="Move banner up" onClick={() => moveBanner(-1)}>
+                        <ChevronUp size={14} />
+                      </IconButton>
+                      <IconButton label="Move banner down" onClick={() => moveBanner(1)}>
+                        <ChevronDown size={14} />
+                      </IconButton>
+                      <IconButton label="Duplicate banner" onClick={duplicateBanner}>
+                        <Copy size={14} />
+                      </IconButton>
+                      <IconButton label="Delete banner" onClick={deleteBanner}>
+                        <Trash2 size={14} />
                       </IconButton>
                     </div>
-                    <div className="studio-banner-list">
-                      {banners
-                        .filter((banner) => banner.kind !== "hero")
-                        .map((banner) => (
-                          <button
-                            type="button"
-                            key={banner.key}
-                            draggable
-                            className={banner.key === selectedRef.key ? "is-active" : ""}
-                            onDragStart={() => setDraggedBannerKey(banner.key)}
-                            onDragOver={(event) => event.preventDefault()}
-                            onDrop={() => {
-                              if (draggedBannerKey) reorderBanner(draggedBannerKey, banner.key);
-                              setDraggedBannerKey(null);
-                            }}
-                            onClick={() => {
-                              setSelectedBannerKey(banner.key);
-                              setSelectedLayerIds([]);
-                              setEditingLayerId(null);
-                              setCropLayerId(null);
-                            }}
-                          >
-                            <GripVertical size={13} />
-                            <span>
-                              <strong>{banner.label}</strong>
-                              <small>{banner.group}</small>
-                            </span>
-                          </button>
-                        ))}
-                      {!banners.some((banner) => banner.kind !== "hero") ? (
+                  </div>
+                  <div className="studio-banner-list">
+                    {banners
+                      .filter((banner) => banner.kind === "hero")
+                      .map((banner) => (
                         <button
                           type="button"
-                          className="studio-empty-section"
-                          onClick={() => setAddOpen(true)}
+                          key={banner.key}
+                          draggable
+                          className={banner.key === selectedRef.key ? "is-active" : ""}
+                          onDragStart={() => setDraggedBannerKey(banner.key)}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={() => {
+                            if (draggedBannerKey) reorderBanner(draggedBannerKey, banner.key);
+                            setDraggedBannerKey(null);
+                          }}
+                          onClick={() => {
+                            setSelectedBannerKey(banner.key);
+                            setSelectedLayerIds([]);
+                            setEditingLayerId(null);
+                          }}
                         >
-                          <Plus size={15} /> Add the first section
+                          <GripVertical size={13} />
+                          <span>
+                            <strong>{banner.label}</strong>
+                            <small>{banner.group}</small>
+                          </span>
                         </button>
-                      ) : null}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="studio-layer-header">
-                      <span>Layers</span>
-                      <small>{scene.layers.length}</small>
-                    </div>
-                    <div className="studio-layer-list">
-                      {[...scene.layers].reverse().map((layer) => {
-                        const style =
-                          viewport === "mobile"
-                            ? { ...layer.style, ...(layer.mobileStyle ?? {}) }
-                            : layer.style;
-                        return (
-                          <button
-                            type="button"
-                            key={layer.id}
-                            draggable
-                            className={selectedLayerIds.includes(layer.id) ? "is-active" : ""}
-                            onDragStart={() => setDraggedLayerId(layer.id)}
-                            onDragOver={(event) => event.preventDefault()}
-                            onDrop={() => {
-                              if (draggedLayerId) reorderLayer(draggedLayerId, layer.id);
-                              setDraggedLayerId(null);
-                            }}
-                            onClick={(event) => {
-                              setCropLayerId(null);
-                              setSelectedLayerIds(
-                                event.shiftKey
-                                  ? [...new Set([...selectedLayerIds, layer.id])]
-                                  : [layer.id],
-                              );
-                            }}
-                          >
-                            {layer.type === "text" ? (
-                              <Type size={14} />
-                            ) : layer.type === "image" ? (
-                              <ImageIcon size={14} />
-                            ) : layer.type === "button" ? (
-                              <RectangleHorizontal size={14} />
-                            ) : (
-                              <Circle size={14} />
-                            )}
-                            <span>{layer.name}</span>
-                            <span className="studio-layer-actions">
-                              <span title={style.visible ? "Visible" : "Hidden"}>
-                                {style.visible ? <Eye size={12} /> : <Minus size={12} />}
-                              </span>
-                              <span title={style.locked ? "Locked" : "Unlocked"}>
-                                {style.locked ? <Lock size={12} /> : <Unlock size={12} />}
-                              </span>
+                      ))}
+                  </div>
+                  <div className="studio-locked-range">
+                    <Lock size={13} />
+                    <span>
+                      <strong>Original storefront</strong>
+                      <small>Collections through Honey are locked</small>
+                    </span>
+                  </div>
+                  <div className="studio-pages-header">
+                    <span>After Honey</span>
+                    <IconButton label="Add section after Honey" onClick={() => setAddOpen(true)}>
+                      <Plus size={14} />
+                    </IconButton>
+                  </div>
+                  <div className="studio-banner-list">
+                    {banners
+                      .filter((banner) => banner.kind !== "hero")
+                      .map((banner) => (
+                        <button
+                          type="button"
+                          key={banner.key}
+                          draggable
+                          className={banner.key === selectedRef.key ? "is-active" : ""}
+                          onDragStart={() => setDraggedBannerKey(banner.key)}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={() => {
+                            if (draggedBannerKey) reorderBanner(draggedBannerKey, banner.key);
+                            setDraggedBannerKey(null);
+                          }}
+                          onClick={() => {
+                            setSelectedBannerKey(banner.key);
+                            setSelectedLayerIds([]);
+                            setEditingLayerId(null);
+                            setCropLayerId(null);
+                          }}
+                        >
+                          <GripVertical size={13} />
+                          <span>
+                            <strong>{banner.label}</strong>
+                            <small>{banner.group}</small>
+                          </span>
+                        </button>
+                      ))}
+                    {!banners.some((banner) => banner.kind !== "hero") ? (
+                      <button
+                        type="button"
+                        className="studio-empty-section"
+                        onClick={() => setAddOpen(true)}
+                      >
+                        <Plus size={15} /> Add the first section
+                      </button>
+                    ) : null}
+                  </div>
+                </>
+                <>
+                  <div className="studio-layer-header">
+                    <span>{selectedRef.label} layers</span>
+                    <small>{scene.layers.length}</small>
+                  </div>
+                  <div className="studio-layer-list">
+                    {[...scene.layers].reverse().map((layer) => {
+                      const style =
+                        viewport === "mobile"
+                          ? { ...layer.style, ...(layer.mobileStyle ?? {}) }
+                          : layer.style;
+                      return (
+                        <button
+                          type="button"
+                          key={layer.id}
+                          draggable
+                          className={selectedLayerIds.includes(layer.id) ? "is-active" : ""}
+                          onDragStart={() => setDraggedLayerId(layer.id)}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={() => {
+                            if (draggedLayerId) reorderLayer(draggedLayerId, layer.id);
+                            setDraggedLayerId(null);
+                          }}
+                          onClick={(event) => {
+                            setCropLayerId(null);
+                            setSelectedLayerIds(
+                              event.shiftKey
+                                ? [...new Set([...selectedLayerIds, layer.id])]
+                                : [layer.id],
+                            );
+                          }}
+                        >
+                          {layer.type === "text" ? (
+                            <Type size={14} />
+                          ) : layer.type === "image" ? (
+                            <ImageIcon size={14} />
+                          ) : layer.type === "button" ? (
+                            <RectangleHorizontal size={14} />
+                          ) : (
+                            <Circle size={14} />
+                          )}
+                          <span>{layer.name}</span>
+                          <span className="studio-layer-actions">
+                            <span title={style.visible ? "Visible" : "Hidden"}>
+                              {style.visible ? <Eye size={12} /> : <Minus size={12} />}
                             </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
+                            <span title={style.locked ? "Locked" : "Unlocked"}>
+                              {style.locked ? <Lock size={12} /> : <Unlock size={12} />}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
               </div>
             ) : (
               <div className="studio-assets-panel">
@@ -1378,7 +1379,7 @@ export function HomepageVisualEditor({
                 active={viewport === "desktop"}
                 onClick={() => {
                   setViewport("desktop");
-                  setZoom(68);
+                  setZoom(50);
                 }}
               >
                 <Monitor size={16} />
@@ -1434,6 +1435,8 @@ export function HomepageVisualEditor({
             </div>
           </div>
           <StudioCanvas
+            data={data}
+            selectedRef={selectedRef}
             scene={scene}
             viewport={viewport}
             zoom={zoom}
@@ -1468,7 +1471,7 @@ export function HomepageVisualEditor({
             >
               <ZoomOut size={15} />
             </IconButton>
-            <button type="button" onClick={() => setZoom(viewport === "mobile" ? 82 : 68)}>
+            <button type="button" onClick={() => setZoom(viewport === "mobile" ? 82 : 50)}>
               {zoom}%
             </button>
             <IconButton
@@ -1510,7 +1513,7 @@ export function HomepageVisualEditor({
             </button>
           </div>
           <div className="studio-preview__page">
-            <HomepageRenderer data={data} />
+            <StorefrontFramePreview data={data} />
           </div>
         </div>
       ) : null}

@@ -28,7 +28,7 @@ import type {
   TextSectionProps,
 } from "./types";
 
-type EditorAware = { editMode?: boolean };
+type EditorAware = { editMode?: boolean; id?: string };
 
 function fontClass(font: HomepageFont) {
   return font === "sans" ? "font-sans-ui font-bold" : "font-serif-display font-normal";
@@ -53,6 +53,7 @@ function safeLink(url: string) {
 }
 
 export function HomepageHero({
+  id,
   slides,
   layout,
   editorSlide,
@@ -165,6 +166,7 @@ export function HomepageHero({
 
   return (
     <section
+      data-homepage-banner-id={id}
       className={`relative overflow-hidden ${activeScene ? "homepage-scene-hero" : ""} ${activeLightText ? "text-white" : "text-black"} ${dragging ? "cursor-grabbing" : safeSlides.length > 1 ? "cursor-grab" : ""}`}
       style={
         activeScene
@@ -658,6 +660,7 @@ export function HomepageSplitEditorial({
 }
 
 export function HomepageCollectionFeature({
+  id,
   eyebrow,
   title,
   body,
@@ -689,6 +692,7 @@ export function HomepageCollectionFeature({
   const lightText = textTone === "light";
   const banner = (
     <a
+      data-homepage-banner-id={id}
       href={safeLink(buttonUrl)}
       className={`group relative block min-h-[460px] overflow-hidden md:min-h-[620px] ${lightText ? "text-white" : "text-black"}`}
       style={{ backgroundColor: bannerColor }}
@@ -771,6 +775,7 @@ export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
   return (
     <section className="bg-white px-[18px] py-10 md:px-8 md:py-16">
       <div
+        data-homepage-banner-id={props.id}
         className={`relative mx-auto max-w-[1180px] overflow-hidden ${lightText ? "text-white" : "text-black"}`}
         style={{
           minHeight: `${Math.max(300, props.minHeight)}px`,

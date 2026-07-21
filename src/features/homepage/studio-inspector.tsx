@@ -450,7 +450,7 @@ function LayerInspector({
         </div>
       </InspectorSection>
 
-      <InspectorSection title={`Layout - ${viewport}`}>
+      <InspectorSection title={`Position - ${viewport}`}>
         <div className="studio-grid-2">
           <NumberField
             label="X"
@@ -487,7 +487,7 @@ function LayerInspector({
         </div>
         <div className="studio-grid-2">
           <NumberField
-            label="Rotation"
+            label="R"
             value={style.rotation}
             min={-360}
             max={360}
@@ -495,7 +495,7 @@ function LayerInspector({
             onChange={(rotation) => patch({ rotation })}
           />
           <NumberField
-            label="Opacity"
+            label="%"
             value={style.opacity}
             min={0}
             max={100}
@@ -904,7 +904,7 @@ export function StudioInspector({
                   onChange={(event) => onUpdateScene({ ...scene, name: event.target.value })}
                 />
               </label>
-              <div className="studio-grid-2">
+              <div className="studio-dimensions-stack">
                 <NumberField
                   label="Desktop"
                   value={scene.height}
