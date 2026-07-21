@@ -1,6 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ChevronRight, Minus, Plus, Search, ShoppingBag, Star, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 
 import { StoreFooter, StoreHeader } from "@/components/store/store-chrome";
 import { merchandiseProducts, type StoreProduct, useStoreProducts } from "@/data/store";
@@ -13,7 +20,6 @@ import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, seo } from "@/lib/seo";
 import logoGold from "@/assets/fawzaan-logo-gold.png";
 import makkahGloves from "@/assets/collection-banners/makkah-gloves.jpg";
 import sabrWatchBlack from "@/assets/collection-banners/sabr-watch-black.jpg";
-import heroBg from "@/assets/figma-hero-bg.png";
 import heroNiqabFull from "@/assets/hero-products/hero-niqab-full.webp";
 import heroShemaghFull from "@/assets/hero-products/hero-shemagh-full.webp";
 import honeyAcacia from "@/assets/product-photos/honey-kashmir-acacia.jpg";
@@ -628,15 +634,6 @@ function HeroBanner({
         height: `clamp(560px, ${(FRAME_H / FRAME_W) * 100}vw, 820px)`,
       }}
     >
-      <img
-        src={heroBg}
-        alt=""
-        aria-hidden
-        loading={isPriority ? "eager" : "lazy"}
-        fetchPriority={isPriority ? "high" : "low"}
-        decoding="async"
-        className="absolute inset-0 h-full w-full object-cover"
-      />
       <a
         href={banner.href}
         aria-label={`Shop ${banner.title}`}
@@ -809,6 +806,10 @@ function ManagedHeroBanner({
 
 function HeroSlider() {
   const [active, setActive] = useState(0);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const drag = useRef<{ pointerId: number; startX: number; moved: boolean } | null>(null);
+  const suppressClick = useRef(false);
   const { banners: managedBanners } = useCatalogPresentation();
   const managedHeroBanners = managedBanners.filter(
     (banner) => banner.placement === "homepage_hero",
@@ -819,7 +820,7 @@ function HeroSlider() {
     : defaultHeroBanners.map((banner) => banner.title);
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (isDragging || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
     let timer: number | undefined;
 
@@ -849,19 +850,81 @@ function HeroSlider() {
       stopTimer();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [slideCount]);
+  }, [isDragging, slideCount]);
 
   useEffect(() => {
     setActive((current) => Math.min(current, Math.max(0, slideCount - 1)));
   }, [slideCount]);
 
+  const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    if (slideCount < 2 || event.button !== 0) return;
+    if ((event.target as HTMLElement).closest('[aria-label="Choose hero slide"]')) return;
+
+    drag.current = { pointerId: event.pointerId, startX: event.clientX, moved: false };
+    suppressClick.current = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsDragging(true);
+    setDragOffset(0);
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    const currentDrag = drag.current;
+    if (!currentDrag || currentDrag.pointerId !== event.pointerId) return;
+
+    const offset = event.clientX - currentDrag.startX;
+    if (Math.abs(offset) > 5) currentDrag.moved = true;
+    setDragOffset(offset);
+  };
+
+  const finishDrag = (event: ReactPointerEvent<HTMLElement>, cancelled = false) => {
+    const currentDrag = drag.current;
+    if (!currentDrag || currentDrag.pointerId !== event.pointerId) return;
+
+    const offset = event.clientX - currentDrag.startX;
+    const threshold = Math.min(96, Math.max(44, event.currentTarget.clientWidth * 0.12));
+    if (!cancelled && Math.abs(offset) >= threshold) {
+      const direction = offset < 0 ? 1 : -1;
+      setActive((current) => (current + direction + slideCount) % slideCount);
+    }
+
+    suppressClick.current = !cancelled && currentDrag.moved;
+    window.setTimeout(() => {
+      suppressClick.current = false;
+    }, 0);
+    drag.current = null;
+    setDragOffset(0);
+    setIsDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
   return (
-    <section className="brand-mango-bg relative overflow-hidden" aria-label="Featured collections">
+    <section
+      className={`brand-mango-bg relative select-none overflow-hidden ${
+        isDragging ? "cursor-grabbing" : "cursor-grab"
+      }`}
+      aria-label="Featured collections"
+      data-testid="hero-slider"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={(event) => finishDrag(event)}
+      onPointerCancel={(event) => finishDrag(event, true)}
+      onClickCapture={(event) => {
+        if (!suppressClick.current) return;
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onDragStart={(event) => event.preventDefault()}
+      style={{ touchAction: "pan-y" }}
+    >
       <div
         className="hero-track flex"
+        data-hero-track
         style={{
           width: `${slideCount * 100}%`,
-          transform: `translate3d(-${active * (100 / slideCount)}%, 0, 0)`,
+          transform: `translate3d(calc(-${active * (100 / slideCount)}% + ${dragOffset}px), 0, 0)`,
+          transition: isDragging ? "none" : undefined,
         }}
       >
         {managedHeroBanners.length
