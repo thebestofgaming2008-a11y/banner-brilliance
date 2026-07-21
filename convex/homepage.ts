@@ -298,3 +298,34 @@ export const discardDraft = mutation({
     return { data: existing.published_data, revision, updated_at: timestamp };
   },
 });
+
+export const resetToOriginalHomepage = mutation({
+  args: { token: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const setupToken = process.env.ADMIN_UPLOAD_TOKEN;
+    if (!setupToken || args.token !== setupToken) await requireAdmin(ctx);
+
+    const documents = await ctx.db
+      .query("homepage_documents")
+      .withIndex("by_page_key", (q) => q.eq("page_key", PAGE_KEY))
+      .collect();
+    const versions = await ctx.db
+      .query("homepage_versions")
+      .withIndex("by_page_key", (q) => q.eq("page_key", PAGE_KEY))
+      .collect();
+
+    await Promise.all([
+      ...documents.map((document) => ctx.db.delete(document._id)),
+      ...versions.map((version) => ctx.db.delete(version._id)),
+    ]);
+    await writeAuditLog(ctx, {
+      action: "homepage.reset_original",
+      entityType: "homepage",
+      entityId: PAGE_KEY,
+      summary: "Removed visual editor drafts and restored the original coded homepage",
+      metadata: { documentsDeleted: documents.length, versionsDeleted: versions.length },
+    });
+
+    return { documentsDeleted: documents.length, versionsDeleted: versions.length };
+  },
+});
