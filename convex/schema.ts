@@ -303,6 +303,7 @@ export default defineSchema({
     published_data: v.optional(v.any()),
     draft_revision: v.number(),
     published_version: v.number(),
+    published_revision: v.optional(v.number()),
     updated_by: optionalString,
     created_at: v.string(),
     updated_at: v.string(),

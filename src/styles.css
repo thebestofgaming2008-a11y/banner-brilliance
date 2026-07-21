@@ -11,6 +11,23 @@
   }
 }
 
+[data-transition="fade"] [data-hero-track] {
+  position: relative;
+  display: block;
+}
+
+[data-transition="fade"] [data-hero-track] > article {
+  position: absolute;
+  inset: 0;
+  opacity: 1;
+  transition: opacity var(--hero-transition-duration, 600ms) ease;
+}
+
+[data-transition="fade"] [data-hero-track] > article[aria-hidden="true"] {
+  pointer-events: none;
+  opacity: 0;
+}
+
 /* Full-screen homepage studio. Puck owns the editing engine; these rules only shape its workspace. */
 .homepage-studio-shell,
 .homepage-studio-workspace {
@@ -835,5 +852,15 @@
       opacity: 1;
       transform: none;
     }
+  }
+}
+
+.homepage-scene-hero {
+  height: var(--homepage-scene-height);
+}
+
+@media (max-width: 639px) {
+  .homepage-scene-hero {
+    height: var(--homepage-scene-mobile-height);
   }
 }

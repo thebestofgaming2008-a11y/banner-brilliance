@@ -12,6 +12,8 @@ import {
 import { StoreFooter, StoreHeader } from "@/components/store/store-chrome";
 import { merchandiseProducts, type StoreProduct, useStoreProducts } from "@/data/store";
 import { HomepageRenderer } from "@/features/homepage/components";
+import { isHomepageEditorData } from "@/features/homepage/default-data";
+import type { HomepageData } from "@/features/homepage/types";
 import { MangoMenuIcon } from "@/components/store/mango-menu-icon";
 import { useCurrency } from "@/hooks/use-currency";
 import { useCatalogPresentation, type CatalogBanner } from "@/services/catalogPresentation";
@@ -1690,21 +1692,40 @@ function Index() {
   return (
     <main className="min-h-screen bg-white font-sans-ui text-black antialiased">
       <StoreHeader />
-      {homepage ? <HomepageRenderer data={homepage} /> : <LegacyHomepageContent />}
+      <LegacyHomepageContent homepage={homepage} />
       <StoreFooter />
     </main>
   );
 }
 
-function LegacyHomepageContent() {
+function editorSlice(data: HomepageData, mode: "hero" | "after-honey"): HomepageData {
+  return {
+    ...data,
+    content:
+      mode === "hero"
+        ? data.content.filter((item) => item.type === "Hero").slice(0, 1)
+        : data.content.filter(
+            (item) => item.type === "CollectionFeature" || item.type === "PromoBanner",
+          ),
+  };
+}
+
+function LegacyHomepageContent({ homepage }: { homepage?: HomepageData | null }) {
+  const editorHomepage = isHomepageEditorData(homepage) ? homepage : null;
+  const customSections = editorHomepage ? editorSlice(editorHomepage, "after-honey") : null;
   return (
     <>
-      <HeroSlider />
+      {editorHomepage ? (
+        <HomepageRenderer data={editorSlice(editorHomepage, "hero")} />
+      ) : (
+        <HeroSlider />
+      )}
       <CollectionBanners />
       <ShopAllProducts />
       <ModestEssentials />
       <WatchCollection />
       <HoneyFeature />
+      {customSections?.content.length ? <HomepageRenderer data={customSections} /> : null}
       <ManagedCollectionSections />
       <ManagedHomepageBanners />
       <ExploreBeyond />

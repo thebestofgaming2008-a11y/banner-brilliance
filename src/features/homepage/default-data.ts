@@ -1,7 +1,8 @@
 import { DEFAULT_HERO_GRADIENT } from "./brand";
-import type { HeroProps, HeroSlide, HomepageData } from "./types";
+import type { HeroGradient, HeroProps, HeroSlide, HomepageData } from "./types";
 
 export const DEFAULT_HOMEPAGE_DATA: HomepageData = {
+  schemaVersion: 2,
   root: {
     props: {
       title: "Fawzaan homepage",
@@ -74,6 +75,11 @@ export const DEFAULT_HOMEPAGE_DATA: HomepageData = {
         foregroundScale: 100,
         overlayOpacity: 12,
         autoplay: "on",
+        autoplayInterval: 7000,
+        transition: "slide",
+        transitionDuration: 600,
+        pauseOnHover: "yes",
+        loop: "yes",
       },
     },
     {
@@ -197,7 +203,21 @@ export const DEFAULT_HOMEPAGE_DATA: HomepageData = {
 };
 
 export function cloneDefaultHomepageData(): HomepageData {
-  return JSON.parse(JSON.stringify(DEFAULT_HOMEPAGE_DATA)) as HomepageData;
+  const data = JSON.parse(JSON.stringify(DEFAULT_HOMEPAGE_DATA)) as HomepageData;
+  data.content = data.content.filter((item) => item.type === "Hero");
+  return data;
+}
+
+export function isHomepageEditorData(value: unknown): value is HomepageData {
+  if (!value || typeof value !== "object") return false;
+  const data = value as Partial<HomepageData>;
+  if (data.schemaVersion !== 2 || !Array.isArray(data.content)) return false;
+  if (data.content.length < 1 || data.content[0]?.type !== "Hero") return false;
+  return data.content.every(
+    (item, index) =>
+      (index === 0 && item.type === "Hero") ||
+      (index > 0 && (item.type === "CollectionFeature" || item.type === "PromoBanner")),
+  );
 }
 
 const LEGACY_BRAND_COLOURS = new Set(["#f4b400", "#f5b90a", "#ffbf00", "#f39a3b"]);
@@ -217,7 +237,7 @@ function migrateBrandColours(value: unknown): unknown {
 }
 
 function normalizeSlide(slide: Partial<HeroSlide>, defaults: Partial<HeroProps>): HeroSlide {
-  const incomingGradient = slide.gradient ?? {};
+  const incomingGradient: Partial<HeroGradient> = slide.gradient ?? {};
   const usedPreviousBrandGradient =
     String(incomingGradient.startColor ?? "").toLowerCase() === "#f8c247" &&
     String(incomingGradient.endColor ?? "").toLowerCase() === "#e96a3a";
@@ -254,23 +274,30 @@ function normalizeSlide(slide: Partial<HeroSlide>, defaults: Partial<HeroProps>)
     contentOffsetY: Number(slide.contentOffsetY ?? defaults.contentOffsetY ?? 9),
     foregroundScale: Number(slide.foregroundScale ?? defaults.foregroundScale ?? 100),
     overlayOpacity: Number(slide.overlayOpacity ?? defaults.overlayOpacity ?? 12),
+    scene: slide.scene,
   };
 }
 
 export function normalizeHomepageData(data: HomepageData): HomepageData {
   const normalized = migrateBrandColours(JSON.parse(JSON.stringify(data))) as HomepageData;
-  normalized.content = (normalized.content ?? []).map((item) => {
-    if (item.type !== "Hero") return item;
-    const props = item.props as HeroProps & { id: string };
-    return {
-      ...item,
-      props: {
-        ...props,
-        layout: props.layout === "banner" ? "banner" : "original",
-        editorSlide: Math.min(6, Math.max(1, Number(props.editorSlide || 1))),
-        slides: (props.slides ?? []).map((slide) => normalizeSlide(slide, props)),
-      },
-    } as typeof item;
-  });
+  normalized.schemaVersion = 2;
+  normalized.content = (normalized.content ?? [])
+    .filter(
+      (item) =>
+        item.type === "Hero" || item.type === "CollectionFeature" || item.type === "PromoBanner",
+    )
+    .map((item) => {
+      if (item.type !== "Hero") return item;
+      const props = item.props as HeroProps & { id: string };
+      return {
+        ...item,
+        props: {
+          ...props,
+          layout: props.layout === "banner" ? "banner" : "original",
+          editorSlide: Math.min(12, Math.max(1, Number(props.editorSlide || 1))),
+          slides: (props.slides ?? []).map((slide) => normalizeSlide(slide, props)),
+        },
+      } as typeof item;
+    });
   return normalized;
 }

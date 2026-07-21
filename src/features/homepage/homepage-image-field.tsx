@@ -1,5 +1,3 @@
-/* eslint-disable react-refresh/only-export-components -- Puck custom fields own their renderers. */
-import type { Field } from "@puckeditor/core";
 import { Crop, Image as ImageIcon, Trash2, Upload, X } from "lucide-react";
 import { useState } from "react";
 import Cropper, { type Area } from "react-easy-crop";
@@ -46,7 +44,7 @@ async function createCropFile(src: string, crop: Area) {
   return new File([blob], `homepage-crop-${Date.now()}.webp`, { type: "image/webp" });
 }
 
-function HomepageImageInput({
+export function HomepageImageInput({
   value,
   onChange,
   readOnly,
@@ -230,40 +228,4 @@ function HomepageImageInput({
       ) : null}
     </div>
   );
-}
-
-export function homepageImageField(label: string): Field<string> {
-  return {
-    type: "custom",
-    label,
-    render: ({ value, onChange, readOnly }) => (
-      <HomepageImageInput value={value ?? ""} onChange={onChange} readOnly={readOnly} />
-    ),
-  };
-}
-
-export function homepageColorField(label: string): Field<string> {
-  return {
-    type: "custom",
-    label,
-    render: ({ value, onChange, readOnly }) => (
-      <div className="grid grid-cols-[42px_1fr] gap-2">
-        <input
-          type="color"
-          aria-label={label}
-          value={/^#[0-9a-f]{6}$/i.test(value ?? "") ? value : "#ffffff"}
-          disabled={readOnly}
-          onChange={(event) => onChange(event.target.value)}
-          className="h-9 w-[42px] cursor-pointer rounded border border-black/15 bg-white p-1"
-        />
-        <input
-          value={value ?? ""}
-          readOnly={readOnly}
-          maxLength={7}
-          onChange={(event) => onChange(event.target.value)}
-          className="h-9 min-w-0 rounded border border-black/15 bg-white px-2.5 font-mono text-xs uppercase outline-none focus:border-black"
-        />
-      </div>
-    ),
-  };
 }

@@ -4,12 +4,14 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
 import { StoreProductCard } from "@/components/store/product-card";
 import { merchandiseProducts, useStoreProducts } from "@/data/store";
 import { useCatalogPresentation } from "@/services/catalogPresentation";
+import { BannerSceneView } from "./banner-scene";
 import { normalizeHomepageData } from "./default-data";
 import type {
   CollectionBannersProps,
@@ -64,12 +66,19 @@ export function HomepageHero({
   contentOffsetY,
   foregroundScale,
   overlayOpacity,
+  autoplay = "on",
+  autoplayInterval = 5200,
+  transition = "slide",
+  transitionDuration = 760,
+  pauseOnHover = "yes",
+  loop = "yes",
   editMode,
 }: HeroProps & EditorAware) {
-  const safeSlides = slides?.length ? slides.slice(0, 6) : [];
+  const safeSlides = slides?.length ? slides.slice(0, 12) : [];
   const [active, setActive] = useState(0);
   const [dragOffset, setDragOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const [hovered, setHovered] = useState(false);
   const dragStart = useRef<number | null>(null);
   const dragged = useRef(false);
 
@@ -79,14 +88,36 @@ export function HomepageHero({
   }, [editMode, editorSlide, safeSlides.length]);
 
   useEffect(() => {
-    if (editMode || dragging || safeSlides.length < 2) return;
+    if (
+      editMode ||
+      autoplay !== "on" ||
+      dragging ||
+      (hovered && pauseOnHover === "yes") ||
+      safeSlides.length < 2
+    )
+      return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const timer = window.setTimeout(
-      () => setActive((current) => (current + 1) % safeSlides.length),
-      5200,
+      () =>
+        setActive((current) =>
+          loop === "yes"
+            ? (current + 1) % safeSlides.length
+            : Math.min(current + 1, safeSlides.length - 1),
+        ),
+      Math.min(30000, Math.max(1500, autoplayInterval)),
     );
     return () => window.clearTimeout(timer);
-  }, [active, dragging, editMode, safeSlides.length]);
+  }, [
+    active,
+    autoplay,
+    autoplayInterval,
+    dragging,
+    editMode,
+    hovered,
+    loop,
+    pauseOnHover,
+    safeSlides.length,
+  ]);
 
   useEffect(() => {
     setActive((current) => Math.min(current, Math.max(0, safeSlides.length - 1)));
@@ -102,7 +133,11 @@ export function HomepageHero({
 
   const goTo = (index: number) => {
     if (!safeSlides.length) return;
-    setActive((index + safeSlides.length) % safeSlides.length);
+    setActive(
+      loop === "yes"
+        ? (index + safeSlides.length) % safeSlides.length
+        : Math.min(safeSlides.length - 1, Math.max(0, index)),
+    );
   };
 
   const finishDrag = (event: ReactPointerEvent<HTMLElement>) => {
@@ -126,18 +161,30 @@ export function HomepageHero({
   const activeSlide = safeSlides[active];
   const activeLayout = (activeSlide?.layout ?? layout) === "banner" ? "banner" : "original";
   const activeLightText = (activeSlide?.textTone ?? textTone) === "light";
+  const activeScene = activeSlide?.scene;
 
   return (
     <section
-      className={`relative overflow-hidden ${activeLightText ? "text-white" : "text-black"} ${dragging ? "cursor-grabbing" : safeSlides.length > 1 ? "cursor-grab" : ""}`}
-      style={{
-        height:
-          activeLayout === "original"
-            ? "clamp(560px, 166.41vw, 820px)"
-            : "clamp(560px, 82vw, 720px)",
-        touchAction: "pan-y",
-      }}
+      className={`relative overflow-hidden ${activeScene ? "homepage-scene-hero" : ""} ${activeLightText ? "text-white" : "text-black"} ${dragging ? "cursor-grabbing" : safeSlides.length > 1 ? "cursor-grab" : ""}`}
+      style={
+        activeScene
+          ? ({
+              "--homepage-scene-height": `${Math.max(420, activeScene.height)}px`,
+              "--homepage-scene-mobile-height": `${Math.max(320, activeScene.mobileHeight)}px`,
+              touchAction: "pan-y",
+            } as CSSProperties)
+          : {
+              height:
+                activeLayout === "original"
+                  ? "clamp(560px, 166.41vw, 820px)"
+                  : "clamp(560px, 82vw, 720px)",
+              touchAction: "pan-y",
+            }
+      }
       aria-label="Featured collection"
+      data-transition={transition}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       onPointerDown={(event) => {
         if (editMode || safeSlides.length < 2 || !event.isPrimary || event.button !== 0) return;
         dragStart.current = event.clientX;
@@ -163,10 +210,19 @@ export function HomepageHero({
       <div
         data-hero-track
         className="flex h-full will-change-transform"
-        style={{
-          transform: `translate3d(calc(-${active * 100}% + ${dragOffset}px), 0, 0)`,
-          transition: dragging ? "none" : "transform 760ms cubic-bezier(0.22, 1, 0.36, 1)",
-        }}
+        style={
+          {
+            transform:
+              transition === "fade"
+                ? undefined
+                : `translate3d(calc(-${active * 100}% + ${dragOffset}px), 0, 0)`,
+            transition:
+              dragging || transition === "fade"
+                ? "none"
+                : `transform ${Math.min(2000, Math.max(100, transitionDuration))}ms cubic-bezier(0.22, 1, 0.36, 1)`,
+            "--hero-transition-duration": `${Math.min(2000, Math.max(100, transitionDuration))}ms`,
+          } as CSSProperties
+        }
       >
         {safeSlides.map((slide, index) => {
           const slideTextTone = slide.textTone ?? textTone;
@@ -182,13 +238,12 @@ export function HomepageHero({
           const lightText = slideTextTone === "light";
           const align = textAlignClass(slideTextAlign);
           const selectedLayout = (slide.layout ?? layout) === "banner" ? "banner" : "original";
-          const gradient = {
+          const gradient = slide.gradient ?? {
             enabled: "on" as const,
             startColor: "#FBCB3D",
             endColor: "#F18532",
             angle: 105,
             opacity: 84,
-            ...(slide.gradient ?? {}),
           };
           const originalTitle =
             index === 0
@@ -196,6 +251,19 @@ export function HomepageHero({
               : index === 1
                 ? { left: 41, top: 100, width: 319 }
                 : { left: 30, top: 110, width: 330 };
+
+          if (slide.scene) {
+            return (
+              <article
+                key={`${slide.title}-${index}`}
+                className="relative h-full w-full shrink-0 overflow-hidden"
+                aria-hidden={active !== index}
+                inert={active !== index}
+              >
+                <BannerSceneView scene={slide.scene} className="h-full" />
+              </article>
+            );
+          }
 
           return (
             <article
@@ -404,7 +472,9 @@ export function HomepageCollectionBanners({
               href={safeLink(card.buttonUrl)}
               className="group relative min-h-[520px] overflow-hidden bg-black text-white md:min-h-[600px]"
             >
-              {card.image ? (
+              {card.scene ? (
+                <BannerSceneView scene={card.scene} interactive={false} />
+              ) : card.image ? (
                 <img
                   src={card.image}
                   alt=""
@@ -412,25 +482,29 @@ export function HomepageCollectionBanners({
                   className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.015]"
                 />
               ) : null}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
-              <div className="absolute inset-x-0 bottom-0 p-6 md:p-9">
-                {card.eyebrow ? (
-                  <p className="section-kicker text-white/72">{card.eyebrow}</p>
-                ) : null}
-                <h3
-                  className={`mt-3 text-[42px] leading-none md:text-[60px] ${fontClass(titleFont)}`}
-                >
-                  {card.title}
-                </h3>
-                {card.body ? (
-                  <p className="mt-4 max-w-sm text-sm leading-6 text-white/75">{card.body}</p>
-                ) : null}
-                {card.buttonLabel ? (
-                  <span className="mt-7 inline-flex h-11 items-center bg-white px-5 text-[10px] font-bold uppercase text-black">
-                    {card.buttonLabel}
-                  </span>
-                ) : null}
-              </div>
+              {card.scene ? null : (
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
+              )}
+              {card.scene ? null : (
+                <div className="absolute inset-x-0 bottom-0 p-6 md:p-9">
+                  {card.eyebrow ? (
+                    <p className="section-kicker text-white/72">{card.eyebrow}</p>
+                  ) : null}
+                  <h3
+                    className={`mt-3 text-[42px] leading-none md:text-[60px] ${fontClass(titleFont)}`}
+                  >
+                    {card.title}
+                  </h3>
+                  {card.body ? (
+                    <p className="mt-4 max-w-sm text-sm leading-6 text-white/75">{card.body}</p>
+                  ) : null}
+                  {card.buttonLabel ? (
+                    <span className="mt-7 inline-flex h-11 items-center bg-white px-5 text-[10px] font-bold uppercase text-black">
+                      {card.buttonLabel}
+                    </span>
+                  ) : null}
+                </div>
+              )}
             </a>
           ))}
         </div>
@@ -600,6 +674,7 @@ export function HomepageCollectionFeature({
   mobileTitleSize,
   productLimit,
   layout,
+  scene,
   editMode,
 }: CollectionFeatureProps & EditorAware) {
   const { products } = useStoreProducts();
@@ -618,7 +693,9 @@ export function HomepageCollectionFeature({
       className={`group relative block min-h-[460px] overflow-hidden md:min-h-[620px] ${lightText ? "text-white" : "text-black"}`}
       style={{ backgroundColor: bannerColor }}
     >
-      {image ? (
+      {scene ? (
+        <BannerSceneView scene={scene} interactive={false} />
+      ) : image ? (
         <img
           src={image}
           alt=""
@@ -626,43 +703,47 @@ export function HomepageCollectionFeature({
           className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.015]"
         />
       ) : null}
-      <div
-        className={`absolute inset-0 bg-gradient-to-t ${lightText ? "from-black/80 via-black/15" : "from-white/85 via-white/15"} to-transparent`}
-      />
-      <div
-        className={`absolute inset-x-0 bottom-0 flex flex-col p-6 md:p-9 ${textAlignClass(textAlign)}`}
-      >
-        {eyebrow ? (
-          <p className={`section-kicker ${lightText ? "text-white/72" : "text-black/60"}`}>
-            {eyebrow}
-          </p>
-        ) : null}
-        <h2
-          className={`mt-2 leading-none ${fontClass(titleFont)}`}
-          style={{ fontSize: `clamp(${mobileTitleSize}px, 6vw, ${titleSize}px)` }}
+      {scene ? null : (
+        <div
+          className={`absolute inset-0 bg-gradient-to-t ${lightText ? "from-black/80 via-black/15" : "from-white/85 via-white/15"} to-transparent`}
+        />
+      )}
+      {scene ? null : (
+        <div
+          className={`absolute inset-x-0 bottom-0 flex flex-col p-6 md:p-9 ${textAlignClass(textAlign)}`}
         >
-          {title}
-        </h2>
-        {body ? (
-          <p
-            className={`mt-4 max-w-sm text-sm leading-6 ${lightText ? "text-white/75" : "text-black/70"}`}
+          {eyebrow ? (
+            <p className={`section-kicker ${lightText ? "text-white/72" : "text-black/60"}`}>
+              {eyebrow}
+            </p>
+          ) : null}
+          <h2
+            className={`mt-2 leading-none ${fontClass(titleFont)}`}
+            style={{ fontSize: `clamp(${mobileTitleSize}px, 6vw, ${titleSize}px)` }}
           >
-            {body}
-          </p>
-        ) : null}
-        {buttonLabel ? (
-          <span
-            className={`mt-7 inline-flex h-11 items-center px-5 text-[10px] font-bold uppercase ${lightText ? "bg-white text-black" : "bg-black text-white"}`}
-          >
-            {buttonLabel}
-          </span>
-        ) : null}
-      </div>
+            {title}
+          </h2>
+          {body ? (
+            <p
+              className={`mt-4 max-w-sm text-sm leading-6 ${lightText ? "text-white/75" : "text-black/70"}`}
+            >
+              {body}
+            </p>
+          ) : null}
+          {buttonLabel ? (
+            <span
+              className={`mt-7 inline-flex h-11 items-center px-5 text-[10px] font-bold uppercase ${lightText ? "bg-white text-black" : "bg-black text-white"}`}
+            >
+              {buttonLabel}
+            </span>
+          ) : null}
+        </div>
+      )}
     </a>
   );
   const grid = selected.length ? (
     <div
-      className={`grid grid-cols-2 gap-x-3 gap-y-10 ${layout === "banner-left" ? "md:grid-cols-2" : "md:grid-cols-4"} md:gap-x-4`}
+      className={`grid grid-cols-2 gap-x-3 gap-y-10 ${layout === "banner-top" ? "md:grid-cols-4" : "md:grid-cols-2"} md:gap-x-4`}
     >
       {selected.map((product) => (
         <StoreProductCard key={product.slug} product={product} />
@@ -676,10 +757,10 @@ export function HomepageCollectionFeature({
   return (
     <section className="px-[18px] py-14 md:px-8 md:py-20" style={{ backgroundColor }}>
       <div
-        className={`mx-auto max-w-[1120px] ${layout === "banner-left" ? "grid gap-6 md:grid-cols-[0.9fr_1.1fr]" : "space-y-10"}`}
+        className={`mx-auto max-w-[1120px] ${layout === "banner-top" ? "space-y-10" : "grid gap-6 md:grid-cols-[0.9fr_1.1fr]"}`}
       >
-        {banner}
-        {grid}
+        {layout === "banner-right" ? grid : banner}
+        {layout === "banner-right" ? banner : grid}
       </div>
     </section>
   );
@@ -696,7 +777,9 @@ export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
           backgroundColor: props.backgroundColor,
         }}
       >
-        {props.backgroundImage ? (
+        {props.scene ? (
+          <BannerSceneView scene={props.scene} />
+        ) : props.backgroundImage ? (
           <img
             src={props.backgroundImage}
             alt=""
@@ -705,7 +788,7 @@ export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
             style={{ objectPosition: props.imageFocus }}
           />
         ) : null}
-        {props.foregroundImage ? (
+        {!props.scene && props.foregroundImage ? (
           <img
             src={props.foregroundImage}
             alt=""
@@ -714,33 +797,37 @@ export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
             style={{ width: `${Math.min(100, Math.max(20, props.foregroundScale))}%` }}
           />
         ) : null}
-        <div
-          className={`absolute inset-0 z-[11] ${lightText ? "bg-black" : "bg-white"}`}
-          style={{ opacity: props.overlayOpacity / 100 }}
-        />
-        <div
-          className={`relative z-20 flex min-h-[inherit] flex-col justify-end p-7 md:p-12 ${textAlignClass(props.textAlign)}`}
-          style={{ minHeight: `${Math.max(300, props.minHeight)}px` }}
-        >
-          {props.eyebrow ? <p className="section-kicker opacity-65">{props.eyebrow}</p> : null}
-          <h2
-            className={`mt-3 leading-none ${fontClass(props.titleFont)}`}
-            style={{ fontSize: `clamp(${props.mobileTitleSize}px, 6vw, ${props.titleSize}px)` }}
+        {!props.scene ? (
+          <div
+            className={`absolute inset-0 z-[11] ${lightText ? "bg-black" : "bg-white"}`}
+            style={{ opacity: props.overlayOpacity / 100 }}
+          />
+        ) : null}
+        {!props.scene ? (
+          <div
+            className={`relative z-20 flex min-h-[inherit] flex-col justify-end p-7 md:p-12 ${textAlignClass(props.textAlign)}`}
+            style={{ minHeight: `${Math.max(300, props.minHeight)}px` }}
           >
-            {props.title}
-          </h2>
-          {props.body ? (
-            <p className="mt-4 max-w-lg text-sm leading-6 opacity-75">{props.body}</p>
-          ) : null}
-          {props.buttonLabel ? (
-            <a
-              href={safeLink(props.buttonUrl)}
-              className={`mt-7 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase ${lightText ? "bg-white text-black" : "bg-black text-white"}`}
+            {props.eyebrow ? <p className="section-kicker opacity-65">{props.eyebrow}</p> : null}
+            <h2
+              className={`mt-3 leading-none ${fontClass(props.titleFont)}`}
+              style={{ fontSize: `clamp(${props.mobileTitleSize}px, 6vw, ${props.titleSize}px)` }}
             >
-              {props.buttonLabel}
-            </a>
-          ) : null}
-        </div>
+              {props.title}
+            </h2>
+            {props.body ? (
+              <p className="mt-4 max-w-lg text-sm leading-6 opacity-75">{props.body}</p>
+            ) : null}
+            {props.buttonLabel ? (
+              <a
+                href={safeLink(props.buttonUrl)}
+                className={`mt-7 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase ${lightText ? "bg-white text-black" : "bg-black text-white"}`}
+              >
+                {props.buttonLabel}
+              </a>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </section>
   );
