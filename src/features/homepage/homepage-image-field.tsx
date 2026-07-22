@@ -49,11 +49,13 @@ export function HomepageImageInput({
   onChange,
   readOnly,
   compact = false,
+  allowDestructiveCrop = true,
 }: {
   value: string;
   onChange: (value: string) => void;
   readOnly?: boolean;
   compact?: boolean;
+  allowDestructiveCrop?: boolean;
 }) {
   const [uploading, setUploading] = useState(false);
   const [cropOpen, setCropOpen] = useState(false);
@@ -131,13 +133,15 @@ export function HomepageImageInput({
           </label>
           {value ? (
             <>
-              <button
-                type="button"
-                className="inline-flex h-9 items-center gap-1.5 rounded border border-black/15 px-3 text-xs font-semibold"
-                onClick={() => setCropOpen(true)}
-              >
-                <Crop size={14} /> Crop
-              </button>
+              {allowDestructiveCrop ? (
+                <button
+                  type="button"
+                  className="inline-flex h-9 items-center gap-1.5 rounded border border-black/15 px-3 text-xs font-semibold"
+                  onClick={() => setCropOpen(true)}
+                >
+                  <Crop size={14} /> Crop
+                </button>
+              ) : null}
               <button
                 type="button"
                 title="Remove image"

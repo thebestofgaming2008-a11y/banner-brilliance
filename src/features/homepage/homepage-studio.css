@@ -319,8 +319,7 @@
   border-bottom: 1px solid var(--studio-soft);
   padding-bottom: 6px;
 }
-.studio-banner-list > button,
-.studio-layer-list > button {
+.studio-banner-list > button {
   display: grid;
   width: 100%;
   min-height: 32px;
@@ -332,12 +331,10 @@
   color: #e6e6e6;
   text-align: left;
 }
-.studio-banner-list > button:hover,
-.studio-layer-list > button:hover {
+.studio-banner-list > button:hover {
   background: #303030;
 }
-.studio-banner-list > button.is-active,
-.studio-layer-list > button.is-active {
+.studio-banner-list > button.is-active {
   background: #0d99ff;
   color: #ffffff;
 }
@@ -395,21 +392,60 @@
 .studio-layer-header small {
   color: #777;
 }
-.studio-layer-list > button {
-  grid-template-columns: 20px minmax(0, 1fr) auto;
+.studio-layer-row {
+  display: grid;
   min-height: 31px;
-  padding-left: 18px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  color: #e6e6e6;
   font-size: 11px;
 }
-.studio-layer-list > button > span:nth-child(2) {
+.studio-layer-row:hover {
+  background: #303030;
+}
+.studio-layer-row.is-active {
+  background: #0d99ff;
+  color: #fff;
+}
+.studio-layer-select {
+  display: grid;
+  min-width: 0;
+  min-height: 31px;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  border: 0;
+  background: transparent;
+  min-height: 31px;
+  padding: 5px 2px 5px 18px;
+  color: inherit;
+  text-align: left;
+}
+.studio-layer-select > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .studio-layer-actions {
   display: flex;
-  gap: 5px;
+  padding-right: 6px;
   color: #777;
+}
+.studio-layer-row.is-active .studio-layer-actions {
+  color: #fff;
+}
+.studio-layer-actions button {
+  display: grid;
+  width: 20px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+.studio-layer-actions button:hover {
+  background: #ffffff24;
 }
 .studio-assets-panel {
   display: grid;
@@ -555,7 +591,8 @@
   position: relative;
   display: block;
   min-height: 100%;
-  overflow: visible;
+  overflow: auto;
+  overscroll-behavior: contain;
   border: 0;
   background: #fff;
   box-shadow:
@@ -578,35 +615,6 @@
 .studio-storefront-page [data-reveal] {
   opacity: 1 !important;
   transform: none !important;
-}
-.studio-edit-surface {
-  position: absolute;
-  inset: 0;
-  z-index: 80;
-  overflow: visible;
-  cursor: default;
-  outline: 1px solid var(--studio-accent);
-  outline-offset: -1px;
-}
-.studio-edit-surface > .homepage-banner-scene {
-  height: 100% !important;
-}
-.studio-edit-surface .homepage-banner-coordinate-root {
-  overflow: visible;
-}
-.studio-edit-surface::before {
-  position: absolute;
-  z-index: 90;
-  top: -19px;
-  left: 0;
-  border-radius: 2px 2px 0 0;
-  background: var(--studio-accent);
-  padding: 3px 6px;
-  color: #fff;
-  content: "Editable";
-  font:
-    500 10px/13px Inter,
-    sans-serif;
 }
 .studio-ruler {
   position: fixed;
@@ -643,23 +651,19 @@
   cursor: default;
   outline: 0 solid transparent;
 }
-.studio-edit-surface .homepage-banner-layer {
+[data-editor-active="true"] .homepage-banner-layer {
   cursor: move;
   user-select: none;
 }
-.studio-edit-surface .homepage-banner-layer:hover {
+[data-editor-active="true"] .homepage-banner-layer:hover {
   outline: 1px solid rgb(13 153 255/0.7);
   outline-offset: 1px;
 }
-.studio-edit-surface .homepage-banner-layer.is-selected {
-  outline: 1px solid var(--studio-accent);
-  outline-offset: 1px;
-}
-.studio-edit-surface .homepage-banner-layer [contenteditable="true"] {
+[data-editor-active="true"] .homepage-banner-layer [contenteditable="true"] {
   cursor: text;
   user-select: text;
   outline: 1px solid var(--studio-accent);
-  background: #0002;
+  background: rgb(13 153 255/0.08);
 }
 .homepage-banner-layer.is-cropping {
   cursor: move !important;
@@ -795,25 +799,125 @@
   color: #ffffffa0 !important;
   font: 500 12px/1 var(--font-sans-ui) !important;
 }
-.moveable-control-box {
-  z-index: 50 !important;
+.studio-selection-box {
+  position: absolute;
+  z-index: 1000;
+  box-sizing: border-box;
+  border: calc(1px * var(--studio-canvas-ui-scale, 1)) solid var(--studio-accent);
+  pointer-events: none;
+  transform-origin: center;
 }
-.moveable-line {
-  background: var(--studio-accent) !important;
+.studio-selection-box.is-group {
+  border-style: dashed;
 }
-.moveable-control {
-  width: 8px !important;
-  height: 8px !important;
-  margin-top: -4px !important;
-  margin-left: -4px !important;
-  border: 1px solid #fff !important;
-  background: var(--studio-accent) !important;
+.studio-selection-box.is-locked {
+  border-color: #a259ff;
 }
-.moveable-rotation-line {
-  background: var(--studio-accent) !important;
+.studio-selection-name {
+  position: absolute;
+  bottom: calc(100% + 5px * var(--studio-canvas-ui-scale, 1));
+  left: calc(-1px * var(--studio-canvas-ui-scale, 1));
+  max-width: calc(180px * var(--studio-canvas-ui-scale, 1));
+  overflow: hidden;
+  border-radius: calc(2px * var(--studio-canvas-ui-scale, 1));
+  background: var(--studio-accent);
+  padding: calc(3px * var(--studio-canvas-ui-scale, 1)) calc(5px * var(--studio-canvas-ui-scale, 1));
+  color: #fff;
+  font: 500 calc(10px * var(--studio-canvas-ui-scale, 1)) / 1 var(--font-sans-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.moveable-guideline {
-  background: #ff4f91 !important;
+.studio-selection-box.is-locked .studio-selection-name {
+  background: #a259ff;
+}
+.studio-selection-handle,
+.studio-rotation-handle {
+  position: absolute;
+  z-index: 2;
+  box-sizing: border-box;
+  width: calc(8px * var(--studio-canvas-ui-scale, 1));
+  height: calc(8px * var(--studio-canvas-ui-scale, 1));
+  border: calc(1px * var(--studio-canvas-ui-scale, 1)) solid var(--studio-accent);
+  border-radius: 0;
+  background: #fff;
+  padding: 0;
+  pointer-events: auto;
+  touch-action: none;
+}
+.studio-selection-handle.is-n,
+.studio-selection-handle.is-s {
+  left: 50%;
+  cursor: ns-resize;
+}
+.studio-selection-handle.is-e,
+.studio-selection-handle.is-w {
+  top: 50%;
+  cursor: ew-resize;
+}
+.studio-selection-handle.is-n {
+  top: 0;
+  transform: translate(-50%, -50%);
+}
+.studio-selection-handle.is-s {
+  bottom: 0;
+  transform: translate(-50%, 50%);
+}
+.studio-selection-handle.is-e {
+  right: 0;
+  transform: translate(50%, -50%);
+}
+.studio-selection-handle.is-w {
+  left: 0;
+  transform: translate(-50%, -50%);
+}
+.studio-selection-handle.is-ne,
+.studio-selection-handle.is-nw,
+.studio-selection-handle.is-se,
+.studio-selection-handle.is-sw {
+  cursor: nwse-resize;
+}
+.studio-selection-handle.is-ne,
+.studio-selection-handle.is-sw {
+  cursor: nesw-resize;
+}
+.studio-selection-handle.is-ne {
+  top: 0;
+  right: 0;
+  transform: translate(50%, -50%);
+}
+.studio-selection-handle.is-nw {
+  top: 0;
+  left: 0;
+  transform: translate(-50%, -50%);
+}
+.studio-selection-handle.is-se {
+  right: 0;
+  bottom: 0;
+  transform: translate(50%, 50%);
+}
+.studio-selection-handle.is-sw {
+  bottom: 0;
+  left: 0;
+  transform: translate(-50%, 50%);
+}
+.studio-rotation-line {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  width: calc(1px * var(--studio-canvas-ui-scale, 1));
+  height: calc(24px * var(--studio-canvas-ui-scale, 1));
+  background: var(--studio-accent);
+  transform: translateX(-50%);
+}
+.studio-rotation-handle {
+  bottom: calc(100% + 20px * var(--studio-canvas-ui-scale, 1));
+  left: 50%;
+  border-radius: 50%;
+  cursor: grab;
+  transform: translateX(-50%);
+}
+.studio-rotation-handle:active {
+  cursor: grabbing;
 }
 .studio-zoom-control {
   position: absolute;
@@ -1588,6 +1692,33 @@
 .figma-resize-modes button,
 .figma-image-fit button {
   flex: 1;
+}
+.figma-crop-properties {
+  display: grid;
+  gap: 7px;
+  border-left: 1px solid #555;
+  margin-left: 7px;
+  padding-left: 8px;
+}
+.figma-link-field {
+  display: grid;
+  gap: 5px;
+  color: #aaa;
+  font-size: 9px;
+}
+.figma-link-field input {
+  width: 100%;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  outline: 0;
+  background: var(--figma-field);
+  padding: 0 7px;
+  color: #fff;
+  font-size: 10px;
+}
+.figma-link-field input:focus {
+  border-color: var(--studio-accent);
 }
 .figma-typography-align > .figma-select-field {
   width: 92px;

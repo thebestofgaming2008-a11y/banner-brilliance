@@ -262,7 +262,11 @@ export function HomepageHero({
                 aria-hidden={active !== index}
                 inert={active !== index}
               >
-                <BannerSceneView scene={slide.scene} className="h-full" />
+                <BannerSceneView
+                  scene={slide.scene}
+                  className="h-full"
+                  editorKey={id ? `${id}:hero:${index}` : undefined}
+                />
               </article>
             );
           }
@@ -702,7 +706,11 @@ export function HomepageCollectionFeature({
       style={{ backgroundColor: bannerColor }}
     >
       {scene ? (
-        <BannerSceneView scene={scene} interactive={false} />
+        <BannerSceneView
+          scene={scene}
+          interactive={false}
+          editorKey={id ? `${id}:feature` : undefined}
+        />
       ) : image ? (
         <img
           src={image}
@@ -787,7 +795,10 @@ export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
         }}
       >
         {props.scene ? (
-          <BannerSceneView scene={props.scene} />
+          <BannerSceneView
+            scene={props.scene}
+            editorKey={props.id ? `${props.id}:standalone` : undefined}
+          />
         ) : props.backgroundImage ? (
           <img
             src={props.backgroundImage}

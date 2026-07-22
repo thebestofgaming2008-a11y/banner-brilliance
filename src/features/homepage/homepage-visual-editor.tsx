@@ -233,6 +233,7 @@ export function HomepageVisualEditor({
   const [selectedLayerIds, setSelectedLayerIds] = useState<string[]>([]);
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [cropLayerId, setCropLayerId] = useState<string | null>(null);
+  const [cropFillId, setCropFillId] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<"select" | "hand">("select");
   const [draggedBannerKey, setDraggedBannerKey] = useState<string | null>(null);
   const [draggedLayerId, setDraggedLayerId] = useState<string | null>(null);
@@ -749,6 +750,7 @@ export function HomepageVisualEditor({
       } else if (event.key === "Escape") {
         setEditingLayerId(null);
         setCropLayerId(null);
+        setCropFillId(null);
         setSelectedLayerIds([]);
       } else if (command && event.key.toLowerCase() === "d" && selectedLayerIds.length === 1) {
         event.preventDefault();
@@ -1193,6 +1195,8 @@ export function HomepageVisualEditor({
                             setSelectedBannerKey(banner.key);
                             setSelectedLayerIds([]);
                             setEditingLayerId(null);
+                            setCropLayerId(null);
+                            setCropFillId(null);
                           }}
                         >
                           <GripVertical size={13} />
@@ -1236,6 +1240,7 @@ export function HomepageVisualEditor({
                             setSelectedLayerIds([]);
                             setEditingLayerId(null);
                             setCropLayerId(null);
+                            setCropFillId(null);
                           }}
                         >
                           <GripVertical size={13} />
@@ -1268,45 +1273,59 @@ export function HomepageVisualEditor({
                           ? { ...layer.style, ...(layer.mobileStyle ?? {}) }
                           : layer.style;
                       return (
-                        <button
-                          type="button"
+                        <div
                           key={layer.id}
                           draggable
-                          className={selectedLayerIds.includes(layer.id) ? "is-active" : ""}
+                          className={`studio-layer-row ${selectedLayerIds.includes(layer.id) ? "is-active" : ""}`}
                           onDragStart={() => setDraggedLayerId(layer.id)}
                           onDragOver={(event) => event.preventDefault()}
                           onDrop={() => {
                             if (draggedLayerId) reorderLayer(draggedLayerId, layer.id);
                             setDraggedLayerId(null);
                           }}
-                          onClick={(event) => {
-                            setCropLayerId(null);
-                            setSelectedLayerIds(
-                              event.shiftKey
-                                ? [...new Set([...selectedLayerIds, layer.id])]
-                                : [layer.id],
-                            );
-                          }}
                         >
-                          {layer.type === "text" ? (
-                            <Type size={14} />
-                          ) : layer.type === "image" ? (
-                            <ImageIcon size={14} />
-                          ) : layer.type === "button" ? (
-                            <RectangleHorizontal size={14} />
-                          ) : (
-                            <Circle size={14} />
-                          )}
-                          <span>{layer.name}</span>
+                          <button
+                            type="button"
+                            className="studio-layer-select"
+                            onClick={(event) => {
+                              setCropLayerId(null);
+                              setCropFillId(null);
+                              setEditingLayerId(null);
+                              setSelectedLayerIds(
+                                event.shiftKey
+                                  ? [...new Set([...selectedLayerIds, layer.id])]
+                                  : [layer.id],
+                              );
+                            }}
+                          >
+                            {layer.type === "text" ? (
+                              <Type size={14} />
+                            ) : layer.type === "image" ? (
+                              <ImageIcon size={14} />
+                            ) : layer.type === "button" ? (
+                              <RectangleHorizontal size={14} />
+                            ) : (
+                              <Circle size={14} />
+                            )}
+                            <span>{layer.name}</span>
+                          </button>
                           <span className="studio-layer-actions">
-                            <span title={style.visible ? "Visible" : "Hidden"}>
+                            <button
+                              type="button"
+                              aria-label={`${style.visible ? "Hide" : "Show"} ${layer.name}`}
+                              onClick={() => patchLayer(layer.id, { visible: !style.visible })}
+                            >
                               {style.visible ? <Eye size={12} /> : <Minus size={12} />}
-                            </span>
-                            <span title={style.locked ? "Locked" : "Unlocked"}>
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`${style.locked ? "Unlock" : "Lock"} ${layer.name}`}
+                              onClick={() => patchLayer(layer.id, { locked: !style.locked })}
+                            >
                               {style.locked ? <Lock size={12} /> : <Unlock size={12} />}
-                            </span>
+                            </button>
                           </span>
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -1360,11 +1379,14 @@ export function HomepageVisualEditor({
                 </>
               ) : null}
             </div>
-            {cropLayerId ? (
+            {cropLayerId || cropFillId ? (
               <button
                 type="button"
                 className="studio-crop-done"
-                onClick={() => setCropLayerId(null)}
+                onClick={() => {
+                  setCropLayerId(null);
+                  setCropFillId(null);
+                }}
               >
                 Done cropping
               </button>
@@ -1458,11 +1480,18 @@ export function HomepageVisualEditor({
             selectedLayerIds={selectedLayerIds}
             editingLayerId={editingLayerId}
             cropLayerId={cropLayerId}
+            cropFillId={cropFillId}
             activeTool={activeTool}
+            onSelectBanner={(key) => {
+              setSelectedBannerKey(key);
+              setSelectedLayerIds([]);
+            }}
             onSelectLayers={setSelectedLayerIds}
             onEditLayer={setEditingLayerId}
             onCropLayer={setCropLayerId}
+            onCropFill={setCropFillId}
             onTextChange={(id, text) => patchLayerContent(id, { text })}
+            onPatchLayer={patchLayer}
             onCropChange={(id, patch) => patchLayer(id, patch)}
             onBackgroundCropChange={(id, patch) =>
               mutateScene(
@@ -1475,9 +1504,6 @@ export function HomepageVisualEditor({
                 true,
               )
             }
-            onCommitGeometry={(changes) => {
-              changes.forEach(({ id, geometry }) => patchLayer(id, geometry));
-            }}
           />
           <div className="studio-zoom-control">
             <IconButton
@@ -1502,12 +1528,14 @@ export function HomepageVisualEditor({
           scene={scene}
           selectedLayers={selectedLayers}
           viewport={viewport}
+          cropLayerId={cropLayerId}
           onUpdateScene={(next) => mutateScene(() => next, true)}
           onPatchLayer={patchLayer}
           onPatchLayerContent={patchLayerContent}
           onDeleteLayer={(id) => deleteLayers([id])}
           onDuplicateLayer={duplicateLayer}
           onMoveLayer={moveLayer}
+          onCropLayer={setCropLayerId}
           sectionSettings={sectionSettings}
           prototypeSettings={prototypeSettings}
         />

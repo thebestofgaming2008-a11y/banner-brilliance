@@ -23,15 +23,13 @@ test.describe("focused homepage studio", () => {
     await expect(page.getByText("After Honey", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Design", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Prototype", exact: true })).toBeVisible();
-    const storefront = page.frameLocator('iframe[title="desktop storefront preview"]');
+    const storefront = page.getByRole("region", { name: "desktop storefront preview" });
     await expect(storefront.locator("#honey")).toBeAttached();
     await expect(storefront.locator("footer")).toBeAttached();
 
-    const frameHeight = await storefront.locator("body").evaluate((body) => body.scrollHeight);
+    const frameHeight = await storefront.evaluate((frame) => frame.scrollHeight);
     expect(frameHeight).toBeGreaterThan(4000);
-    const canScroll = await storefront
-      .locator("body")
-      .evaluate((body) => body.scrollHeight > body.ownerDocument.defaultView!.innerHeight);
+    const canScroll = await storefront.evaluate((frame) => frame.scrollHeight > frame.clientHeight);
     expect(canScroll).toBe(true);
 
     const toolbar = page.getByRole("navigation", { name: "Editor tools" });
@@ -41,21 +39,90 @@ test.describe("focused homepage studio", () => {
   });
 
   test("selects, resizes, edits text, and enters image crop mode", async ({ page }) => {
-    await page.getByRole("button", { name: /Title/ }).first().click();
-    const storefront = page.frameLocator('iframe[title="desktop storefront preview"]');
-    expect(await storefront.locator(".moveable-control").count()).toBeGreaterThanOrEqual(8);
+    const storefront = page.getByRole("region", { name: "desktop storefront preview" });
+    const title = storefront.locator('[data-editor-active="true"] [data-banner-layer="title"]');
+    await title.click({ force: true });
+    await expect(storefront.locator(".studio-selection-box")).toBeVisible();
+    await expect(storefront.locator(".studio-selection-handle")).toHaveCount(8);
+    await expect(storefront.getByRole("button", { name: "Rotate selection" })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Layer name" })).toHaveValue("Title");
 
-    const title = storefront.locator('.studio-edit-surface [data-banner-layer="title"]');
+    const inspector = page.getByRole("complementary", { name: "Properties inspector" });
+    const xInput = inspector.getByRole("spinbutton", { name: "X", exact: true }).first();
+    const widthInput = inspector.getByRole("spinbutton", { name: "W", exact: true }).first();
+    const initialX = Number(await xInput.inputValue());
+    const initialWidth = Number(await widthInput.inputValue());
+    const titleBox = await title.boundingBox();
+    expect(titleBox).not.toBeNull();
+    await page.mouse.move(titleBox!.x + titleBox!.width / 2, titleBox!.y + titleBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(
+      titleBox!.x + titleBox!.width / 2 + 20,
+      titleBox!.y + titleBox!.height / 2 + 10,
+    );
+    await page.mouse.up();
+    await expect.poll(async () => Number(await xInput.inputValue())).toBeGreaterThan(initialX);
+
+    const eastHandle = storefront.getByRole("button", { name: "Resize e", exact: true });
+    const eastBox = await eastHandle.boundingBox();
+    expect(eastBox).not.toBeNull();
+    await page.mouse.move(eastBox!.x + eastBox!.width / 2, eastBox!.y + eastBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(eastBox!.x + eastBox!.width / 2 + 20, eastBox!.y + eastBox!.height / 2);
+    await page.mouse.up();
+    await expect
+      .poll(async () => Number(await widthInput.inputValue()))
+      .toBeGreaterThan(initialWidth);
+
     await title.dblclick({ force: true });
     await expect(title.locator('[contenteditable="true"]')).toBeVisible();
 
-    await page.getByRole("button", { name: /Product image/ }).click();
-    const image = storefront.locator('.studio-edit-surface [data-banner-layer="foreground"]');
+    const image = storefront.locator(
+      '[data-editor-active="true"] [data-banner-layer="foreground"]',
+    );
+    await image.click({ position: { x: 20, y: 200 }, force: true });
     await image.dblclick({ force: true });
     await expect(storefront.locator(".studio-crop-label")).toBeVisible();
     await expect(page.getByRole("button", { name: "Done cropping" })).toBeVisible();
-    await expect(page.getByText("Crop X", { exact: true })).toBeVisible();
-    await expect(page.getByText("Zoom", { exact: true }).last()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Crop image", exact: true })).toHaveClass(
+      /is-active/,
+    );
+    const cropProperties = page.locator(".figma-crop-properties");
+    await expect(cropProperties).toBeVisible();
+    const cropX = cropProperties.getByRole("spinbutton", { name: "X", exact: true });
+    const initialCropX = Number(await cropX.inputValue());
+    const imageBox = await image.boundingBox();
+    expect(imageBox).not.toBeNull();
+    await page.mouse.move(imageBox!.x + imageBox!.width / 2, imageBox!.y + imageBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(
+      imageBox!.x + imageBox!.width / 2 + 16,
+      imageBox!.y + imageBox!.height / 2,
+    );
+    await page.mouse.up();
+    await expect.poll(async () => Number(await cropX.inputValue())).toBeGreaterThan(initialCropX);
+  });
+
+  test("selects the real banner background and offers every supported fill", async ({ page }) => {
+    const storefront = page.getByRole("region", { name: "desktop storefront preview" });
+    const scene = storefront.locator('[data-editor-active="true"]');
+    await scene.click({ position: { x: 50, y: 200 }, force: true });
+    await expect(storefront.locator(".studio-selection-box")).toHaveCount(0);
+
+    const inspector = page.getByRole("complementary", { name: "Properties inspector" });
+    const fillTypes = inspector.getByRole("combobox", { name: "Fill type" });
+    await expect(fillTypes).toHaveCount(2);
+    await expect(fillTypes.first().locator("option")).toHaveText([
+      "Solid",
+      "Image",
+      "Linear",
+      "Radial",
+      "Angular",
+    ]);
+    await fillTypes.first().selectOption("radial");
+    await expect(fillTypes.first()).toHaveValue("radial");
+    await inspector.getByRole("button", { name: "Edit radial fill" }).click();
+    await expect(inspector.getByRole("button", { name: "Add stop" })).toBeVisible();
   });
 
   test("scrubs pixel properties and applies Figma controls", async ({ page }) => {
@@ -94,8 +161,8 @@ test.describe("focused homepage studio", () => {
       "EF4444",
     );
 
-    const storefront = page.frameLocator('iframe[title="desktop storefront preview"]');
-    const title = storefront.locator('.studio-edit-surface [data-banner-layer="title"]');
+    const storefront = page.getByRole("region", { name: "desktop storefront preview" });
+    const title = storefront.locator('[data-editor-active="true"] [data-banner-layer="title"]');
     await expect
       .poll(() => title.evaluate((element) => getComputedStyle(element).color))
       .toBe("rgb(239, 68, 68)");
@@ -103,15 +170,21 @@ test.describe("focused homepage studio", () => {
       .poll(() => title.evaluate((element) => getComputedStyle(element).transform))
       .toContain("-1");
 
-    await page.getByRole("button", { name: /Product image/ }).click();
+    await page.getByRole("button", { name: "Product image", exact: true }).click();
     await inspector.getByRole("button", { name: "Fill frame", exact: true }).click();
     await expect(inspector.getByRole("button", { name: "Fill frame", exact: true })).toHaveClass(
       /is-active/,
     );
-    const cropX = inspector.getByRole("spinbutton", { name: "Crop X", exact: true });
+    await inspector.getByRole("button", { name: "Crop image", exact: true }).click();
+    const cropX = inspector.locator(".figma-crop-properties").getByRole("spinbutton", {
+      name: "X",
+      exact: true,
+    });
     await cropX.fill("10");
     await expect(cropX).toHaveValue("10");
-    const image = storefront.locator('.studio-edit-surface [data-banner-layer="foreground"]');
+    const image = storefront.locator(
+      '[data-editor-active="true"] [data-banner-layer="foreground"]',
+    );
     await expect
       .poll(() => image.evaluate((element) => getComputedStyle(element).objectFit))
       .toBe("cover");
@@ -125,13 +198,9 @@ test.describe("focused homepage studio", () => {
       "banner-left",
     );
     await expect(page.getByText("Original storefront", { exact: true })).toBeVisible();
-    const storefront = page.frameLocator('iframe[title="desktop storefront preview"]');
-    await expect(storefront.locator(".studio-edit-surface")).toBeVisible();
-    await expect
-      .poll(() =>
-        storefront.locator("body").evaluate((body) => body.ownerDocument.defaultView!.scrollY),
-      )
-      .toBeGreaterThan(2500);
+    const storefront = page.getByRole("region", { name: "desktop storefront preview" });
+    await expect(storefront.locator('[data-editor-active="true"]')).toBeVisible();
+    await expect.poll(() => storefront.evaluate((frame) => frame.scrollTop)).toBeGreaterThan(2500);
   });
 
   test("keeps Preview separate from publishing", async ({ page }) => {

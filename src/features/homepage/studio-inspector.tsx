@@ -916,8 +916,10 @@ function LayerInspector({
   layer,
   scene,
   viewport,
+  cropLayerId,
   onPatch,
   onPatchContent,
+  onCropLayer,
   onDelete,
   onDuplicate,
   onMove,
@@ -925,8 +927,10 @@ function LayerInspector({
   layer: BannerLayer;
   scene: BannerScene;
   viewport: HomepageViewport;
+  cropLayerId: string | null;
   onPatch: (patch: Partial<BannerLayerStyle>) => void;
   onPatchContent: (patch: Partial<BannerLayer>) => void;
+  onCropLayer: (id: string | null) => void;
   onDelete: () => void;
   onDuplicate: () => void;
   onMove: (direction: -1 | 1) => void;
@@ -1170,23 +1174,6 @@ function LayerInspector({
 
       {isText ? (
         <>
-          <InspectorSection title="Content">
-            <textarea
-              className="figma-text-content"
-              aria-label="Text content"
-              rows={2}
-              value={layer.text || ""}
-              onChange={(event) => onPatchContent({ text: event.target.value })}
-            />
-            {layer.type === "button" ? (
-              <input
-                className="figma-full-input"
-                aria-label="Button link"
-                value={layer.href || ""}
-                onChange={(event) => onPatchContent({ href: event.target.value })}
-              />
-            ) : null}
-          </InspectorSection>
           <InspectorSection title="Typography" action={<Grid2X2 size={14} />}>
             <SelectField
               hideLabel
@@ -1291,6 +1278,7 @@ function LayerInspector({
         <InspectorSection title="Image" action={<Crop size={14} />}>
           <HomepageImageInput
             compact
+            allowDestructiveCrop={false}
             value={layer.src || ""}
             onChange={(src) => onPatchContent({ src })}
           />
@@ -1299,53 +1287,76 @@ function LayerInspector({
             <ToolButton
               label="Fit image"
               active={(style.objectFit || "contain") === "contain"}
-              onClick={() => patch({ objectFit: "contain" })}
+              onClick={() => {
+                onCropLayer(null);
+                patch({ objectFit: "contain" });
+              }}
             >
               <MinimizeIcon />
             </ToolButton>
             <ToolButton
               label="Fill frame"
-              active={style.objectFit === "cover"}
-              onClick={() => patch({ objectFit: "cover" })}
+              active={style.objectFit === "cover" && cropLayerId !== layer.id}
+              onClick={() => {
+                onCropLayer(null);
+                patch({ objectFit: "cover" });
+              }}
             >
               <Maximize2 size={14} />
             </ToolButton>
             <ToolButton
+              label="Crop image"
+              active={cropLayerId === layer.id}
+              onClick={() => {
+                patch({ objectFit: "cover" });
+                onCropLayer(cropLayerId === layer.id ? null : layer.id);
+              }}
+            >
+              <Crop size={14} />
+            </ToolButton>
+            <ToolButton
               label="Stretch image"
               active={style.objectFit === "fill"}
-              onClick={() => patch({ objectFit: "fill" })}
+              onClick={() => {
+                onCropLayer(null);
+                patch({ objectFit: "fill" });
+              }}
             >
               <Ratio size={14} />
             </ToolButton>
           </div>
-          <div className="figma-control-line">
-            <NumberField
-              label="Crop X"
-              value={style.cropX ?? 0}
-              min={-200}
-              max={200}
-              step={0.1}
-              suffix="%"
-              onChange={(cropX) => patch({ cropX })}
-            />
-            <NumberField
-              label="Crop Y"
-              value={style.cropY ?? 0}
-              min={-200}
-              max={200}
-              step={0.1}
-              suffix="%"
-              onChange={(cropY) => patch({ cropY })}
-            />
-          </div>
-          <NumberField
-            label="Zoom"
-            value={style.cropZoom ?? 100}
-            min={10}
-            max={500}
-            suffix="%"
-            onChange={(cropZoom) => patch({ cropZoom })}
-          />
+          {cropLayerId === layer.id ? (
+            <div className="figma-crop-properties">
+              <div className="figma-control-line">
+                <NumberField
+                  label="X"
+                  value={style.cropX ?? 0}
+                  min={-200}
+                  max={200}
+                  step={0.1}
+                  suffix="%"
+                  onChange={(cropX) => patch({ cropX })}
+                />
+                <NumberField
+                  label="Y"
+                  value={style.cropY ?? 0}
+                  min={-200}
+                  max={200}
+                  step={0.1}
+                  suffix="%"
+                  onChange={(cropY) => patch({ cropY })}
+                />
+              </div>
+              <NumberField
+                label="Scale"
+                value={style.cropZoom ?? 100}
+                min={10}
+                max={500}
+                suffix="%"
+                onChange={(cropZoom) => patch({ cropZoom })}
+              />
+            </div>
+          ) : null}
           <SelectField
             label="Blend"
             value={style.blendMode || "normal"}
@@ -1509,24 +1520,28 @@ export function StudioInspector({
   scene,
   selectedLayers,
   viewport,
+  cropLayerId,
   onUpdateScene,
   onPatchLayer,
   onPatchLayerContent,
   onDeleteLayer,
   onDuplicateLayer,
   onMoveLayer,
+  onCropLayer,
   sectionSettings,
   prototypeSettings,
 }: {
   scene: BannerScene;
   selectedLayers: BannerLayer[];
   viewport: HomepageViewport;
+  cropLayerId: string | null;
   onUpdateScene: (scene: BannerScene) => void;
   onPatchLayer: (id: string, patch: Partial<BannerLayerStyle>) => void;
   onPatchLayerContent: (id: string, patch: Partial<BannerLayer>) => void;
   onDeleteLayer: (id: string) => void;
   onDuplicateLayer: (id: string) => void;
   onMoveLayer: (id: string, direction: -1 | 1) => void;
+  onCropLayer: (id: string | null) => void;
   sectionSettings?: ReactNode;
   prototypeSettings?: ReactNode;
 }) {
@@ -1566,13 +1581,34 @@ export function StudioInspector({
       </div>
       <div className="studio-inspector-scroll">
         {tab === "prototype" ? (
-          prototypeSettings || (
+          selected?.type === "button" ? (
             <InspectorSection title="Interaction">
-              <p className="studio-muted">
-                Select a button to edit its destination. Carousel motion is available on hero
-                slides.
-              </p>
+              <SelectField
+                label="Trigger"
+                value="click"
+                options={[{ label: "On click", value: "click" }]}
+                onChange={() => undefined}
+              />
+              <label className="figma-link-field">
+                <span>Navigate to</span>
+                <input
+                  aria-label="Button link"
+                  value={selected.href || ""}
+                  onChange={(event) =>
+                    onPatchLayerContent(selected.id, { href: event.target.value })
+                  }
+                />
+              </label>
             </InspectorSection>
+          ) : (
+            prototypeSettings || (
+              <InspectorSection title="Interaction">
+                <p className="studio-muted">
+                  Select a button to edit its destination. Carousel motion is available on hero
+                  slides.
+                </p>
+              </InspectorSection>
+            )
           )
         ) : selectedLayers.length > 1 ? (
           <InspectorSection title={`${selectedLayers.length} layers selected`}>
@@ -1585,11 +1621,13 @@ export function StudioInspector({
             layer={selected}
             scene={scene}
             viewport={viewport}
+            cropLayerId={cropLayerId}
             onPatch={(patch) => onPatchLayer(selected.id, patch)}
             onPatchContent={(patch) => onPatchLayerContent(selected.id, patch)}
             onDelete={() => onDeleteLayer(selected.id)}
             onDuplicate={() => onDuplicateLayer(selected.id)}
             onMove={(direction) => onMoveLayer(selected.id, direction)}
+            onCropLayer={onCropLayer}
           />
         ) : (
           <>

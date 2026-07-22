@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, type CSSProperties, type MouseEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import type {
   BannerFill,
@@ -7,6 +14,7 @@ import type {
   BannerScene,
   HomepageViewport,
 } from "./types";
+import { useStudioBannerSession } from "./studio-session-context";
 
 type SceneViewport = HomepageViewport | "auto";
 
@@ -123,6 +131,7 @@ function useSceneViewport(viewport: SceneViewport) {
 
 export function BannerSceneView({
   scene,
+  editorKey,
   viewport = "auto",
   className = "",
   selectedLayerId,
@@ -137,6 +146,7 @@ export function BannerSceneView({
   onBackgroundCropChange,
 }: {
   scene: BannerScene;
+  editorKey?: string;
   viewport?: SceneViewport;
   className?: string;
   selectedLayerId?: string | null;
@@ -156,6 +166,21 @@ export function BannerSceneView({
     patch: Pick<BannerFill, "offsetX" | "offsetY" | "zoom">,
   ) => void;
 }) {
+  const studio = useStudioBannerSession(editorKey);
+  const studioSelectedLayerId =
+    studio?.selectedLayerIds.length === 1 ? studio.selectedLayerIds[0] : null;
+  const activeSelectedLayerId = studio ? studioSelectedLayerId : selectedLayerId;
+  const activeEditingLayerId = studio ? studio.editingLayerId : editingLayerId;
+  const activeCropLayerId = studio ? studio.cropLayerId : cropLayerId;
+  const activeCropFillId = studio?.cropFillId ?? null;
+  const selectLayer = studio
+    ? (id: string, event: MouseEvent<HTMLElement>) => studio.onSelectLayer(id, event.shiftKey)
+    : onSelectLayer;
+  const editLayer = studio?.onEditLayer ?? onEditLayer;
+  const textChange = studio?.onTextChange ?? onTextChange;
+  const cropChange = studio?.onCropChange ?? onCropChange;
+  const selectBackground = studio?.onSelectBackground ?? onSelectBackground;
+  const backgroundCropChange = studio?.onBackgroundCropChange ?? onBackgroundCropChange;
   const resolvedViewport = useSceneViewport(viewport);
   const height = resolvedViewport === "mobile" ? scene.mobileHeight : scene.height;
   const fills = useMemo(() => scene.fills.filter((fill) => fill.enabled), [scene.fills]);
@@ -165,18 +190,20 @@ export function BannerSceneView({
       className={`homepage-banner-scene relative isolate w-full overflow-hidden ${className}`}
       style={{ height: `${Math.max(160, height)}px` }}
       data-scene-viewport={resolvedViewport}
+      data-editor-banner-key={editorKey}
+      data-editor-active={studio ? "true" : undefined}
       onPointerDown={(event) => {
         if (event.target !== event.currentTarget) return;
-        onSelectBackground?.();
+        selectBackground?.();
         const imageFill = [...fills].reverse().find((fill) => fill.type === "image");
-        if (!imageFill || !onBackgroundCropChange) return;
+        if (!imageFill || !backgroundCropChange || activeCropFillId !== imageFill.id) return;
         const startX = event.clientX;
         const startY = event.clientY;
         const startOffsetX = imageFill.offsetX ?? 0;
         const startOffsetY = imageFill.offsetY ?? 0;
         const rect = event.currentTarget.getBoundingClientRect();
         const move = (moveEvent: PointerEvent) => {
-          onBackgroundCropChange(imageFill.id, {
+          backgroundCropChange(imageFill.id, {
             offsetX: startOffsetX + ((moveEvent.clientX - startX) / Math.max(1, rect.width)) * 100,
             offsetY: startOffsetY + ((moveEvent.clientY - startY) / Math.max(1, rect.height)) * 100,
             zoom: imageFill.zoom ?? 100,
@@ -189,12 +216,18 @@ export function BannerSceneView({
         window.addEventListener("pointermove", move);
         window.addEventListener("pointerup", stop);
       }}
-      onWheel={(event) => {
-        if (event.target !== event.currentTarget || !onBackgroundCropChange) return;
-        const imageFill = [...fills].reverse().find((fill) => fill.type === "image");
-        if (!imageFill) return;
+      onDoubleClick={(event) => {
+        if (event.target !== event.currentTarget || !studio) return;
         event.preventDefault();
-        onBackgroundCropChange(imageFill.id, {
+        const imageFill = [...fills].reverse().find((fill) => fill.type === "image");
+        studio.onEditBackground(imageFill?.id ?? null);
+      }}
+      onWheel={(event) => {
+        if (event.target !== event.currentTarget || !backgroundCropChange) return;
+        const imageFill = [...fills].reverse().find((fill) => fill.type === "image");
+        if (!imageFill || activeCropFillId !== imageFill.id) return;
+        event.preventDefault();
+        backgroundCropChange(imageFill.id, {
           offsetX: imageFill.offsetX ?? 0,
           offsetY: imageFill.offsetY ?? 0,
           zoom: clamp((imageFill.zoom ?? 100) - event.deltaY * 0.15, 10, 500),
@@ -254,21 +287,69 @@ export function BannerSceneView({
       <div
         className={
           scene.coordinateMode === "original-hero"
-            ? "homepage-banner-coordinate-root absolute left-1/2 top-0 h-full -translate-x-1/2"
+            ? "homepage-banner-coordinate-root absolute left-1/2 top-0 h-full"
             : "homepage-banner-coordinate-root absolute inset-0"
         }
         data-banner-coordinate-root
         style={
           scene.coordinateMode === "original-hero"
-            ? { aspectRatio: "390 / 649", pointerEvents: "none" }
+            ? { aspectRatio: "390 / 649", pointerEvents: "none", transform: "translateX(-50%)" }
             : { pointerEvents: "none" }
         }
       >
         {scene.layers.map((layer, index) => {
           const style = resolveLayerStyle(layer, resolvedViewport);
-          const selected = selectedLayerId === layer.id;
-          const editing = editingLayerId === layer.id;
-          const cropping = cropLayerId === layer.id;
+          const selected = activeSelectedLayerId === layer.id;
+          const editing = activeEditingLayerId === layer.id;
+          const cropping = activeCropLayerId === layer.id;
+          const startLayerDrag = (event: ReactPointerEvent<HTMLElement>) => {
+            if (
+              !studio ||
+              studio.interactionDisabled ||
+              editing ||
+              cropping ||
+              style.locked ||
+              event.button !== 0 ||
+              !event.isPrimary
+            )
+              return;
+            event.preventDefault();
+            event.stopPropagation();
+            studio.onSelectLayer(layer.id, event.shiftKey);
+            if (event.shiftKey) return;
+            const coordinateRoot = event.currentTarget.offsetParent as HTMLElement | null;
+            if (!coordinateRoot) return;
+            const movingIds = studio.selectedLayerIds.includes(layer.id)
+              ? studio.selectedLayerIds
+              : [layer.id];
+            const origins = scene.layers
+              .filter((item) => movingIds.includes(item.id))
+              .map((item) => ({
+                id: item.id,
+                style: resolveLayerStyle(item, resolvedViewport),
+              }))
+              .filter((item) => !item.style.locked);
+            const startX = event.clientX;
+            const startY = event.clientY;
+            const rect = coordinateRoot.getBoundingClientRect();
+            const ownerWindow = event.currentTarget.ownerDocument.defaultView ?? window;
+            const move = (moveEvent: PointerEvent) => {
+              const deltaX = ((moveEvent.clientX - startX) / Math.max(1, rect.width)) * 100;
+              const deltaY = ((moveEvent.clientY - startY) / Math.max(1, rect.height)) * 100;
+              origins.forEach((item) =>
+                studio.onPatchLayer(item.id, {
+                  x: clamp(item.style.x + deltaX, -100, 200),
+                  y: clamp(item.style.y + deltaY, -100, 200),
+                }),
+              );
+            };
+            const stop = () => {
+              ownerWindow.removeEventListener("pointermove", move);
+              ownerWindow.removeEventListener("pointerup", stop);
+            };
+            ownerWindow.addEventListener("pointermove", move);
+            ownerWindow.addEventListener("pointerup", stop);
+          };
           const commonProps = {
             "data-banner-layer": layer.id,
             "data-layer-type": layer.type,
@@ -277,12 +358,13 @@ export function BannerSceneView({
             style: { ...layerCss(style), zIndex: index + 1, pointerEvents: "auto" as const },
             onMouseDown: (event: MouseEvent<HTMLElement>) => {
               event.stopPropagation();
-              onSelectLayer?.(layer.id, event);
+              selectLayer?.(layer.id, event);
             },
+            onPointerDown: startLayerDrag,
             onDoubleClick: (event: MouseEvent<HTMLElement>) => {
               event.preventDefault();
               event.stopPropagation();
-              onEditLayer?.(layer.id);
+              editLayer?.(layer.id);
             },
           };
 
@@ -293,7 +375,10 @@ export function BannerSceneView({
                 {...commonProps}
                 className={`${commonProps.className} overflow-hidden ${cropping ? "is-cropping" : ""}`}
                 onPointerDown={(event) => {
-                  if (!cropping || !onCropChange) return;
+                  if (!cropping || !cropChange) {
+                    startLayerDrag(event);
+                    return;
+                  }
                   event.preventDefault();
                   const startX = event.clientX;
                   const startY = event.clientY;
@@ -301,7 +386,7 @@ export function BannerSceneView({
                   const startCropY = style.cropY ?? 0;
                   const rect = event.currentTarget.getBoundingClientRect();
                   const move = (moveEvent: PointerEvent) => {
-                    onCropChange(layer.id, {
+                    cropChange(layer.id, {
                       cropX:
                         startCropX + ((moveEvent.clientX - startX) / Math.max(1, rect.width)) * 100,
                       cropY:
@@ -318,9 +403,9 @@ export function BannerSceneView({
                   window.addEventListener("pointerup", stop);
                 }}
                 onWheel={(event) => {
-                  if (!cropping || !onCropChange) return;
+                  if (!cropping || !cropChange) return;
                   event.preventDefault();
-                  onCropChange(layer.id, {
+                  cropChange(layer.id, {
                     cropX: style.cropX ?? 0,
                     cropY: style.cropY ?? 0,
                     cropZoom: clamp((style.cropZoom ?? 100) - event.deltaY * 0.15, 10, 500),
@@ -360,7 +445,7 @@ export function BannerSceneView({
               className="block h-full w-full"
               contentEditable={editing}
               suppressContentEditableWarning
-              onBlur={(event) => onTextChange?.(layer.id, event.currentTarget.textContent ?? "")}
+              onBlur={(event) => textChange?.(layer.id, event.currentTarget.textContent ?? "")}
               onKeyDown={(event) => {
                 if (event.key === "Escape") event.currentTarget.blur();
               }}
@@ -369,7 +454,7 @@ export function BannerSceneView({
             </span>
           );
 
-          if (layer.type === "button" && interactive && !onSelectLayer) {
+          if (layer.type === "button" && interactive && !selectLayer) {
             return (
               <a key={layer.id} {...commonProps} href={safeHref(layer.href)}>
                 {content}
