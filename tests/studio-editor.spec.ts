@@ -36,13 +36,63 @@ test.describe("focused homepage studio", () => {
     const box = await toolbar.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.y).toBeGreaterThan((page.viewportSize()?.height ?? 800) - 100);
+
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    const addMenu = page.getByRole("menu", { name: "Add homepage content" });
+    await expect(addMenu).toBeVisible();
+    const addRows = addMenu.locator(":scope > button");
+    await expect(addRows).toHaveCount(5);
+    for (const row of await addRows.all()) {
+      const rowBox = await row.boundingBox();
+      expect(rowBox?.width).toBeGreaterThan(250);
+      expect(rowBox?.height).toBeGreaterThanOrEqual(44);
+    }
+    await page.keyboard.press("Escape");
+    await expect(addMenu).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Mobile viewport", exact: true }).click();
+    const mobileStorefront = page.getByRole("region", { name: "mobile storefront preview" });
+    const mobileScene = mobileStorefront.locator('[data-editor-active="true"]');
+    const mobileTitle = mobileScene.locator('[data-banner-layer="title"]');
+    await expect(mobileScene).toHaveAttribute("data-scene-viewport", "mobile");
+    const mobileSceneBox = await mobileScene.boundingBox();
+    const mobileTitleBox = await mobileTitle.boundingBox();
+    expect(mobileSceneBox).not.toBeNull();
+    expect(mobileTitleBox).not.toBeNull();
+    expect(mobileTitleBox!.x).toBeGreaterThanOrEqual(mobileSceneBox!.x - 1);
+    expect(mobileTitleBox!.x + mobileTitleBox!.width).toBeLessThanOrEqual(
+      mobileSceneBox!.x + mobileSceneBox!.width + 1,
+    );
   });
 
   test("selects, resizes, edits text, and enters image crop mode", async ({ page }) => {
     const storefront = page.getByRole("region", { name: "desktop storefront preview" });
     const title = storefront.locator('[data-editor-active="true"] [data-banner-layer="title"]');
-    await title.click({ force: true });
+    const initialTitleBox = await title.boundingBox();
+    expect(initialTitleBox).not.toBeNull();
+    await page.mouse.click(
+      initialTitleBox!.x + initialTitleBox!.width / 2,
+      initialTitleBox!.y + initialTitleBox!.height / 2,
+    );
     await expect(storefront.locator(".studio-selection-box")).toBeVisible();
+    await expect(storefront.locator(".studio-selection-box")).toHaveAttribute(
+      "data-selection-layer",
+      "title",
+    );
+    await page.keyboard.down("Control");
+    await page.mouse.click(
+      initialTitleBox!.x + initialTitleBox!.width / 2,
+      initialTitleBox!.y + initialTitleBox!.height / 2,
+    );
+    await page.keyboard.up("Control");
+    await expect(storefront.locator(".studio-selection-box")).toHaveAttribute(
+      "data-selection-layer",
+      "foreground",
+    );
+    await page.mouse.click(
+      initialTitleBox!.x + initialTitleBox!.width / 2,
+      initialTitleBox!.y + initialTitleBox!.height / 2,
+    );
     await expect(storefront.locator(".studio-selection-handle")).toHaveCount(8);
     await expect(storefront.getByRole("button", { name: "Rotate selection" })).toBeVisible();
     await expect(page.getByRole("textbox", { name: "Layer name" })).toHaveValue("Title");
@@ -53,7 +103,11 @@ test.describe("focused homepage studio", () => {
     const initialX = Number(await xInput.inputValue());
     const initialWidth = Number(await widthInput.inputValue());
     const titleBox = await title.boundingBox();
+    const coordinateRootBox = await storefront
+      .locator('[data-editor-active="true"] [data-banner-coordinate-root]')
+      .boundingBox();
     expect(titleBox).not.toBeNull();
+    expect(coordinateRootBox).not.toBeNull();
     await page.mouse.move(titleBox!.x + titleBox!.width / 2, titleBox!.y + titleBox!.height / 2);
     await page.mouse.down();
     await page.mouse.move(
@@ -61,7 +115,25 @@ test.describe("focused homepage studio", () => {
       titleBox!.y + titleBox!.height / 2 + 10,
     );
     await page.mouse.up();
-    await expect.poll(async () => Number(await xInput.inputValue())).toBeGreaterThan(initialX);
+    await expect
+      .poll(async () => Number(await xInput.inputValue()))
+      .toBeCloseTo(initialX + (20 / coordinateRootBox!.width) * 390, 1);
+
+    await inspector.getByRole("button", { name: "Align horizontal center", exact: true }).click();
+    const centeredTitleBox = await title.boundingBox();
+    expect(centeredTitleBox).not.toBeNull();
+    await page.mouse.move(
+      centeredTitleBox!.x + centeredTitleBox!.width / 2,
+      centeredTitleBox!.y + centeredTitleBox!.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      centeredTitleBox!.x + centeredTitleBox!.width / 2 + 1,
+      centeredTitleBox!.y + centeredTitleBox!.height / 2,
+    );
+    await expect(storefront.locator(".studio-smart-guide.is-vertical")).toBeVisible();
+    await page.mouse.up();
+    await expect(storefront.locator(".studio-smart-guide")).toHaveCount(0);
 
     const eastHandle = storefront.getByRole("button", { name: "Resize e", exact: true });
     const eastBox = await eastHandle.boundingBox();
@@ -80,10 +152,23 @@ test.describe("focused homepage studio", () => {
     const image = storefront.locator(
       '[data-editor-active="true"] [data-banner-layer="foreground"]',
     );
+    const imageElement = image.locator("img");
+    const imageBeforeCrop = await imageElement.evaluate((element) => ({
+      fit: getComputedStyle(element).objectFit,
+      transform: getComputedStyle(element).transform,
+    }));
     await image.click({ position: { x: 20, y: 200 }, force: true });
     await image.dblclick({ force: true });
-    await expect(storefront.locator(".studio-crop-label")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Done cropping" })).toBeVisible();
+    await expect(storefront.locator(".studio-crop-overlay")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Done", exact: true })).toBeVisible();
+    await expect
+      .poll(() =>
+        imageElement.evaluate((element) => ({
+          fit: getComputedStyle(element).objectFit,
+          transform: getComputedStyle(element).transform,
+        })),
+      )
+      .toEqual(imageBeforeCrop);
     await expect(page.getByRole("button", { name: "Crop image", exact: true })).toHaveClass(
       /is-active/,
     );
@@ -101,6 +186,7 @@ test.describe("focused homepage studio", () => {
     );
     await page.mouse.up();
     await expect.poll(async () => Number(await cropX.inputValue())).toBeGreaterThan(initialCropX);
+    await page.getByRole("button", { name: "Done", exact: true }).click();
   });
 
   test("selects the real banner background and offers every supported fill", async ({ page }) => {
@@ -123,6 +209,32 @@ test.describe("focused homepage studio", () => {
     await expect(fillTypes.first()).toHaveValue("radial");
     await inspector.getByRole("button", { name: "Edit radial fill" }).click();
     await expect(inspector.getByRole("button", { name: "Add stop" })).toBeVisible();
+  });
+
+  test("cancels crop as one reversible transaction", async ({ page }) => {
+    const publish = page.getByRole("button", { name: "Publish", exact: true });
+    const undo = page.getByRole("button", { name: "Undo", exact: true });
+    await expect(publish).toBeDisabled();
+    await expect(undo).toBeDisabled();
+
+    await page.getByRole("button", { name: "Product image", exact: true }).click();
+    await page.getByRole("button", { name: "Crop image", exact: true }).click();
+    const scale = page.getByRole("slider", { name: "Crop scale" });
+    await scale.fill("160");
+    const image = page
+      .getByRole("region", { name: "desktop storefront preview" })
+      .locator('[data-editor-active="true"] [data-banner-layer="foreground"] img');
+    await expect
+      .poll(() => image.evaluate((element) => getComputedStyle(element).transform))
+      .toContain("1.6");
+    await expect(publish).toBeEnabled();
+
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect
+      .poll(() => image.evaluate((element) => getComputedStyle(element).transform))
+      .toBe("matrix(1, 0, 0, 1, 0, 0)");
+    await expect(publish).toBeDisabled();
+    await expect(undo).toBeDisabled();
   });
 
   test("scrubs pixel properties and applies Figma controls", async ({ page }) => {
@@ -191,7 +303,7 @@ test.describe("focused homepage studio", () => {
   });
 
   test("adds only supported sections after Honey", async ({ page }) => {
-    await page.getByRole("button", { name: "Add section", exact: true }).click();
+    await page.getByRole("button", { name: "Add", exact: true }).click();
     await page.getByRole("button", { name: /Banner left/ }).click();
     await expect(page.getByText("NEW COLLECTION", { exact: true }).first()).toBeVisible();
     await expect(page.locator('select:has(option[value="banner-left"])')).toHaveValue(
@@ -201,6 +313,15 @@ test.describe("focused homepage studio", () => {
     const storefront = page.getByRole("region", { name: "desktop storefront preview" });
     await expect(storefront.locator('[data-editor-active="true"]')).toBeVisible();
     await expect.poll(() => storefront.evaluate((frame) => frame.scrollTop)).toBeGreaterThan(2500);
+
+    const sectionTitle = storefront.locator(
+      '[data-editor-active="true"] [data-banner-layer="title"]',
+    );
+    const editorUrl = page.url();
+    await sectionTitle.click();
+    await expect(page.getByRole("textbox", { name: "Layer name" })).toHaveValue("Title");
+    expect(page.url()).toBe(editorUrl);
+    await expect(page.getByText("Homepage banners", { exact: true })).toBeVisible();
   });
 
   test("keeps Preview separate from publishing", async ({ page }) => {
@@ -215,7 +336,7 @@ test.describe("focused homepage studio", () => {
     await expect(page.getByRole("dialog", { name: "Confirm homepage publish" })).toHaveCount(0);
     await page.getByRole("button", { name: "Close", exact: true }).click();
 
-    await page.getByRole("button", { name: "Add section", exact: true }).click();
+    await page.getByRole("button", { name: "Add", exact: true }).click();
     await page.getByRole("button", { name: /Banner left/ }).click();
     await expect(publish).toBeEnabled();
     await publish.click();

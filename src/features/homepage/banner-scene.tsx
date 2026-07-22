@@ -14,12 +14,22 @@ import type {
   BannerScene,
   HomepageViewport,
 } from "./types";
-import { useStudioBannerSession } from "./studio-session-context";
+import { useStudioBannerSession, useStudioViewport } from "./studio-session-context";
 
 type SceneViewport = HomepageViewport | "auto";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
+}
+
+function snapPosition(value: number, size: number) {
+  const targets = [0, 50 - size / 2, 100 - size];
+  const closest = targets.reduce((best, target) =>
+    Math.abs(target - value) < Math.abs(best - value) ? target : best,
+  );
+  return Math.abs(closest - value) <= 1
+    ? { value: closest, guide: closest === 0 ? 0 : closest === 100 - size ? 100 : 50 }
+    : { value };
 }
 
 function safeHref(value: string | undefined) {
@@ -167,6 +177,7 @@ export function BannerSceneView({
   ) => void;
 }) {
   const studio = useStudioBannerSession(editorKey);
+  const studioViewport = useStudioViewport();
   const studioSelectedLayerId =
     studio?.selectedLayerIds.length === 1 ? studio.selectedLayerIds[0] : null;
   const activeSelectedLayerId = studio ? studioSelectedLayerId : selectedLayerId;
@@ -181,13 +192,14 @@ export function BannerSceneView({
   const cropChange = studio?.onCropChange ?? onCropChange;
   const selectBackground = studio?.onSelectBackground ?? onSelectBackground;
   const backgroundCropChange = studio?.onBackgroundCropChange ?? onBackgroundCropChange;
-  const resolvedViewport = useSceneViewport(viewport);
+  const resolvedViewport = useSceneViewport(studioViewport ?? viewport);
   const height = resolvedViewport === "mobile" ? scene.mobileHeight : scene.height;
   const fills = useMemo(() => scene.fills.filter((fill) => fill.enabled), [scene.fills]);
+  const backgroundSelected = Boolean(studio && studio.selectedLayerIds.length === 0);
 
   return (
     <div
-      className={`homepage-banner-scene relative isolate w-full overflow-hidden ${className}`}
+      className={`homepage-banner-scene relative isolate w-full overflow-hidden ${backgroundSelected ? "is-background-selected" : ""} ${activeCropFillId ? "is-background-cropping" : ""} ${className}`}
       style={{ height: `${Math.max(160, height)}px` }}
       data-scene-viewport={resolvedViewport}
       data-editor-banner-key={editorKey}
@@ -202,6 +214,7 @@ export function BannerSceneView({
         const startOffsetX = imageFill.offsetX ?? 0;
         const startOffsetY = imageFill.offsetY ?? 0;
         const rect = event.currentTarget.getBoundingClientRect();
+        const ownerWindow = event.currentTarget.ownerDocument.defaultView ?? window;
         const move = (moveEvent: PointerEvent) => {
           backgroundCropChange(imageFill.id, {
             offsetX: startOffsetX + ((moveEvent.clientX - startX) / Math.max(1, rect.width)) * 100,
@@ -210,11 +223,13 @@ export function BannerSceneView({
           });
         };
         const stop = () => {
-          window.removeEventListener("pointermove", move);
-          window.removeEventListener("pointerup", stop);
+          ownerWindow.removeEventListener("pointermove", move);
+          ownerWindow.removeEventListener("pointerup", stop);
+          ownerWindow.removeEventListener("pointercancel", stop);
         };
-        window.addEventListener("pointermove", move);
-        window.addEventListener("pointerup", stop);
+        ownerWindow.addEventListener("pointermove", move);
+        ownerWindow.addEventListener("pointerup", stop);
+        ownerWindow.addEventListener("pointercancel", stop);
       }}
       onDoubleClick={(event) => {
         if (event.target !== event.currentTarget || !studio) return;
@@ -234,6 +249,7 @@ export function BannerSceneView({
         });
       }}
     >
+      {backgroundSelected ? <span className="studio-background-label">Background</span> : null}
       {fills.map((fill) =>
         fill.type === "image" ? (
           <div
@@ -309,6 +325,8 @@ export function BannerSceneView({
               editing ||
               cropping ||
               style.locked ||
+              event.ctrlKey ||
+              event.metaKey ||
               event.button !== 0 ||
               !event.isPrimary
             )
@@ -317,7 +335,9 @@ export function BannerSceneView({
             event.stopPropagation();
             studio.onSelectLayer(layer.id, event.shiftKey);
             if (event.shiftKey) return;
-            const coordinateRoot = event.currentTarget.offsetParent as HTMLElement | null;
+            const coordinateRoot = event.currentTarget.closest<HTMLElement>(
+              "[data-banner-coordinate-root]",
+            );
             if (!coordinateRoot) return;
             const movingIds = studio.selectedLayerIds.includes(layer.id)
               ? studio.selectedLayerIds
@@ -326,7 +346,7 @@ export function BannerSceneView({
               .filter((item) => movingIds.includes(item.id))
               .map((item) => ({
                 id: item.id,
-                style: resolveLayerStyle(item, resolvedViewport),
+                style: { ...resolveLayerStyle(item, resolvedViewport) },
               }))
               .filter((item) => !item.style.locked);
             const startX = event.clientX;
@@ -336,19 +356,31 @@ export function BannerSceneView({
             const move = (moveEvent: PointerEvent) => {
               const deltaX = ((moveEvent.clientX - startX) / Math.max(1, rect.width)) * 100;
               const deltaY = ((moveEvent.clientY - startY) / Math.max(1, rect.height)) * 100;
-              origins.forEach((item) =>
+              origins.forEach((item, itemIndex) => {
+                const snappedX = snapPosition(item.style.x + deltaX, item.style.width);
+                const snappedY = snapPosition(item.style.y + deltaY, item.style.height);
+                if (itemIndex === 0) {
+                  studio.onSnapGuides(
+                    snappedX.guide === undefined && snappedY.guide === undefined
+                      ? null
+                      : { x: snappedX.guide, y: snappedY.guide },
+                  );
+                }
                 studio.onPatchLayer(item.id, {
-                  x: clamp(item.style.x + deltaX, -100, 200),
-                  y: clamp(item.style.y + deltaY, -100, 200),
-                }),
-              );
+                  x: clamp(snappedX.value, -100, 200),
+                  y: clamp(snappedY.value, -100, 200),
+                });
+              });
             };
             const stop = () => {
+              studio.onSnapGuides(null);
               ownerWindow.removeEventListener("pointermove", move);
               ownerWindow.removeEventListener("pointerup", stop);
+              ownerWindow.removeEventListener("pointercancel", stop);
             };
             ownerWindow.addEventListener("pointermove", move);
             ownerWindow.addEventListener("pointerup", stop);
+            ownerWindow.addEventListener("pointercancel", stop);
           };
           const commonProps = {
             "data-banner-layer": layer.id,
@@ -358,7 +390,11 @@ export function BannerSceneView({
             style: { ...layerCss(style), zIndex: index + 1, pointerEvents: "auto" as const },
             onMouseDown: (event: MouseEvent<HTMLElement>) => {
               event.stopPropagation();
-              selectLayer?.(layer.id, event);
+              if (studio && (event.ctrlKey || event.metaKey)) {
+                studio.onSelectDeep(event.clientX, event.clientY);
+              } else {
+                selectLayer?.(layer.id, event);
+              }
             },
             onPointerDown: startLayerDrag,
             onDoubleClick: (event: MouseEvent<HTMLElement>) => {
@@ -385,6 +421,7 @@ export function BannerSceneView({
                   const startCropX = style.cropX ?? 0;
                   const startCropY = style.cropY ?? 0;
                   const rect = event.currentTarget.getBoundingClientRect();
+                  const ownerWindow = event.currentTarget.ownerDocument.defaultView ?? window;
                   const move = (moveEvent: PointerEvent) => {
                     cropChange(layer.id, {
                       cropX:
@@ -396,11 +433,13 @@ export function BannerSceneView({
                     });
                   };
                   const stop = () => {
-                    window.removeEventListener("pointermove", move);
-                    window.removeEventListener("pointerup", stop);
+                    ownerWindow.removeEventListener("pointermove", move);
+                    ownerWindow.removeEventListener("pointerup", stop);
+                    ownerWindow.removeEventListener("pointercancel", stop);
                   };
-                  window.addEventListener("pointermove", move);
-                  window.addEventListener("pointerup", stop);
+                  ownerWindow.addEventListener("pointermove", move);
+                  ownerWindow.addEventListener("pointerup", stop);
+                  ownerWindow.addEventListener("pointercancel", stop);
                 }}
                 onWheel={(event) => {
                   if (!cropping || !cropChange) return;
@@ -425,7 +464,7 @@ export function BannerSceneView({
                     transformOrigin: "center",
                   }}
                 />
-                {cropping ? <span className="studio-crop-label">Crop</span> : null}
+                {cropping ? <span className="studio-crop-overlay" aria-hidden="true" /> : null}
               </div>
             ) : (
               <div
@@ -468,6 +507,20 @@ export function BannerSceneView({
             </TextTag>
           );
         })}
+        {studio?.snapGuides?.x !== undefined ? (
+          <span
+            className="studio-smart-guide is-vertical"
+            style={{ left: `${studio.snapGuides.x}%` }}
+            aria-hidden="true"
+          />
+        ) : null}
+        {studio?.snapGuides?.y !== undefined ? (
+          <span
+            className="studio-smart-guide is-horizontal"
+            style={{ top: `${studio.snapGuides.y}%` }}
+            aria-hidden="true"
+          />
+        ) : null}
       </div>
     </div>
   );

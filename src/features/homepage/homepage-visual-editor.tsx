@@ -1,12 +1,14 @@
 import {
   AlignCenterHorizontal,
   AlignCenterVertical,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
   Circle,
   Copy,
+  Crop,
   Eye,
   Frame,
   GripVertical,
@@ -84,6 +86,26 @@ const LEGACY_BACKUP_KEYS = ["fawzaan.homepage-studio.local-v3"];
 const HISTORY_LIMIT = 80;
 
 type LocalBackup = { revision?: number; savedAt?: string; data?: HomepageData };
+
+type CropSnapshot =
+  | {
+      kind: "layer";
+      id: string;
+      data: HomepageData;
+      dirty: boolean;
+      unpublished: boolean;
+      past: HomepageData[];
+      future: HomepageData[];
+    }
+  | {
+      kind: "fill";
+      id: string;
+      data: HomepageData;
+      dirty: boolean;
+      unpublished: boolean;
+      past: HomepageData[];
+      future: HomepageData[];
+    };
 
 function openBackupStore() {
   return new Promise<IDBDatabase>((resolve, reject) => {
@@ -237,6 +259,8 @@ export function HomepageVisualEditor({
   const [activeTool, setActiveTool] = useState<"select" | "hand">("select");
   const [draggedBannerKey, setDraggedBannerKey] = useState<string | null>(null);
   const [draggedLayerId, setDraggedLayerId] = useState<string | null>(null);
+  const addWrapRef = useRef<HTMLDivElement>(null);
+  const cropSnapshotRef = useRef<CropSnapshot | null>(null);
   const pastRef = useRef<HomepageData[]>([]);
   const futureRef = useRef<HomepageData[]>([]);
   const [historyState, setHistoryState] = useState({ past: 0, future: 0 });
@@ -334,6 +358,15 @@ export function HomepageVisualEditor({
     }, 700);
     return () => window.clearTimeout(timer);
   }, [data, dirty]);
+
+  useEffect(() => {
+    if (!addOpen) return;
+    const close = (event: PointerEvent) => {
+      if (!addWrapRef.current?.contains(event.target as Node)) setAddOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [addOpen]);
 
   const setHistoryCounts = () =>
     setHistoryState({ past: pastRef.current.length, future: futureRef.current.length });
@@ -479,6 +512,76 @@ export function HomepageVisualEditor({
     [mutateScene, viewport],
   );
 
+  const finishCrop = useCallback(() => {
+    cropSnapshotRef.current = null;
+    setCropLayerId(null);
+    setCropFillId(null);
+  }, []);
+
+  const beginLayerCrop = useCallback(
+    (id: string) => {
+      const layer = scene?.layers.find((item) => item.id === id);
+      if (!layer) return;
+      const current = dataRef.current;
+      if (!current) return;
+      cropSnapshotRef.current = {
+        kind: "layer",
+        id,
+        data: clone(current),
+        dirty,
+        unpublished,
+        past: clone(pastRef.current),
+        future: clone(futureRef.current),
+      };
+      setEditingLayerId(null);
+      setCropFillId(null);
+      setCropLayerId(id);
+      setSelectedLayerIds([id]);
+      setAddOpen(false);
+    },
+    [dirty, scene?.layers, unpublished],
+  );
+
+  const beginFillCrop = useCallback(
+    (id: string) => {
+      const fill = scene?.fills.find((item) => item.id === id && item.type === "image");
+      if (!fill) return;
+      const current = dataRef.current;
+      if (!current) return;
+      cropSnapshotRef.current = {
+        kind: "fill",
+        id,
+        data: clone(current),
+        dirty,
+        unpublished,
+        past: clone(pastRef.current),
+        future: clone(futureRef.current),
+      };
+      setEditingLayerId(null);
+      setCropLayerId(null);
+      setCropFillId(id);
+      setSelectedLayerIds([]);
+      setAddOpen(false);
+    },
+    [dirty, scene?.fills, unpublished],
+  );
+
+  const cancelCrop = useCallback(() => {
+    const snapshot = cropSnapshotRef.current;
+    if (snapshot) {
+      const restored = clone(snapshot.data);
+      dataRef.current = restored;
+      setData(restored);
+      pastRef.current = clone(snapshot.past);
+      futureRef.current = clone(snapshot.future);
+      setDirty(snapshot.dirty);
+      setUnpublished(snapshot.unpublished);
+      lastHistoryAt.current = 0;
+      setHistoryCounts();
+    }
+    finishCrop();
+  }, [finishCrop]);
+
   const patchLayerContent = (id: string, patch: Partial<BannerLayer>) => {
     mutateScene(
       (current) => ({
@@ -593,6 +696,7 @@ export function HomepageVisualEditor({
     hero.props.slides.push(createHeroSlide(hero.props.slides.length));
     hero.props.autoplay = "on";
     commit(next);
+    setAddOpen(false);
     window.setTimeout(() => {
       const latest = listStudioBanners(next)
         .filter((item) => item.kind === "hero")
@@ -748,9 +852,12 @@ export function HomepageVisualEditor({
         event.preventDefault();
         deleteLayers();
       } else if (event.key === "Escape") {
+        if (cropLayerId || cropFillId) {
+          cancelCrop();
+          return;
+        }
+        setAddOpen(false);
         setEditingLayerId(null);
-        setCropLayerId(null);
-        setCropFillId(null);
         setSelectedLayerIds([]);
       } else if (command && event.key.toLowerCase() === "d" && selectedLayerIds.length === 1) {
         event.preventDefault();
@@ -763,7 +870,7 @@ export function HomepageVisualEditor({
         moveLayer(selectedLayerIds[0]!, 1);
       } else if (event.key === "Enter" && selectedLayerIds.length === 1) {
         const layer = scene?.layers.find((entry) => entry.id === selectedLayerIds[0]);
-        if (layer?.type === "image") setCropLayerId(layer.id);
+        if (layer?.type === "image") beginLayerCrop(layer.id);
         if (layer?.type === "text" || layer?.type === "button") setEditingLayerId(layer.id);
       } else if (event.key.toLowerCase() === "v") {
         setActiveTool("select");
@@ -791,6 +898,10 @@ export function HomepageVisualEditor({
     return () => window.removeEventListener("keydown", handler);
   }, [
     addLayer,
+    beginLayerCrop,
+    cancelCrop,
+    cropFillId,
+    cropLayerId,
     deleteLayers,
     duplicateLayer,
     moveLayer,
@@ -1116,14 +1227,6 @@ export function HomepageVisualEditor({
           <IconButton label="Rectangle" onClick={() => addLayer("shape")}>
             <RectangleHorizontal size={18} />
           </IconButton>
-          <span className="studio-divider" />
-          <IconButton
-            label="Add section"
-            active={addOpen}
-            onClick={() => setAddOpen((value) => !value)}
-          >
-            <Plus size={19} />
-          </IconButton>
         </nav>
 
         {leftOpen ? (
@@ -1147,18 +1250,6 @@ export function HomepageVisualEditor({
             {leftTab !== "assets" ? (
               <div className="studio-left-scroll">
                 <>
-                  <div className="studio-pages-header">
-                    <span>Pages</span>
-                  </div>
-                  <div className="studio-banner-list studio-page-list">
-                    <button type="button" className="is-active">
-                      <Frame size={13} />
-                      <span>
-                        <strong>Homepage</strong>
-                        <small>Storefront</small>
-                      </span>
-                    </button>
-                  </div>
                   <div className="studio-pages-header">
                     <span>Hero slides</span>
                     <div>
@@ -1377,25 +1468,33 @@ export function HomepageVisualEditor({
                   <ChevronRight size={13} />
                   <span>{selectedLayers.map((layer) => layer.name).join(", ")}</span>
                 </>
-              ) : null}
+              ) : (
+                <>
+                  <ChevronRight size={13} />
+                  <span>Background</span>
+                </>
+              )}
             </div>
             {cropLayerId || cropFillId ? (
-              <button
-                type="button"
-                className="studio-crop-done"
-                onClick={() => {
-                  setCropLayerId(null);
-                  setCropFillId(null);
-                }}
-              >
-                Done cropping
-              </button>
+              <div className="studio-modebar" aria-label="Crop controls">
+                <button type="button" onClick={cancelCrop}>
+                  <X size={14} /> Cancel
+                </button>
+                <span>
+                  <Crop size={14} /> Crop
+                </span>
+                <button type="button" className="is-primary" onClick={finishCrop}>
+                  <Check size={14} /> Done
+                </button>
+              </div>
             ) : null}
             <div className="studio-viewport-control">
               <IconButton
                 label="Mobile viewport"
                 active={viewport === "mobile"}
                 onClick={() => {
+                  finishCrop();
+                  setAddOpen(false);
                   setViewport("mobile");
                   setZoom(82);
                 }}
@@ -1405,6 +1504,8 @@ export function HomepageVisualEditor({
               <IconButton
                 label="Tablet viewport"
                 onClick={() => {
+                  finishCrop();
+                  setAddOpen(false);
                   setViewport("desktop");
                   setZoom(54);
                 }}
@@ -1415,6 +1516,8 @@ export function HomepageVisualEditor({
                 label="Desktop viewport"
                 active={viewport === "desktop"}
                 onClick={() => {
+                  finishCrop();
+                  setAddOpen(false);
                   setViewport("desktop");
                   setZoom(50);
                 }}
@@ -1422,7 +1525,7 @@ export function HomepageVisualEditor({
                 <Monitor size={16} />
               </IconButton>
             </div>
-            <div className="studio-add-wrap">
+            <div className="studio-add-wrap" ref={addWrapRef}>
               <button
                 type="button"
                 className="studio-add-button"
@@ -1431,7 +1534,18 @@ export function HomepageVisualEditor({
                 <Plus size={15} /> Add
               </button>
               {addOpen ? (
-                <div className="studio-add-menu">
+                <div className="studio-add-menu" role="menu" aria-label="Add homepage content">
+                  <header>
+                    <strong>Add to homepage</strong>
+                    <button
+                      type="button"
+                      aria-label="Close add menu"
+                      onClick={() => setAddOpen(false)}
+                    >
+                      <X size={14} />
+                    </button>
+                  </header>
+                  <small className="studio-add-menu__group">Hero carousel</small>
                   <button type="button" onClick={addHero}>
                     <Frame size={17} />
                     <span>
@@ -1439,6 +1553,7 @@ export function HomepageVisualEditor({
                       <small>Joins the animated carousel</small>
                     </span>
                   </button>
+                  <small className="studio-add-menu__group">After Honey</small>
                   <button type="button" onClick={() => addSection("standalone")}>
                     <ImageIcon size={17} />
                     <span>
@@ -1488,8 +1603,8 @@ export function HomepageVisualEditor({
             }}
             onSelectLayers={setSelectedLayerIds}
             onEditLayer={setEditingLayerId}
-            onCropLayer={setCropLayerId}
-            onCropFill={setCropFillId}
+            onCropLayer={(id) => (id ? beginLayerCrop(id) : finishCrop())}
+            onCropFill={(id) => (id ? beginFillCrop(id) : finishCrop())}
             onTextChange={(id, text) => patchLayerContent(id, { text })}
             onPatchLayer={patchLayer}
             onCropChange={(id, patch) => patchLayer(id, patch)}
@@ -1529,13 +1644,15 @@ export function HomepageVisualEditor({
           selectedLayers={selectedLayers}
           viewport={viewport}
           cropLayerId={cropLayerId}
+          cropFillId={cropFillId}
           onUpdateScene={(next) => mutateScene(() => next, true)}
           onPatchLayer={patchLayer}
           onPatchLayerContent={patchLayerContent}
           onDeleteLayer={(id) => deleteLayers([id])}
           onDuplicateLayer={duplicateLayer}
           onMoveLayer={moveLayer}
-          onCropLayer={setCropLayerId}
+          onCropLayer={(id) => (id ? beginLayerCrop(id) : finishCrop())}
+          onCropFill={(id) => (id ? beginFillCrop(id) : finishCrop())}
           sectionSettings={sectionSettings}
           prototypeSettings={prototypeSettings}
         />

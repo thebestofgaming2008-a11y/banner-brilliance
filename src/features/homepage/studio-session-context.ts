@@ -1,15 +1,19 @@
 import { createContext, useContext } from "react";
 
-import type { BannerFill, BannerLayerStyle } from "./types";
+import type { BannerFill, BannerLayerStyle, HomepageViewport } from "./types";
 
 export type StudioBannerSession = {
   activeBannerKey: string;
+  viewport: HomepageViewport;
   selectedLayerIds: string[];
   editingLayerId: string | null;
   cropLayerId: string | null;
   cropFillId: string | null;
+  snapGuides: { x?: number; y?: number } | null;
   interactionDisabled: boolean;
   onSelectLayer: (id: string, additive: boolean) => void;
+  onSelectDeep: (clientX: number, clientY: number) => void;
+  onSnapGuides: (guides: { x?: number; y?: number } | null) => void;
   onEditLayer: (id: string) => void;
   onSelectBackground: () => void;
   onEditBackground: (id: string | null) => void;
@@ -27,4 +31,8 @@ export const StudioSessionContext = createContext<StudioBannerSession | null>(nu
 export function useStudioBannerSession(editorKey: string | undefined) {
   const session = useContext(StudioSessionContext);
   return session && editorKey === session.activeBannerKey ? session : null;
+}
+
+export function useStudioViewport() {
+  return useContext(StudioSessionContext)?.viewport ?? null;
 }

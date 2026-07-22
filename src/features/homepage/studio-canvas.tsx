@@ -88,6 +88,7 @@ export function StudioCanvas({
   const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const [sceneRoot, setSceneRoot] = useState<HTMLElement | null>(null);
   const [coordinateRoot, setCoordinateRoot] = useState<HTMLElement | null>(null);
+  const [snapGuides, setSnapGuides] = useState<{ x?: number; y?: number } | null>(null);
   const scale = zoom / 100;
   const canvasWidth = viewport === "mobile" ? 390 : 1440;
   const canvasHeight = viewport === "mobile" ? 844 : 900;
@@ -115,16 +116,18 @@ export function StudioCanvas({
 
   useEffect(() => {
     if (!sceneRoot) return;
-    sceneRoot.scrollIntoView({ block: "center", behavior: "smooth" });
+    sceneRoot.scrollIntoView({ block: "center", behavior: "auto" });
   }, [sceneRoot, selectedRef.key, viewport]);
 
   const studioSession = useMemo<StudioBannerSession>(
     () => ({
       activeBannerKey: selectedRef.key,
+      viewport,
       selectedLayerIds,
       editingLayerId,
       cropLayerId,
       cropFillId,
+      snapGuides,
       interactionDisabled: activeTool !== "select",
       onSelectLayer: (id, additive) => {
         onEditLayer(null);
@@ -138,6 +141,26 @@ export function StudioCanvas({
             : [id],
         );
       },
+      onSelectDeep: (clientX, clientY) => {
+        if (!sceneRoot) return;
+        const layerIds = sceneRoot.ownerDocument
+          .elementsFromPoint(clientX, clientY)
+          .map(
+            (element) => element.closest<HTMLElement>("[data-banner-layer]")?.dataset.bannerLayer,
+          )
+          .filter((id): id is string => Boolean(id));
+        const ordered = [...new Set(layerIds)].filter((id) =>
+          scene.layers.some((layer) => layer.id === id),
+        );
+        if (!ordered.length) return;
+        const current = selectedLayerIds.length === 1 ? selectedLayerIds[0] : null;
+        const currentIndex = current ? ordered.indexOf(current) : -1;
+        onEditLayer(null);
+        onCropLayer(null);
+        onCropFill(null);
+        onSelectLayers([ordered[(currentIndex + 1) % ordered.length]!]);
+      },
+      onSnapGuides: setSnapGuides,
       onEditLayer: (id) => {
         const layer = scene.layers.find((item) => item.id === id);
         onSelectLayers([id]);
@@ -180,8 +203,11 @@ export function StudioCanvas({
       onSelectLayers,
       onTextChange,
       scene.layers,
+      sceneRoot,
+      snapGuides,
       selectedLayerIds,
       selectedRef.key,
+      viewport,
     ],
   );
 
@@ -207,6 +233,9 @@ export function StudioCanvas({
         stageRef.current.scrollTop = panRef.current.top - (event.clientY - panRef.current.y);
       }}
       onPointerUp={() => {
+        panRef.current = null;
+      }}
+      onPointerCancel={() => {
         panRef.current = null;
       }}
     >
@@ -245,7 +274,7 @@ export function StudioCanvas({
               <StorefrontFramePreview data={previewData} editMode />
               <StudioSelection
                 host={coordinateRoot}
-                layers={selectedLayers}
+                layers={cropLayerId || cropFillId ? [] : selectedLayers}
                 viewport={viewport}
                 onPatchLayer={onPatchLayer}
               />

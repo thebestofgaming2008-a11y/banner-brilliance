@@ -8,26 +8,22 @@ import { useWishlist } from "@/lib/wishlist";
 export function StoreProductCard({
   product,
   priority = false,
+  interactive = true,
 }: {
   product: StoreProduct;
   priority?: boolean;
+  interactive?: boolean;
 }) {
   const { formatPrice } = useCurrency();
-  const wishlist = useWishlist();
-  const isSaved = wishlist.has(product.slug);
-
-  const toggleWishlist = async () => {
-    try {
-      await wishlist.toggle(product.slug);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not update your wishlist.");
-    }
-  };
 
   return (
     <article className="store-product-card group min-w-0">
       <div className="relative aspect-[3/4] overflow-hidden bg-[#F7F7F5]">
-        <a href={`/products/${product.slug}`} aria-label={`View ${product.name}`}>
+        <a
+          href={interactive ? `/products/${product.slug}` : undefined}
+          aria-label={`View ${product.name}`}
+          aria-disabled={!interactive || undefined}
+        >
           <img
             src={product.images[0]}
             alt={product.name}
@@ -41,20 +37,26 @@ export function StoreProductCard({
             {product.badge}
           </span>
         ) : null}
-        <button
-          type="button"
-          aria-label={isSaved ? `Remove ${product.name} from wishlist` : `Save ${product.name}`}
-          aria-pressed={isSaved}
-          title={isSaved ? "Remove from wishlist" : "Save to wishlist"}
-          onClick={toggleWishlist}
-          className="absolute right-2 top-2 grid h-9 w-9 place-items-center bg-white text-black transition-colors hover:bg-black hover:text-white"
-        >
-          <Heart size={16} fill={isSaved ? "currentColor" : "none"} />
-        </button>
+        {interactive ? (
+          <WishlistButton product={product} />
+        ) : (
+          <button
+            type="button"
+            aria-label={`Wishlist preview for ${product.name}`}
+            disabled
+            className="absolute right-2 top-2 grid h-9 w-9 place-items-center bg-white text-black"
+          >
+            <Heart size={16} />
+          </button>
+        )}
       </div>
       <div className="mt-3">
         <p className="section-kicker text-black/45">{product.collection}</p>
-        <a href={`/products/${product.slug}`} className="block">
+        <a
+          href={interactive ? `/products/${product.slug}` : undefined}
+          className="block"
+          aria-disabled={!interactive || undefined}
+        >
           <h3 className="mt-1 min-h-8 text-[13px] font-semibold leading-4 md:text-[14px]">
             {product.name}
           </h3>
@@ -76,5 +78,31 @@ export function StoreProductCard({
         </div>
       </div>
     </article>
+  );
+}
+
+function WishlistButton({ product }: { product: StoreProduct }) {
+  const wishlist = useWishlist();
+  const isSaved = wishlist.has(product.slug);
+
+  const toggleWishlist = async () => {
+    try {
+      await wishlist.toggle(product.slug);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update your wishlist.");
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      aria-label={isSaved ? `Remove ${product.name} from wishlist` : `Save ${product.name}`}
+      aria-pressed={isSaved}
+      title={isSaved ? "Remove from wishlist" : "Save to wishlist"}
+      onClick={toggleWishlist}
+      className="absolute right-2 top-2 grid h-9 w-9 place-items-center bg-white text-black transition-colors hover:bg-black hover:text-white"
+    >
+      <Heart size={16} fill={isSaved ? "currentColor" : "none"} />
+    </button>
   );
 }

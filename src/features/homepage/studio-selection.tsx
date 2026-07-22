@@ -90,9 +90,11 @@ export function StudioSelection({
     const stop = () => {
       ownerWindow.removeEventListener("pointermove", move);
       ownerWindow.removeEventListener("pointerup", stop);
+      ownerWindow.removeEventListener("pointercancel", stop);
     };
     ownerWindow.addEventListener("pointermove", move);
     ownerWindow.addEventListener("pointerup", stop);
+    ownerWindow.addEventListener("pointercancel", stop);
   };
 
   const startRotate = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -114,9 +116,11 @@ export function StudioSelection({
     const stop = () => {
       ownerWindow.removeEventListener("pointermove", move);
       ownerWindow.removeEventListener("pointerup", stop);
+      ownerWindow.removeEventListener("pointercancel", stop);
     };
     ownerWindow.addEventListener("pointermove", move);
     ownerWindow.addEventListener("pointerup", stop);
+    ownerWindow.addEventListener("pointercancel", stop);
   };
 
   return createPortal(

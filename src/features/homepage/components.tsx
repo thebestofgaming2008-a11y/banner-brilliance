@@ -692,6 +692,7 @@ export function HomepageCollectionFeature({
   const selected = merchandiseProducts(
     products.filter(
       (product) =>
+        normalized(collection) === "all" ||
         normalized(product.collectionSlug) === normalized(collection) ||
         normalized(product.collection) === normalized(collection),
     ),
@@ -702,6 +703,9 @@ export function HomepageCollectionFeature({
     <a
       data-homepage-banner-id={id}
       href={safeLink(buttonUrl)}
+      onClick={(event) => {
+        if (editMode) event.preventDefault();
+      }}
       className={`group relative block min-h-[460px] overflow-hidden md:min-h-[620px] ${lightText ? "text-white" : "text-black"}`}
       style={{ backgroundColor: bannerColor }}
     >
@@ -762,7 +766,7 @@ export function HomepageCollectionFeature({
       className={`grid grid-cols-2 gap-x-3 gap-y-10 ${layout === "banner-top" ? "md:grid-cols-4" : "md:grid-cols-2"} md:gap-x-4`}
     >
       {selected.map((product) => (
-        <StoreProductCard key={product.slug} product={product} />
+        <StoreProductCard key={product.slug} product={product} interactive={!editMode} />
       ))}
     </div>
   ) : (

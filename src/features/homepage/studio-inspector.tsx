@@ -31,6 +31,7 @@ import {
   Pipette,
   Plus,
   Ratio,
+  RotateCcw,
   Rows3,
   Scaling,
   Trash2,
@@ -675,12 +676,16 @@ function GradientStops({
 
 function FillEditor({
   fill,
+  cropActive,
   onChange,
   onRemove,
+  onCrop,
 }: {
   fill: BannerFill;
+  cropActive: boolean;
   onChange: (fill: BannerFill) => void;
   onRemove: () => void;
+  onCrop: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const gradient = fill.type === "linear" || fill.type === "radial" || fill.type === "conic";
@@ -742,6 +747,7 @@ function FillEditor({
             <>
               <HomepageImageInput
                 compact
+                allowDestructiveCrop={false}
                 value={fill.src || ""}
                 onChange={(src) => onChange({ ...fill, src })}
               />
@@ -756,6 +762,13 @@ function FillEditor({
                 ]}
                 onChange={(fit) => onChange({ ...fill, fit: fit as BannerFill["fit"] })}
               />
+              <button
+                type="button"
+                className={`figma-inline-action ${cropActive ? "is-active" : ""}`}
+                onClick={onCrop}
+              >
+                <Crop size={13} /> {cropActive ? "Done cropping" : "Crop background"}
+              </button>
               <div className="figma-field-grid">
                 <NumberField
                   label="X"
@@ -790,6 +803,28 @@ function FillEditor({
                   onChange={(blur) => onChange({ ...fill, blur })}
                 />
               </div>
+              {cropActive ? (
+                <>
+                  <label className="figma-range-control">
+                    <span>Scale</span>
+                    <input
+                      type="range"
+                      aria-label="Background crop scale"
+                      min={10}
+                      max={500}
+                      value={fill.zoom ?? 100}
+                      onChange={(event) => onChange({ ...fill, zoom: Number(event.target.value) })}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="figma-inline-action"
+                    onClick={() => onChange({ ...fill, offsetX: 0, offsetY: 0, zoom: 100 })}
+                  >
+                    <RotateCcw size={13} /> Reset crop
+                  </button>
+                </>
+              ) : null}
             </>
           ) : null}
           {gradient ? (
@@ -1308,7 +1343,6 @@ function LayerInspector({
               label="Crop image"
               active={cropLayerId === layer.id}
               onClick={() => {
-                patch({ objectFit: "cover" });
                 onCropLayer(cropLayerId === layer.id ? null : layer.id);
               }}
             >
@@ -1327,6 +1361,17 @@ function LayerInspector({
           </div>
           {cropLayerId === layer.id ? (
             <div className="figma-crop-properties">
+              <label className="figma-range-control">
+                <span>Scale</span>
+                <input
+                  type="range"
+                  aria-label="Crop scale"
+                  min={10}
+                  max={500}
+                  value={style.cropZoom ?? 100}
+                  onChange={(event) => patch({ cropZoom: Number(event.target.value) })}
+                />
+              </label>
               <div className="figma-control-line">
                 <NumberField
                   label="X"
@@ -1355,6 +1400,13 @@ function LayerInspector({
                 suffix="%"
                 onChange={(cropZoom) => patch({ cropZoom })}
               />
+              <button
+                type="button"
+                className="figma-inline-action"
+                onClick={() => patch({ cropX: 0, cropY: 0, cropZoom: 100 })}
+              >
+                <RotateCcw size={13} /> Reset crop
+              </button>
             </div>
           ) : null}
           <SelectField
@@ -1521,6 +1573,7 @@ export function StudioInspector({
   selectedLayers,
   viewport,
   cropLayerId,
+  cropFillId,
   onUpdateScene,
   onPatchLayer,
   onPatchLayerContent,
@@ -1528,6 +1581,7 @@ export function StudioInspector({
   onDuplicateLayer,
   onMoveLayer,
   onCropLayer,
+  onCropFill,
   sectionSettings,
   prototypeSettings,
 }: {
@@ -1535,6 +1589,7 @@ export function StudioInspector({
   selectedLayers: BannerLayer[];
   viewport: HomepageViewport;
   cropLayerId: string | null;
+  cropFillId: string | null;
   onUpdateScene: (scene: BannerScene) => void;
   onPatchLayer: (id: string, patch: Partial<BannerLayerStyle>) => void;
   onPatchLayerContent: (id: string, patch: Partial<BannerLayer>) => void;
@@ -1542,6 +1597,7 @@ export function StudioInspector({
   onDuplicateLayer: (id: string) => void;
   onMoveLayer: (id: string, direction: -1 | 1) => void;
   onCropLayer: (id: string | null) => void;
+  onCropFill: (id: string | null) => void;
   sectionSettings?: ReactNode;
   prototypeSettings?: ReactNode;
 }) {
@@ -1685,7 +1741,9 @@ export function StudioInspector({
                 <FillEditor
                   key={fill.id}
                   fill={fill}
+                  cropActive={cropFillId === fill.id}
                   onChange={(next) => updateFill(index, next)}
+                  onCrop={() => onCropFill(cropFillId === fill.id ? null : fill.id)}
                   onRemove={() =>
                     onUpdateScene({
                       ...scene,
