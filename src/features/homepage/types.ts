@@ -37,6 +37,9 @@ export type BannerLayerStyle = {
   width: number;
   height: number;
   rotation: number;
+  flipX?: boolean;
+  flipY?: boolean;
+  horizontalSizing?: "fixed" | "hug" | "fill";
   opacity: number;
   visible: boolean;
   locked?: boolean;
@@ -54,6 +57,7 @@ export type BannerLayerStyle = {
   backgroundColor?: string;
   borderColor?: string;
   borderWidth?: number;
+  borderAlign?: "inside" | "center" | "outside";
   borderRadius?: number;
   paddingX?: number;
   paddingY?: number;
@@ -62,6 +66,7 @@ export type BannerLayerStyle = {
   shadowBlur?: number;
   shadowColor?: string;
   blur?: number;
+  effectType?: "drop-shadow" | "layer-blur";
   objectFit?: "cover" | "contain" | "fill";
   objectPosition?: string;
   cropX?: number;

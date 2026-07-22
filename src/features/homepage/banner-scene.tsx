@@ -63,19 +63,26 @@ function resolveLayerStyle(layer: BannerLayer, viewport: HomepageViewport): Bann
 }
 
 function layerCss(style: BannerLayerStyle): CSSProperties {
+  const borderWidth = clamp(style.borderWidth ?? 0, 0, 40);
+  const borderAlign = style.borderAlign || "inside";
   return {
     left: `${clamp(style.x, -100, 200)}%`,
     top: `${clamp(style.y, -100, 200)}%`,
     width: `${clamp(style.width, 0.5, 250)}%`,
     height: `${clamp(style.height, 0.5, 250)}%`,
-    transform: `rotate(${clamp(style.rotation, -360, 360)}deg)`,
+    transform: `rotate(${clamp(style.rotation, -360, 360)}deg) scaleX(${style.flipX ? -1 : 1}) scaleY(${style.flipY ? -1 : 1})`,
     opacity: clamp(style.opacity, 0, 100) / 100,
     display: style.visible === false ? "none" : undefined,
     color: withAlpha(style.color, "#ffffff"),
     backgroundColor: style.backgroundColor || undefined,
-    borderColor: style.borderColor || "transparent",
-    borderWidth: `${clamp(style.borderWidth ?? 0, 0, 40)}px`,
-    borderStyle: "solid",
+    borderColor: borderAlign === "inside" ? style.borderColor || "transparent" : undefined,
+    borderWidth: borderAlign === "inside" ? `${borderWidth}px` : 0,
+    borderStyle: borderAlign === "inside" ? "solid" : undefined,
+    outline:
+      borderAlign !== "inside" && borderWidth > 0
+        ? `${borderWidth}px solid ${style.borderColor || "#000000"}`
+        : undefined,
+    outlineOffset: borderAlign === "center" ? `${-borderWidth / 2}px` : undefined,
     borderRadius: `${clamp(style.borderRadius ?? 0, 0, 999)}px`,
     padding: `${clamp(style.paddingY ?? 0, 0, 120)}px ${clamp(style.paddingX ?? 0, 0, 120)}px`,
     fontFamily: fontFamily(style.fontFamily),

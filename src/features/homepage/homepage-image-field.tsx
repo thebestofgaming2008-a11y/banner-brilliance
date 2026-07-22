@@ -48,10 +48,12 @@ export function HomepageImageInput({
   value,
   onChange,
   readOnly,
+  compact = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   readOnly?: boolean;
+  compact?: boolean;
 }) {
   const [uploading, setUploading] = useState(false);
   const [cropOpen, setCropOpen] = useState(false);
@@ -93,7 +95,7 @@ export function HomepageImageInput({
   };
 
   return (
-    <div className="space-y-2">
+    <div className={`homepage-image-input space-y-2 ${compact ? "is-compact" : ""}`}>
       {value ? (
         <div className="relative aspect-video overflow-hidden rounded border border-black/10 bg-[#f4f1eb]">
           <img src={value} alt="Selected" className="h-full w-full object-cover" />
