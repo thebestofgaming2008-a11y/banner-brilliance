@@ -108,16 +108,20 @@ export function StudioCanvas({
 
   useEffect(() => {
     if (!surfaceHost) return;
+    const coordinateRoot = editSurfaceRef.current?.querySelector<HTMLElement>(
+      "[data-banner-coordinate-root]",
+    );
+    const measuredElement = coordinateRoot ?? surfaceHost;
     const measure = () =>
       setSurfaceSize({
-        width: Math.max(1, surfaceHost.clientWidth),
-        height: Math.max(1, surfaceHost.clientHeight),
+        width: Math.max(1, measuredElement.clientWidth),
+        height: Math.max(1, measuredElement.clientHeight),
       });
     measure();
     const observer = new ResizeObserver(measure);
-    observer.observe(surfaceHost);
+    observer.observe(measuredElement);
     return () => observer.disconnect();
-  }, [surfaceHost]);
+  }, [scene.coordinateMode, surfaceHost, viewport]);
 
   useEffect(() => {
     if (!surfaceHost) return;
@@ -147,8 +151,6 @@ export function StudioCanvas({
   const commitTargets = (changedTargets: Array<HTMLElement | SVGElement>) => {
     const surface = editSurfaceRef.current;
     if (!surface) return;
-    const width = surface.clientWidth || surfaceSize.width;
-    const height = surface.clientHeight || surfaceSize.height;
     const changes = changedTargets
       .map((target) => {
         if (!(target instanceof HTMLElement)) return null;
@@ -161,6 +163,9 @@ export function StudioCanvas({
             : layer.style
           : null;
         const rotation = Number(target.dataset.rotation ?? resolved?.rotation ?? 0);
+        const coordinateRoot = target.offsetParent as HTMLElement | null;
+        const width = coordinateRoot?.clientWidth || surface.clientWidth || surfaceSize.width;
+        const height = coordinateRoot?.clientHeight || surface.clientHeight || surfaceSize.height;
         target.style.left = `${target.offsetLeft}px`;
         target.style.top = `${target.offsetTop}px`;
         return {

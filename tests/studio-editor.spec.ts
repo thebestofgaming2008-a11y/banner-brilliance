@@ -74,4 +74,25 @@ test.describe("focused homepage studio", () => {
       )
       .toBeGreaterThan(2500);
   });
+
+  test("keeps Preview separate from publishing", async ({ page }) => {
+    const publish = page.getByRole("button", { name: "Publish", exact: true });
+    await expect(publish).toBeDisabled();
+
+    await page.getByRole("button", { name: "Preview", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Draft homepage preview" })).toBeVisible();
+    await expect(
+      page.getByText("Nothing here is live until Publish.", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Confirm homepage publish" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+
+    await page.getByRole("button", { name: "Add section", exact: true }).click();
+    await page.getByRole("button", { name: /Banner left/ }).click();
+    await expect(publish).toBeEnabled();
+    await publish.click();
+    await expect(page.getByRole("dialog", { name: "Confirm homepage publish" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Publish live", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  });
 });

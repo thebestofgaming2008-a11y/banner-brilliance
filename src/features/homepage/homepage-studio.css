@@ -591,6 +591,9 @@
 .studio-edit-surface > .homepage-banner-scene {
   height: 100% !important;
 }
+.studio-edit-surface .homepage-banner-coordinate-root {
+  overflow: visible;
+}
 .studio-edit-surface::before {
   position: absolute;
   z-index: 90;
@@ -682,6 +685,49 @@
   background: #0d99ff !important;
   color: #fff !important;
   font-size: 10px;
+}
+.studio-publish-confirm {
+  width: min(420px, calc(100vw - 40px));
+  border: 1px solid #4a4a4a;
+  border-radius: 6px;
+  background: #2c2c2c;
+  padding: 22px;
+  box-shadow: 0 24px 80px #000a;
+  color: #fff;
+}
+.studio-publish-confirm h2,
+.studio-publish-confirm p {
+  margin: 0;
+}
+.studio-publish-confirm h2 {
+  font-size: 16px;
+}
+.studio-publish-confirm p {
+  margin-top: 8px;
+  color: #b3b3b3;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.studio-publish-confirm > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+.studio-publish-confirm button {
+  height: 32px;
+  border: 1px solid #555;
+  border-radius: 5px;
+  background: #383838;
+  padding: 0 12px;
+  color: #fff;
+  font:
+    600 11px/1 Inter,
+    sans-serif;
+}
+.studio-publish-confirm button.is-primary {
+  border-color: #0d99ff;
+  background: #0d99ff;
 }
 .studio-wide-toggle {
   display: flex;

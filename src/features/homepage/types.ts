@@ -48,6 +48,8 @@ export type BannerLayerStyle = {
   letterSpacing?: number;
   textAlign?: HomepageTextAlign;
   textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
+  textDecoration?: "none" | "underline";
+  whiteSpace?: "normal" | "nowrap" | "pre-wrap";
   color?: string;
   backgroundColor?: string;
   borderColor?: string;
@@ -86,6 +88,7 @@ export type BannerScene = {
   name: string;
   height: number;
   mobileHeight: number;
+  coordinateMode?: "full" | "original-hero";
   fills: BannerFill[];
   layers: BannerLayer[];
 };

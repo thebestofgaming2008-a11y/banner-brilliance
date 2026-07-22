@@ -86,6 +86,9 @@ function layerCss(style: BannerLayerStyle): CSSProperties {
     letterSpacing: `${clamp(style.letterSpacing ?? 0, -10, 40)}px`,
     textAlign: style.textAlign || "left",
     textTransform: style.textTransform || "none",
+    textDecoration: style.textDecoration || "none",
+    textUnderlineOffset: style.textDecoration === "underline" ? "4px" : undefined,
+    whiteSpace: style.whiteSpace || "pre-wrap",
     boxShadow:
       (style.shadowBlur ?? 0) > 0
         ? `${style.shadowX ?? 0}px ${style.shadowY ?? 8}px ${style.shadowBlur}px ${style.shadowColor ?? "#00000055"}`
@@ -241,124 +244,139 @@ export function BannerSceneView({
         ),
       )}
 
-      {scene.layers.map((layer, index) => {
-        const style = resolveLayerStyle(layer, resolvedViewport);
-        const selected = selectedLayerId === layer.id;
-        const editing = editingLayerId === layer.id;
-        const cropping = cropLayerId === layer.id;
-        const commonProps = {
-          "data-banner-layer": layer.id,
-          "data-layer-type": layer.type,
-          "data-selected": selected || undefined,
-          className: `homepage-banner-layer absolute z-10 box-border m-0 overflow-visible ${selected ? "is-selected" : ""}`,
-          style: { ...layerCss(style), zIndex: index + 1 },
-          onMouseDown: (event: MouseEvent<HTMLElement>) => {
-            event.stopPropagation();
-            onSelectLayer?.(layer.id, event);
-          },
-          onDoubleClick: (event: MouseEvent<HTMLElement>) => {
-            event.preventDefault();
-            event.stopPropagation();
-            onEditLayer?.(layer.id);
-          },
-        };
+      <div
+        className={
+          scene.coordinateMode === "original-hero"
+            ? "homepage-banner-coordinate-root absolute left-1/2 top-0 h-full -translate-x-1/2"
+            : "homepage-banner-coordinate-root absolute inset-0"
+        }
+        data-banner-coordinate-root
+        style={
+          scene.coordinateMode === "original-hero"
+            ? { aspectRatio: "390 / 649", pointerEvents: "none" }
+            : { pointerEvents: "none" }
+        }
+      >
+        {scene.layers.map((layer, index) => {
+          const style = resolveLayerStyle(layer, resolvedViewport);
+          const selected = selectedLayerId === layer.id;
+          const editing = editingLayerId === layer.id;
+          const cropping = cropLayerId === layer.id;
+          const commonProps = {
+            "data-banner-layer": layer.id,
+            "data-layer-type": layer.type,
+            "data-selected": selected || undefined,
+            className: `homepage-banner-layer absolute z-10 box-border m-0 overflow-visible ${selected ? "is-selected" : ""}`,
+            style: { ...layerCss(style), zIndex: index + 1, pointerEvents: "auto" as const },
+            onMouseDown: (event: MouseEvent<HTMLElement>) => {
+              event.stopPropagation();
+              onSelectLayer?.(layer.id, event);
+            },
+            onDoubleClick: (event: MouseEvent<HTMLElement>) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onEditLayer?.(layer.id);
+            },
+          };
 
-        if (layer.type === "image") {
-          return layer.src ? (
-            <div
-              key={layer.id}
-              {...commonProps}
-              className={`${commonProps.className} overflow-hidden ${cropping ? "is-cropping" : ""}`}
-              onPointerDown={(event) => {
-                if (!cropping || !onCropChange) return;
-                event.preventDefault();
-                const startX = event.clientX;
-                const startY = event.clientY;
-                const startCropX = style.cropX ?? 0;
-                const startCropY = style.cropY ?? 0;
-                const rect = event.currentTarget.getBoundingClientRect();
-                const move = (moveEvent: PointerEvent) => {
-                  onCropChange(layer.id, {
-                    cropX:
-                      startCropX + ((moveEvent.clientX - startX) / Math.max(1, rect.width)) * 100,
-                    cropY:
-                      startCropY + ((moveEvent.clientY - startY) / Math.max(1, rect.height)) * 100,
-                    cropZoom: style.cropZoom ?? 100,
-                  });
-                };
-                const stop = () => {
-                  window.removeEventListener("pointermove", move);
-                  window.removeEventListener("pointerup", stop);
-                };
-                window.addEventListener("pointermove", move);
-                window.addEventListener("pointerup", stop);
-              }}
-              onWheel={(event) => {
-                if (!cropping || !onCropChange) return;
-                event.preventDefault();
-                onCropChange(layer.id, {
-                  cropX: style.cropX ?? 0,
-                  cropY: style.cropY ?? 0,
-                  cropZoom: clamp((style.cropZoom ?? 100) - event.deltaY * 0.15, 10, 500),
-                });
-              }}
-            >
-              <img
-                src={layer.src}
-                alt=""
-                draggable={false}
-                loading={interactive ? "lazy" : "eager"}
-                className="pointer-events-none absolute inset-0 h-full w-full max-w-none"
-                style={{
-                  objectFit: style.objectFit || "contain",
-                  objectPosition: style.objectPosition || "center",
-                  transform: `translate(${style.cropX ?? 0}%, ${style.cropY ?? 0}%) scale(${clamp(style.cropZoom ?? 100, 10, 500) / 100})`,
-                  transformOrigin: "center",
+          if (layer.type === "image") {
+            return layer.src ? (
+              <div
+                key={layer.id}
+                {...commonProps}
+                className={`${commonProps.className} overflow-hidden ${cropping ? "is-cropping" : ""}`}
+                onPointerDown={(event) => {
+                  if (!cropping || !onCropChange) return;
+                  event.preventDefault();
+                  const startX = event.clientX;
+                  const startY = event.clientY;
+                  const startCropX = style.cropX ?? 0;
+                  const startCropY = style.cropY ?? 0;
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  const move = (moveEvent: PointerEvent) => {
+                    onCropChange(layer.id, {
+                      cropX:
+                        startCropX + ((moveEvent.clientX - startX) / Math.max(1, rect.width)) * 100,
+                      cropY:
+                        startCropY +
+                        ((moveEvent.clientY - startY) / Math.max(1, rect.height)) * 100,
+                      cropZoom: style.cropZoom ?? 100,
+                    });
+                  };
+                  const stop = () => {
+                    window.removeEventListener("pointermove", move);
+                    window.removeEventListener("pointerup", stop);
+                  };
+                  window.addEventListener("pointermove", move);
+                  window.addEventListener("pointerup", stop);
                 }}
-              />
-              {cropping ? <span className="studio-crop-label">Crop</span> : null}
-            </div>
-          ) : (
-            <div
-              key={layer.id}
-              {...commonProps}
-              className={`${commonProps.className} homepage-banner-layer--empty`}
+                onWheel={(event) => {
+                  if (!cropping || !onCropChange) return;
+                  event.preventDefault();
+                  onCropChange(layer.id, {
+                    cropX: style.cropX ?? 0,
+                    cropY: style.cropY ?? 0,
+                    cropZoom: clamp((style.cropZoom ?? 100) - event.deltaY * 0.15, 10, 500),
+                  });
+                }}
+              >
+                <img
+                  src={layer.src}
+                  alt=""
+                  draggable={false}
+                  loading={interactive ? "lazy" : "eager"}
+                  className="pointer-events-none absolute inset-0 h-full w-full max-w-none"
+                  style={{
+                    objectFit: style.objectFit || "contain",
+                    objectPosition: style.objectPosition || "center",
+                    transform: `translate(${style.cropX ?? 0}%, ${style.cropY ?? 0}%) scale(${clamp(style.cropZoom ?? 100, 10, 500) / 100})`,
+                    transformOrigin: "center",
+                  }}
+                />
+                {cropping ? <span className="studio-crop-label">Crop</span> : null}
+              </div>
+            ) : (
+              <div
+                key={layer.id}
+                {...commonProps}
+                className={`${commonProps.className} homepage-banner-layer--empty`}
+              >
+                Image
+              </div>
+            );
+          }
+
+          if (layer.type === "shape") return <div key={layer.id} {...commonProps} />;
+
+          const content = (
+            <span
+              className="block h-full w-full"
+              contentEditable={editing}
+              suppressContentEditableWarning
+              onBlur={(event) => onTextChange?.(layer.id, event.currentTarget.textContent ?? "")}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") event.currentTarget.blur();
+              }}
             >
-              Image
-            </div>
+              {layer.text}
+            </span>
           );
-        }
 
-        if (layer.type === "shape") return <div key={layer.id} {...commonProps} />;
-
-        const content = (
-          <span
-            className="block h-full w-full whitespace-pre-wrap"
-            contentEditable={editing}
-            suppressContentEditableWarning
-            onBlur={(event) => onTextChange?.(layer.id, event.currentTarget.textContent ?? "")}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") event.currentTarget.blur();
-            }}
-          >
-            {layer.text}
-          </span>
-        );
-
-        if (layer.type === "button" && interactive && !onSelectLayer) {
+          if (layer.type === "button" && interactive && !onSelectLayer) {
+            return (
+              <a key={layer.id} {...commonProps} href={safeHref(layer.href)}>
+                {content}
+              </a>
+            );
+          }
+          const TextTag = layer.semantic || "p";
           return (
-            <a key={layer.id} {...commonProps} href={safeHref(layer.href)}>
+            <TextTag key={layer.id} {...commonProps}>
               {content}
-            </a>
+            </TextTag>
           );
-        }
-        const TextTag = layer.semantic || "p";
-        return (
-          <TextTag key={layer.id} {...commonProps}>
-            {content}
-          </TextTag>
-        );
-      })}
+        })}
+      </div>
     </div>
   );
 }

@@ -407,24 +407,28 @@ export function HomepageHero({
 
       {safeSlides.length > 1 ? (
         <>
-          <button
-            type="button"
-            aria-label="Previous hero slide"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={() => goTo(active - 1)}
-            className="absolute left-3 top-1/2 z-30 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/45 bg-black/20 text-white backdrop-blur-sm transition hover:bg-black/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-          >
-            <ChevronLeft size={23} />
-          </button>
-          <button
-            type="button"
-            aria-label="Next hero slide"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={() => goTo(active + 1)}
-            className="absolute right-3 top-1/2 z-30 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/45 bg-black/20 text-white backdrop-blur-sm transition hover:bg-black/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-          >
-            <ChevronRight size={23} />
-          </button>
+          {activeLayout !== "original" ? (
+            <>
+              <button
+                type="button"
+                aria-label="Previous hero slide"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => goTo(active - 1)}
+                className="absolute left-3 top-1/2 z-30 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/45 bg-black/20 text-white backdrop-blur-sm transition hover:bg-black/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              >
+                <ChevronLeft size={23} />
+              </button>
+              <button
+                type="button"
+                aria-label="Next hero slide"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => goTo(active + 1)}
+                className="absolute right-3 top-1/2 z-30 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/45 bg-black/20 text-white backdrop-blur-sm transition hover:bg-black/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              >
+                <ChevronRight size={23} />
+              </button>
+            </>
+          ) : null}
           <div
             className="absolute bottom-4 right-5 z-30 flex items-center gap-2"
             aria-label="Choose hero slide"
@@ -437,7 +441,7 @@ export function HomepageHero({
                 aria-current={active === index}
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={() => goTo(index)}
-                className={`h-2 rounded-full bg-white shadow-sm transition-all ${active === index ? "w-8 opacity-100" : "w-3 opacity-55 hover:opacity-90"}`}
+                className={`rounded-full bg-white transition-all ${activeLayout === "original" ? "h-1.5 duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]" : "h-2 shadow-sm"} ${active === index ? "w-8 opacity-100" : activeLayout === "original" ? "w-3 opacity-50" : "w-3 opacity-55 hover:opacity-90"}`}
               />
             ))}
           </div>

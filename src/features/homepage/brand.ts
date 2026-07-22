@@ -9,5 +9,5 @@ export const DEFAULT_HERO_GRADIENT: HeroGradient = {
   startColor: MANGO_YELLOW,
   endColor: MANGO_ORANGE,
   angle: 105,
-  opacity: 84,
+  opacity: 100,
 };

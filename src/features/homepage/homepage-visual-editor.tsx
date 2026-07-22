@@ -79,7 +79,8 @@ import type {
   HomepageViewport,
 } from "./types";
 
-const LOCAL_BACKUP_KEY = "fawzaan.homepage-studio.local-v3";
+const LOCAL_BACKUP_KEY = "fawzaan.homepage-studio.local-v4";
+const LEGACY_BACKUP_KEYS = ["fawzaan.homepage-studio.local-v3"];
 const HISTORY_LIMIT = 80;
 
 type LocalBackup = { revision?: number; savedAt?: string; data?: HomepageData };
@@ -116,6 +117,18 @@ async function writeLocalBackup(backup: LocalBackup | null) {
     request.onerror = () => reject(request.error);
   });
   db.close();
+}
+
+async function clearLocalBackups() {
+  if (!("indexedDB" in window)) return;
+  const db = await openBackupStore();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction("drafts", "readwrite");
+    const store = transaction.objectStore("drafts");
+    [LOCAL_BACKUP_KEY, ...LEGACY_BACKUP_KEYS].forEach((key) => store.delete(key));
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  }).finally(() => db.close());
 }
 
 function clone<T>(value: T): T {
@@ -210,6 +223,7 @@ export function HomepageVisualEditor({
   const [editorError, setEditorError] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
   const [leftTab, setLeftTab] = useState<"file" | "assets">("file");
   const [addOpen, setAddOpen] = useState(false);
@@ -266,14 +280,15 @@ export function HomepageVisualEditor({
       try {
         const backup = await readLocalBackup();
         if (
+          isHomepageEditorData(state.draft) &&
           backup?.data &&
           backup.revision === state.draft_revision &&
           isHomepageEditorData(backup.data)
         )
           recovered = backup.data;
-        else if (backup) await writeLocalBackup(null);
+        else if (backup || !state.draft) await clearLocalBackups();
       } catch {
-        await writeLocalBackup(null).catch(() => undefined);
+        await clearLocalBackups().catch(() => undefined);
       }
       applyLoadedData(recovered ?? source, state.draft_revision);
       if (recovered) {
@@ -1030,7 +1045,7 @@ export function HomepageVisualEditor({
             type="button"
             className="studio-publish-button"
             disabled={publishing || Boolean(conflict) || (!dirty && !unpublished)}
-            onClick={() => void publish()}
+            onClick={() => setPublishConfirmOpen(true)}
           >
             {publishing ? <Loader2 className="animate-spin" size={15} /> : null} Publish
           </button>
@@ -1514,6 +1529,36 @@ export function HomepageVisualEditor({
           </div>
           <div className="studio-preview__page">
             <StorefrontFramePreview data={data} />
+          </div>
+        </div>
+      ) : null}
+
+      {publishConfirmOpen ? (
+        <div
+          className="studio-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm homepage publish"
+          onMouseDown={() => setPublishConfirmOpen(false)}
+        >
+          <div className="studio-publish-confirm" onMouseDown={(event) => event.stopPropagation()}>
+            <h2>Publish homepage?</h2>
+            <p>This replaces the public hero and adds your custom sections after Honey.</p>
+            <div>
+              <button type="button" onClick={() => setPublishConfirmOpen(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="is-primary"
+                onClick={() => {
+                  setPublishConfirmOpen(false);
+                  void publish();
+                }}
+              >
+                Publish live
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

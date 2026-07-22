@@ -162,52 +162,109 @@ export function sceneFromHero(slide: HeroSlide, index = 0): BannerScene {
   const light = (slide.textTone ?? "light") === "light";
   const color = light ? "#ffffff" : "#000000";
   if (original) {
+    const titleFrame =
+      index === 0
+        ? { left: 37, top: 121, width: 316 }
+        : index === 1
+          ? { left: 41, top: 100, width: 319 }
+          : { left: 30, top: 110, width: 330 };
+    const gradient = { ...DEFAULT_HERO_GRADIENT, ...slide.gradient };
     return {
       version: 1,
       name: slide.title || `Hero ${index + 1}`,
-      height: 720,
+      height: 820,
       mobileHeight: 649,
-      fills: defaultFills(
-        slide.backgroundColor || "#F6AD32",
-        slide.backgroundImage,
-        slide.gradient,
-      ),
+      coordinateMode: "original-hero",
+      fills: [
+        {
+          id: "fill-solid",
+          type: "solid",
+          enabled: true,
+          opacity: 100,
+          color: slide.backgroundColor || "#F6AD32",
+        },
+        ...(slide.backgroundImage
+          ? [
+              {
+                id: "fill-image",
+                type: "image" as const,
+                enabled: true,
+                opacity: 100,
+                src: slide.backgroundImage,
+                fit: "cover" as const,
+                position: slide.imageFocus || "center",
+              },
+            ]
+          : []),
+        ...(gradient.enabled === "on"
+          ? [
+              {
+                id: "fill-gradient",
+                type: "linear" as const,
+                enabled: true,
+                opacity: gradient.opacity,
+                angle: gradient.angle,
+                stops: [
+                  { color: gradient.startColor, position: 0 },
+                  ...(gradient.startColor.toLowerCase() === "#fbcb3d" &&
+                  gradient.endColor.toLowerCase() === "#f18532"
+                    ? [{ color: "#F8B937", position: 58 }]
+                    : []),
+                  { color: gradient.endColor, position: 100 },
+                ],
+              },
+            ]
+          : []),
+      ],
       layers: [
         imageLayer("foreground", "Product image", slide.foregroundImage, {
-          x: 27,
-          y: 2,
-          width: 46,
-          height: 98,
+          x: 0,
+          y: 0,
+          width: 100,
+          height: 100,
+          objectFit: "contain",
+          objectPosition: "center bottom",
         }),
         textLayer(
           "title",
           "Title",
           slide.title,
           {
-            x: 9,
-            y: 17,
-            width: 82,
-            height: 15,
+            x: (titleFrame.left / 390) * 100,
+            y: (titleFrame.top / 649) * 100,
+            width: (titleFrame.width / 390) * 100,
+            height: 8.1,
             fontFamily: "instrument",
-            fontSize: slide.titleSize ?? 76,
+            fontSize: (52 / 649) * 820,
             fontWeight: 400,
-            lineHeight: 0.92,
+            lineHeight: 1,
             textAlign: "center",
+            whiteSpace: "nowrap",
             color,
           },
           "h1",
         ),
         buttonLayer("button", slide.buttonLabel || "Shop the collection", slide.buttonUrl, {
-          x: 7,
-          y: 91,
-          width: 20,
-          height: 5,
+          x: (25 / 390) * 100,
+          y: (614 / 649) * 100,
+          width: 42,
+          height: 2.6,
           color,
           backgroundColor: "#00000000",
           borderWidth: 0,
           textAlign: "left",
+          textDecoration: "underline",
+          paddingX: 0,
+          paddingY: 0,
         }),
-      ],
+      ].map((layer) =>
+        layer.id === "title"
+          ? {
+              ...layer,
+              mobileStyle: { fontSize: 52 },
+            }
+          : layer,
+      ),
     };
   }
   const align = slide.textAlign ?? "left";
