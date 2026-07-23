@@ -1,4 +1,8 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+function storefront(page: Page, viewport: "desktop" | "mobile" = "desktop") {
+  return page.frameLocator(`iframe[title="${viewport} storefront preview"]`);
+}
 
 test.describe("fixed-template homepage studio", () => {
   test.skip(
@@ -11,44 +15,40 @@ test.describe("fixed-template homepage studio", () => {
     const harness = `${process.cwd().replaceAll("\\", "/")}/work/studio-harness.html`;
     await page.goto(`/@fs/${harness}`, { waitUntil: "domcontentloaded" });
     await expect(page.getByText("Homepage banners", { exact: true })).toBeVisible();
+    await expect(page.locator('iframe[title="desktop storefront preview"]')).toBeVisible();
   });
 
-  test("shows the real scrollable homepage with only structured editing controls", async ({
+  test("shows the exact scrollable homepage without a left panel or free-form tools", async ({
     page,
   }) => {
-    await expect(page.getByRole("button", { name: "File", exact: true })).toBeVisible();
+    await expect(page.locator(".studio-left-panel")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "File", exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Assets", exact: true })).toHaveCount(0);
-    const tools = page.getByRole("navigation", { name: "Editor tools" });
-    await expect(tools.getByRole("button", { name: "Text", exact: true })).toHaveCount(0);
-    await expect(tools.getByRole("button", { name: "Image", exact: true })).toHaveCount(0);
-    await expect(page.getByText("Original storefront", { exact: true })).toBeVisible();
-    await expect(
-      page.getByText("Collections through Honey are locked", { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Editor tools" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Tablet viewport" })).toHaveCount(0);
     await expect(page.getByRole("complementary", { name: "Banner settings" })).toBeVisible();
     await expect(page.locator(".studio-layer-row")).toHaveCount(0);
 
-    const storefront = page.getByRole("region", { name: "desktop storefront preview" });
-    await expect(storefront.locator("#honey")).toBeAttached();
-    await expect(storefront.locator("footer")).toBeAttached();
-    await expect(storefront.getByRole("button", { name: "Add homepage section" })).toBeAttached();
-    expect(await storefront.evaluate((frame) => frame.scrollHeight)).toBeGreaterThan(4000);
-    expect(await storefront.evaluate((frame) => frame.scrollHeight > frame.clientHeight)).toBe(
-      true,
-    );
+    const frame = storefront(page);
+    await expect(frame.locator("#honey")).toBeAttached();
+    await expect(frame.locator("footer")).toBeAttached();
+    await expect(frame.getByRole("button", { name: "Add homepage section" })).toBeAttached();
+    const frameSize = await frame.locator("html").evaluate((element) => ({
+      width: element.clientWidth,
+      height: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+    }));
+    expect(frameSize.width).toBe(1440);
+    expect(frameSize.scrollHeight).toBeGreaterThan(frameSize.height);
 
-    const title = storefront.locator('[data-editor-active="true"] [data-banner-layer="title"]');
+    const title = frame.locator('[data-editor-active="true"] [data-banner-layer="title"]');
     await title.click({ force: true });
-    await expect(storefront.locator(".studio-selection-box")).toHaveCount(0);
-    await expect(page.getByRole("complementary", { name: "Banner settings" })).toBeVisible();
+    await expect(frame.locator(".studio-selection-box")).toHaveCount(0);
   });
 
-  test("edits the fixed hero content, image, gradient and mobile presentation", async ({
-    page,
-  }) => {
+  test("edits the fixed hero and renders true mobile responsive styles", async ({ page }) => {
     const inspector = page.getByRole("complementary", { name: "Banner settings" });
-    const storefront = page.getByRole("region", { name: "desktop storefront preview" });
-    const activeScene = storefront.locator('[data-editor-active="true"]');
+    const activeScene = storefront(page).locator('[data-editor-active="true"]');
 
     await inspector.getByLabel("Title", { exact: true }).fill("SUMMER COLLECTION");
     await inspector.getByLabel("Subtitle", { exact: true }).fill("A limited seasonal release");
@@ -86,9 +86,20 @@ test.describe("fixed-template homepage studio", () => {
     );
 
     await page.getByRole("button", { name: "Mobile viewport", exact: true }).click();
-    const mobileStorefront = page.getByRole("region", { name: "mobile storefront preview" });
-    const mobileScene = mobileStorefront.locator('[data-editor-active="true"]');
+    const mobileFrame = storefront(page, "mobile");
+    const mobileScene = mobileFrame.locator('[data-editor-active="true"]');
     const mobileTitle = mobileScene.locator('[data-banner-layer="title"]');
+    expect(await mobileFrame.locator("html").evaluate((element) => element.clientWidth)).toBe(390);
+    const footerColumns = await mobileFrame
+      .locator("footer > div")
+      .first()
+      .evaluate((element) => getComputedStyle(element).gridTemplateColumns);
+    expect(footerColumns.trim().split(/\s+/)).toHaveLength(1);
+    expect(
+      await mobileFrame
+        .locator("html")
+        .evaluate((element) => element.scrollWidth <= element.clientWidth),
+    ).toBe(true);
     const sceneBox = await mobileScene.boundingBox();
     const titleBox = await mobileTitle.boundingBox();
     expect(sceneBox).not.toBeNull();
@@ -97,11 +108,13 @@ test.describe("fixed-template homepage studio", () => {
     expect(titleBox!.x + titleBox!.width).toBeLessThanOrEqual(sceneBox!.x + sceneBox!.width + 1);
   });
 
-  test("adds another hero using the same fixed template", async ({ page }) => {
-    const heroList = page.locator(".studio-banner-list").first();
-    await expect(heroList.locator(":scope > button")).toHaveCount(2);
+  test("navigates, reorders and adds heroes from the right panel", async ({ page }) => {
+    await expect(page.getByText("Slide 1 of 2", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Next hero" }).click();
+    await expect(page.getByText("Slide 2 of 2", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Move banner up" })).toBeEnabled();
     await page.getByRole("button", { name: "Add hero banner" }).click();
-    await expect(heroList.locator(":scope > button")).toHaveCount(3);
+    await expect(page.getByText("Slide 3 of 3", { exact: true })).toBeVisible();
 
     const inspector = page.getByRole("complementary", { name: "Banner settings" });
     await expect(inspector.getByText("Hero banner", { exact: true })).toBeVisible();
@@ -110,15 +123,13 @@ test.describe("fixed-template homepage studio", () => {
       "Discover the latest collection",
     );
     await expect(
-      page
-        .getByRole("region", { name: "desktop storefront preview" })
-        .locator('[data-editor-active="true"] [data-banner-layer="button"]'),
+      storefront(page).locator('[data-editor-active="true"] [data-banner-layer="button"]'),
     ).toHaveText("Shop the collection");
   });
 
   test("adds only the two supported post-Honey section templates", async ({ page }) => {
-    const storefront = page.getByRole("region", { name: "desktop storefront preview" });
-    const addButton = storefront.getByRole("button", { name: "Add homepage section" });
+    const frame = storefront(page);
+    const addButton = frame.getByRole("button", { name: "Add homepage section" });
     await addButton.scrollIntoViewIfNeeded();
     await addButton.click();
 
@@ -134,9 +145,9 @@ test.describe("fixed-template homepage studio", () => {
     let inspector = page.getByRole("complementary", { name: "Banner settings" });
     await expect(inspector.getByText("Banner only", { exact: true })).toBeVisible();
     await inspector.getByLabel("Title", { exact: true }).fill("RAMADAN OFFER");
-    await expect(storefront.locator('[data-editor-active="true"]')).toContainText("RAMADAN OFFER");
+    await expect(frame.locator('[data-editor-active="true"]')).toContainText("RAMADAN OFFER");
 
-    await storefront.getByRole("button", { name: "Add homepage section" }).click();
+    await frame.getByRole("button", { name: "Add homepage section" }).click();
     await page
       .getByRole("dialog", { name: "Add homepage section" })
       .getByRole("button", { name: /Banner \+ product row/ })
@@ -144,7 +155,8 @@ test.describe("fixed-template homepage studio", () => {
     inspector = page.getByRole("complementary", { name: "Banner settings" });
     await expect(inspector.getByText("Banner + products", { exact: true })).toBeVisible();
     await expect(inspector.locator("select").first()).toHaveValue("all");
-    await expect(storefront.locator('[data-editor-active="true"]')).toBeVisible();
+    await expect(frame.locator('[data-editor-active="true"]')).toBeVisible();
+    await expect(page.getByRole("button", { name: "Move banner up" })).toBeEnabled();
   });
 
   test("keeps Preview separate from publishing", async ({ page }) => {

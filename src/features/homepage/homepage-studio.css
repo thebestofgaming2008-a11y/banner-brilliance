@@ -652,6 +652,7 @@
   overscroll-behavior: contain;
   border: 0;
   background: #fff;
+  color-scheme: light;
   box-shadow:
     0 2px 5px #0008,
     0 18px 55px #0008;
@@ -2293,6 +2294,41 @@
   color: #bbb;
 }
 .studio-template-header button:hover {
+  background: #3b3b3b;
+  color: #fff;
+}
+.studio-template-header button:disabled,
+.studio-template-navigation button:disabled {
+  opacity: 0.28;
+}
+.studio-template-navigation {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid #444;
+  padding: 7px 10px 7px 13px;
+}
+.studio-template-navigation > span {
+  color: #aaa;
+  font-size: 10px;
+}
+.studio-template-navigation > div {
+  display: flex;
+  gap: 2px;
+}
+.studio-template-navigation button {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #ccc;
+}
+.studio-template-navigation button:hover:not(:disabled) {
   background: #3b3b3b;
   color: #fff;
 }

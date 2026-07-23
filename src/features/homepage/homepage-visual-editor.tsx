@@ -11,7 +11,6 @@ import {
   Crop,
   Eye,
   GripVertical,
-  Hand,
   History,
   Image as ImageIcon,
   Layers3,
@@ -20,7 +19,6 @@ import {
   Minus,
   Monitor,
   MousePointer2,
-  PanelLeft,
   Plus,
   RectangleHorizontal,
   Redo2,
@@ -28,7 +26,6 @@ import {
   Save,
   Smartphone,
   Sparkles,
-  Tablet,
   Trash2,
   Type,
   Undo2,
@@ -250,7 +247,6 @@ export function HomepageVisualEditor({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
-  const [leftOpen, setLeftOpen] = useState(true);
   const [leftTab, setLeftTab] = useState<"file" | "assets">("file");
   const [addOpen, setAddOpen] = useState(false);
   const [viewport, setViewport] = useState<HomepageViewport>("desktop");
@@ -260,7 +256,7 @@ export function HomepageVisualEditor({
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [cropLayerId, setCropLayerId] = useState<string | null>(null);
   const [cropFillId, setCropFillId] = useState<string | null>(null);
-  const [activeTool, setActiveTool] = useState<"select" | "hand">("select");
+  const activeTool = "select" as const;
   const [draggedBannerKey, setDraggedBannerKey] = useState<string | null>(null);
   const [draggedLayerId, setDraggedLayerId] = useState<string | null>(null);
   const cropSnapshotRef = useRef<CropSnapshot | null>(null);
@@ -273,6 +269,12 @@ export function HomepageVisualEditor({
   const banners = useMemo(() => (data ? listStudioBanners(data) : []), [data]);
   const selectedRef =
     banners.find((banner) => banner.key === selectedBannerKey) ?? banners[0] ?? null;
+  const heroBanners = banners.filter((banner) => banner.kind === "hero");
+  const customBanners = banners.filter((banner) => banner.kind !== "hero");
+  const selectedGroup = selectedRef?.kind === "hero" ? heroBanners : customBanners;
+  const selectedGroupIndex = selectedRef
+    ? selectedGroup.findIndex((banner) => banner.key === selectedRef.key)
+    : -1;
   const scene = data ? getScene(data, selectedRef) : null;
   const selectedLayers = scene
     ? scene.layers.filter((layer) => selectedLayerIds.includes(layer.id))
@@ -904,13 +906,9 @@ export function HomepageVisualEditor({
         const layer = scene?.layers.find((entry) => entry.id === selectedLayerIds[0]);
         if (layer?.type === "image") beginLayerCrop(layer.id);
         if (layer?.type === "text" || layer?.type === "button") setEditingLayerId(layer.id);
-      } else if (event.key.toLowerCase() === "v") {
-        setActiveTool("select");
-      } else if (event.key.toLowerCase() === "h") {
-        setActiveTool("hand");
-      } else if (event.key.toLowerCase() === "t") {
+      } else if (ADVANCED_LAYOUT_TOOLS && event.key.toLowerCase() === "t") {
         addLayer("text");
-      } else if (event.key.toLowerCase() === "r") {
+      } else if (ADVANCED_LAYOUT_TOOLS && event.key.toLowerCase() === "r") {
         addLayer("shape");
       } else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
         const amount = event.shiftKey ? 1 : 0.1;
@@ -1113,13 +1111,6 @@ export function HomepageVisualEditor({
           <IconButton label="Back to dashboard" onClick={() => onClose?.()}>
             <ChevronLeft size={18} />
           </IconButton>
-          <IconButton
-            label="Toggle left panel"
-            active={leftOpen}
-            onClick={() => setLeftOpen((value) => !value)}
-          >
-            <PanelLeft size={18} />
-          </IconButton>
           <div className="studio-file-name">
             <strong>Homepage banners</strong>
             <span>
@@ -1134,10 +1125,6 @@ export function HomepageVisualEditor({
           </div>
         </div>
         <div className="studio-topbar__center">
-          <IconButton label="Select" active onClick={() => setEditingLayerId(null)}>
-            <MousePointer2 size={17} />
-          </IconButton>
-          <span className="studio-divider" />
           <IconButton label="Undo" disabled={!historyState.past} onClick={undo}>
             <Undo2 size={17} />
           </IconButton>
@@ -1234,25 +1221,13 @@ export function HomepageVisualEditor({
         <div className="studio-error">{editorError}</div>
       ) : null}
 
-      <div className={`studio-main ${leftOpen ? "" : "is-left-collapsed"}`}>
-        <nav className="studio-bottom-toolbar" aria-label="Editor tools">
-          <IconButton
-            label="Select"
-            active={activeTool === "select"}
-            onClick={() => setActiveTool("select")}
-          >
-            <MousePointer2 size={18} />
-          </IconButton>
-          <IconButton
-            label="Hand tool"
-            active={activeTool === "hand"}
-            onClick={() => setActiveTool("hand")}
-          >
-            <Hand size={18} />
-          </IconButton>
-          {ADVANCED_LAYOUT_TOOLS ? (
+      <div className="studio-main is-left-collapsed">
+        {ADVANCED_LAYOUT_TOOLS ? (
+          <nav className="studio-bottom-toolbar" aria-label="Editor tools">
             <>
-              <span className="studio-divider" />
+              <IconButton label="Select" active onClick={() => setEditingLayerId(null)}>
+                <MousePointer2 size={18} />
+              </IconButton>
               <IconButton label="Text" onClick={() => addLayer("text")}>
                 <Type size={18} />
               </IconButton>
@@ -1266,10 +1241,10 @@ export function HomepageVisualEditor({
                 <RectangleHorizontal size={18} />
               </IconButton>
             </>
-          ) : null}
-        </nav>
+          </nav>
+        ) : null}
 
-        {leftOpen ? (
+        {ADVANCED_LAYOUT_TOOLS ? (
           <aside className="studio-left-panel">
             <div className="studio-left-tabs">
               <button
@@ -1504,7 +1479,7 @@ export function HomepageVisualEditor({
           </aside>
         ) : null}
 
-        <main className={`studio-workspace ${activeTool === "hand" ? "is-hand-tool" : ""}`}>
+        <main className="studio-workspace">
           <div className="studio-contextbar">
             <div className="studio-breadcrumb">
               <span>Homepage</span>
@@ -1547,17 +1522,6 @@ export function HomepageVisualEditor({
                 }}
               >
                 <Smartphone size={15} />
-              </IconButton>
-              <IconButton
-                label="Tablet viewport"
-                onClick={() => {
-                  finishCrop();
-                  setAddOpen(false);
-                  setViewport("desktop");
-                  setZoom(54);
-                }}
-              >
-                <Tablet size={16} />
               </IconButton>
               <IconButton
                 label="Desktop viewport"
@@ -1651,6 +1615,23 @@ export function HomepageVisualEditor({
             data={data}
             selectedRef={selectedRef}
             categories={categories}
+            heroPosition={
+              selectedRef.kind === "hero"
+                ? { index: selectedGroupIndex, total: heroBanners.length }
+                : null
+            }
+            onSelectHero={(index) => {
+              const banner = heroBanners[index];
+              if (!banner) return;
+              setSelectedBannerKey(banner.key);
+              setSelectedLayerIds([]);
+              setEditingLayerId(null);
+            }}
+            onAddHero={addHero}
+            canMoveUp={selectedGroupIndex > 0}
+            canMoveDown={selectedGroupIndex >= 0 && selectedGroupIndex < selectedGroup.length - 1}
+            onMoveUp={() => moveBanner(-1)}
+            onMoveDown={() => moveBanner(1)}
             onPatch={patchSelectedTemplate}
             onDuplicate={duplicateBanner}
             onDelete={deleteBanner}

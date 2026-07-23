@@ -1,5 +1,6 @@
 import { Plus } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { StoreFooter, StoreHeaderPreview } from "@/components/store/store-chrome";
 import { LegacyHomepageContent } from "@/routes/index";
@@ -98,11 +99,13 @@ export function StudioCanvas({
   onAddSection: () => void;
   structuredMode?: boolean;
 }) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const frameDocumentRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const [sceneRoot, setSceneRoot] = useState<HTMLElement | null>(null);
   const [coordinateRoot, setCoordinateRoot] = useState<HTMLElement | null>(null);
+  const [frameRoot, setFrameRoot] = useState<HTMLElement | null>(null);
   const [snapGuides, setSnapGuides] = useState<{ x?: number; y?: number } | null>(null);
   const scale = zoom / 100;
   const canvasWidth = viewport === "mobile" ? 390 : 1440;
@@ -131,11 +134,10 @@ export function StudioCanvas({
 
   useEffect(() => {
     if (!sceneRoot) return;
-    const frame = sceneRoot.closest<HTMLElement>(".studio-canvas-frame");
-    if (!frame) return;
-    const frameRect = frame.getBoundingClientRect();
+    const scrollingElement = sceneRoot.ownerDocument.scrollingElement as HTMLElement | null;
+    if (!scrollingElement) return;
     const sceneRect = sceneRoot.getBoundingClientRect();
-    frame.scrollTop = Math.max(0, frame.scrollTop + sceneRect.top - frameRect.top - 24);
+    scrollingElement.scrollTop = Math.max(0, scrollingElement.scrollTop + sceneRect.top - 24);
   }, [sceneRoot, selectedRef.key, viewport]);
 
   const studioSession = useMemo<StudioBannerSession>(
@@ -265,47 +267,77 @@ export function StudioCanvas({
         className="studio-canvas-scale"
         style={{ width: `${canvasWidth * scale}px`, height: `${canvasHeight * scale}px` }}
       >
-        <div
+        <iframe
+          ref={iframeRef}
           className="studio-canvas-frame"
           role="region"
           aria-label={`${viewport} storefront preview`}
-          style={{ width: `${canvasWidth}px`, height: `${canvasHeight}px`, zoom: scale }}
-        >
-          <StudioSessionProvider value={studioSession}>
-            <div
-              ref={frameDocumentRef}
-              className="studio-frame-document"
-              onClickCapture={(event) => {
-                const target = event.target as HTMLElement;
-                if (target.closest("[data-studio-add-section]")) {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onAddSection();
-                  return;
-                }
-                const banner = target.closest<HTMLElement>("[data-editor-banner-key]");
-                const bannerKey = banner?.dataset.editorBannerKey;
-                event.preventDefault();
-                event.stopPropagation();
-                if (bannerKey) {
-                  onSelectBanner(bannerKey);
-                  onSelectLayers([]);
-                  onEditLayer(null);
-                  onCropLayer(null);
-                  onCropFill(null);
-                }
-              }}
-            >
-              <StorefrontFramePreview data={previewData} editMode onAddSection={onAddSection} />
-              <StudioSelection
-                host={coordinateRoot}
-                layers={structuredMode || cropLayerId || cropFillId ? [] : selectedLayers}
-                viewport={viewport}
-                onPatchLayer={onPatchLayer}
-              />
-            </div>
-          </StudioSessionProvider>
-        </div>
+          title={`${viewport} storefront preview`}
+          srcDoc="<!doctype html><html><head></head><body><div id='studio-frame-root'></div></body></html>"
+          width={canvasWidth}
+          height={canvasHeight}
+          style={{
+            width: `${canvasWidth}px`,
+            height: `${canvasHeight}px`,
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+          }}
+          onLoad={() => {
+            const iframe = iframeRef.current;
+            const document = iframe?.contentDocument;
+            if (!document) return;
+            document.documentElement.lang = "en";
+            document.documentElement.style.background = "#fff";
+            document.body.style.margin = "0";
+            document.body.style.background = "#fff";
+            const base = document.createElement("base");
+            base.href = window.location.origin;
+            document.head.append(base);
+            window.document.head
+              .querySelectorAll<HTMLLinkElement | HTMLStyleElement>('link[rel="stylesheet"], style')
+              .forEach((node) => document.head.append(node.cloneNode(true)));
+            setFrameRoot(document.getElementById("studio-frame-root"));
+          }}
+        />
+        {frameRoot
+          ? createPortal(
+              <StudioSessionProvider value={studioSession}>
+                <div
+                  ref={frameDocumentRef}
+                  className="studio-frame-document"
+                  onClickCapture={(event) => {
+                    const target = event.target as HTMLElement;
+                    if (target.closest("[data-studio-add-section]")) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onAddSection();
+                      return;
+                    }
+                    const banner = target.closest<HTMLElement>("[data-editor-banner-key]");
+                    const bannerKey = banner?.dataset.editorBannerKey;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (bannerKey) {
+                      onSelectBanner(bannerKey);
+                      onSelectLayers([]);
+                      onEditLayer(null);
+                      onCropLayer(null);
+                      onCropFill(null);
+                    }
+                  }}
+                >
+                  <StorefrontFramePreview data={previewData} editMode onAddSection={onAddSection} />
+                  <StudioSelection
+                    host={coordinateRoot}
+                    layers={structuredMode || cropLayerId || cropFillId ? [] : selectedLayers}
+                    viewport={viewport}
+                    onPatchLayer={onPatchLayer}
+                  />
+                </div>
+              </StudioSessionProvider>,
+              frameRoot,
+            )
+          : null}
       </div>
     </div>
   );

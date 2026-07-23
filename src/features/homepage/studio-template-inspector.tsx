@@ -1,4 +1,14 @@
-import { Copy, Image as ImageIcon, Layers3, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Copy,
+  Image as ImageIcon,
+  Layers3,
+  Plus,
+  Trash2,
+} from "lucide-react";
 
 import type { AdminCategory } from "@/services/adminService";
 import { HomepageImageInput } from "./homepage-image-field";
@@ -59,11 +69,19 @@ function ColourField({
 function InspectorHeader({
   title,
   kind,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
   onDuplicate,
   onDelete,
 }: {
   title: string;
   kind: string;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
@@ -74,6 +92,24 @@ function InspectorHeader({
         <span>{kind}</span>
       </div>
       <div>
+        <button
+          type="button"
+          title="Move up"
+          aria-label="Move banner up"
+          disabled={!canMoveUp}
+          onClick={onMoveUp}
+        >
+          <ChevronUp size={14} />
+        </button>
+        <button
+          type="button"
+          title="Move down"
+          aria-label="Move banner down"
+          disabled={!canMoveDown}
+          onClick={onMoveDown}
+        >
+          <ChevronDown size={14} />
+        </button>
         <button type="button" title="Duplicate" aria-label="Duplicate banner" onClick={onDuplicate}>
           <Copy size={14} />
         </button>
@@ -263,6 +299,13 @@ export function StudioTemplateInspector({
   data,
   selectedRef,
   categories,
+  heroPosition,
+  onSelectHero,
+  onAddHero,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
   onPatch,
   onDuplicate,
   onDelete,
@@ -270,6 +313,13 @@ export function StudioTemplateInspector({
   data: HomepageData;
   selectedRef: StudioBannerRef;
   categories: AdminCategory[];
+  heroPosition: { index: number; total: number } | null;
+  onSelectHero: (index: number) => void;
+  onAddHero: () => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
   onPatch: (patch: HomepageTemplatePatch) => void;
   onDuplicate: () => void;
   onDelete: () => void;
@@ -285,10 +335,49 @@ export function StudioTemplateInspector({
         <InspectorHeader
           title={slide.title || "Hero banner"}
           kind="Hero banner"
+          canMoveUp={canMoveUp}
+          canMoveDown={canMoveDown}
+          onMoveUp={onMoveUp}
+          onMoveDown={onMoveDown}
           onDuplicate={onDuplicate}
           onDelete={onDelete}
         />
         <div className="studio-template-scroll">
+          {heroPosition ? (
+            <nav className="studio-template-navigation" aria-label="Hero slides">
+              <span>
+                Slide {heroPosition.index + 1} of {heroPosition.total}
+              </span>
+              <div>
+                <button
+                  type="button"
+                  title="Previous hero"
+                  aria-label="Previous hero"
+                  disabled={heroPosition.index === 0}
+                  onClick={() => onSelectHero(heroPosition.index - 1)}
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <button
+                  type="button"
+                  title="Next hero"
+                  aria-label="Next hero"
+                  disabled={heroPosition.index === heroPosition.total - 1}
+                  onClick={() => onSelectHero(heroPosition.index + 1)}
+                >
+                  <ChevronRight size={14} />
+                </button>
+                <button
+                  type="button"
+                  title="Add hero"
+                  aria-label="Add hero banner"
+                  onClick={onAddHero}
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+            </nav>
+          ) : null}
           <HeroTemplate slide={slide} onPatch={onPatch} />
         </div>
       </aside>
@@ -305,6 +394,10 @@ export function StudioTemplateInspector({
         <InspectorHeader
           title={item.props.title || "Banner"}
           kind={withProducts ? "Banner + products" : "Banner only"}
+          canMoveUp={canMoveUp}
+          canMoveDown={canMoveDown}
+          onMoveUp={onMoveUp}
+          onMoveDown={onMoveDown}
           onDuplicate={onDuplicate}
           onDelete={onDelete}
         />
