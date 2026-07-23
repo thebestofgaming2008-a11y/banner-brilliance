@@ -32,8 +32,11 @@ export interface ProductInput {
   stock_quantity?: number | null;
   category?: string | null;
   category_id?: string | null;
+  highlights?: string[] | null;
   cover_image_url?: string | null;
   images?: string[];
+  media_fit?: "cover" | "contain" | null;
+  media_position?: string | null;
   hidden_image_urls?: string[];
   linked_product_ids?: string[];
   variant_label?: string | null;

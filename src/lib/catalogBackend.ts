@@ -22,8 +22,11 @@ export type BackendProduct = {
   category?: string | null;
   category_id?: string | null;
   tags?: string[] | null;
+  highlights?: string[] | null;
   cover_image_url?: string | null;
   images?: string[] | null;
+  media_fit?: "cover" | "contain" | null;
+  media_position?: string | null;
   hidden_image_urls?: string[] | null;
   linked_product_ids?: string[] | null;
   variant_label?: string | null;
@@ -77,6 +80,7 @@ export function localProductToBackend(product: Product): BackendProduct {
     category: collectionLabels[product.collection],
     category_id: product.collection,
     tags: [product.gender, ...tagForProduct(product)],
+    highlights: product.features,
     cover_image_url: product.images[0] ?? null,
     images: product.images,
     color_options: product.colors?.map((color) => color.name) ?? [],
@@ -169,13 +173,15 @@ export function backendProductToProduct(product: BackendProduct): Product {
     sizes: product.size_options?.length ? product.size_options : fallback?.sizes,
     short: product.short_description || fallback?.short || "",
     description: product.description || fallback?.description || product.short_description || "",
-    features: fallback?.features ?? [],
+    features: Array.isArray(product.highlights) ? product.highlights : (fallback?.features ?? []),
     materials: fallback?.materials ?? "",
     care: fallback?.care ?? "",
     // Public merchandising labels are omitted until they can be backed by real sales or dates.
     tag: undefined,
     inStock: product.in_stock !== false && Number(product.stock_quantity ?? 1) > 0,
     stockQuantity: Number(product.stock_quantity ?? 0),
+    mediaFit: product.media_fit === "contain" ? "contain" : "cover",
+    mediaPosition: product.media_position || "center",
   };
 }
 

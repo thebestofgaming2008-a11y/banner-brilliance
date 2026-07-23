@@ -455,7 +455,7 @@ export const upsertStorefrontBanner = mutation({
     const placement = cleanText(args.placement, 40);
     const imageUrl = cleanText(args.image_url, 1000);
     const overlayImageUrl = cleanText(args.overlay_image_url, 1000) || null;
-    const backgroundColor = cleanText(args.background_color, 20) || "#f4b400";
+    const backgroundColor = cleanText(args.background_color, 20) || "#F39A3B";
     const categorySlug = cleanText(args.category_slug, 80) || null;
     const buttonUrl = cleanText(args.button_url, 500) || null;
     if (!title) throw new Error("Banner title is required.");

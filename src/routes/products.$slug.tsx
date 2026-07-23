@@ -181,7 +181,7 @@ function ProductPage() {
             type="button"
             onClick={addToCart}
             disabled={!isCartReady || product.inStock === false}
-            className="h-10 shrink-0 bg-[#f4b400] px-5 text-[10px] font-bold uppercase disabled:cursor-not-allowed disabled:bg-black/10 md:px-8"
+            className="brand-mango-bg h-10 shrink-0 px-5 text-[10px] font-bold uppercase disabled:cursor-not-allowed disabled:bg-black/10 disabled:bg-none md:px-8"
           >
             {product.inStock === false ? "Out of stock" : added ? "Added" : "Add to cart"}
           </button>
@@ -193,14 +193,15 @@ function ProductPage() {
           {product.images.map((image, index) => (
             <figure
               key={`${image}-${index}`}
-              className="w-[88vw] shrink-0 snap-center overflow-hidden bg-white md:w-auto"
+              className={`w-[88vw] shrink-0 snap-center overflow-hidden bg-[#F7F7F5] md:w-auto ${index === 0 ? "md:col-span-2" : ""}`}
             >
               <div className="aspect-[3/4] overflow-hidden">
                 <img
                   src={image}
                   alt={`${product.name}, view ${index + 1}`}
                   loading={index === 0 ? "eager" : "lazy"}
-                  className={`h-full w-full ${product.mediaFit === "contain" ? "object-contain" : "object-cover"} ${product.imageClassName ?? ""}`}
+                  style={{ objectPosition: product.mediaPosition ?? "center" }}
+                  className={`h-full w-full ${product.mediaFit === "contain" ? "object-contain p-4 md:p-7" : "object-cover"} ${product.imageClassName ?? ""}`}
                 />
               </div>
             </figure>
@@ -273,7 +274,7 @@ function ProductPage() {
               type="button"
               onClick={addToCart}
               disabled={!isCartReady || product.inStock === false}
-              className="h-12 bg-[#f4b400] text-[11px] font-bold uppercase disabled:bg-black/10"
+              className="brand-mango-bg h-12 text-[11px] font-bold uppercase disabled:bg-black/10 disabled:bg-none"
             >
               {product.inStock === false ? "Out of stock" : added ? "Added to cart" : "Add to cart"}
             </button>
@@ -313,10 +314,11 @@ function ProductPage() {
 
       {related.length ? (
         <section
-          className="bg-[#f4b400] px-[22px] py-14 md:px-8 md:py-20"
+          className="border-t border-black/10 bg-white px-[22px] py-14 md:px-8 md:py-20"
           data-testid="related-products-section"
         >
           <div className="mx-auto max-w-[1180px]">
+            <div className="mb-5 h-1 w-16 brand-mango-bg" />
             <h2 className="section-heading text-[34px]">YOU MAY ALSO LIKE</h2>
             <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
               {related.map((item) => (

@@ -22,7 +22,7 @@ function ContactPage() {
   const [sent, setSent] = useState(false);
   return (
     <StorePage>
-      <section className="bg-[#f4b400] px-[22px] py-14 md:px-8 md:py-20">
+      <section className="brand-mango-bg px-[22px] py-14 md:px-8 md:py-20">
         <div className="mx-auto max-w-[1000px]" data-store-reveal>
           <p className="section-kicker text-black/55">Customer care</p>
           <h1 className="section-heading mt-3 text-[44px] md:text-[68px]">CONTACT US</h1>
@@ -131,7 +131,10 @@ function ContactPage() {
                     className="mt-2 w-full resize-none border border-black/20 p-3 text-[14px] font-normal outline-none focus:border-black"
                   />
                 </label>
-                <button type="submit" className="h-12 bg-[#f4b400] text-[11px] font-bold uppercase">
+                <button
+                  type="submit"
+                  className="brand-mango-bg h-12 text-[11px] font-bold uppercase"
+                >
                   Open WhatsApp
                 </button>
               </form>

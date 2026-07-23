@@ -19,7 +19,7 @@ export function InfoPage({
   useStoreReveal();
   return (
     <StorePage>
-      <section className="bg-[#f4b400] px-[22px] py-14 md:px-8 md:py-20">
+      <section className="brand-mango-bg px-[22px] py-14 md:px-8 md:py-20">
         <div className="mx-auto max-w-[960px]" data-store-reveal>
           <p className="section-kicker text-black/55">{eyebrow}</p>
           <h1 className="section-heading mt-3 text-[44px] md:text-[68px]">{title}</h1>
@@ -56,7 +56,7 @@ export function InfoPage({
                   <ul className="mt-5 space-y-3 text-[14px] text-black/65">
                     {section.bullets.map((bullet) => (
                       <li key={bullet} className="flex gap-3">
-                        <span className="mt-2 h-1.5 w-1.5 shrink-0 bg-[#f4b400]" />
+                        <span className="brand-mango-bg mt-2 h-1.5 w-1.5 shrink-0" />
                         {bullet}
                       </li>
                     ))}

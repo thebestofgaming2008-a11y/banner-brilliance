@@ -52,6 +52,8 @@ export type Product = {
   tag?: "Bestseller" | "New" | "Limited";
   inStock?: boolean;
   stockQuantity?: number;
+  mediaFit?: "cover" | "contain";
+  mediaPosition?: string;
 };
 
 export const catalog: Product[] = [

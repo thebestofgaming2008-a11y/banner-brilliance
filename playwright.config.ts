@@ -4,10 +4,11 @@ export default defineConfig({
   testDir: "./tests",
   timeout: 30_000,
   expect: { timeout: 10_000 },
+  workers: 2,
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command: "npx wrangler pages dev dist --port 5190",
+        command: "node scripts/run-pages-preview.mjs",
         url: "http://127.0.0.1:5190",
         reuseExistingServer: true,
         timeout: 120_000,

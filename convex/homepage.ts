@@ -5,31 +5,45 @@ import { nowIso, requireAdmin, writeAuditLog } from "./lib";
 const PAGE_KEY = "home";
 const MAX_DOCUMENT_BYTES = 750_000;
 const MAX_COMPONENTS = 40;
-const MAX_VERSIONS = 30;
-const ALLOWED_COMPONENTS = new Set([
-  "Hero",
-  "CollectionBanners",
-  "ProductGrid",
-  "SplitEditorial",
-  "CollectionFeature",
-  "PromoBanner",
-  "TextSection",
-  "Spacer",
-]);
+const MAX_VERSIONS = 15;
+const ALLOWED_COMPONENTS = new Set(["Hero", "CollectionFeature", "PromoBanner"]);
+
+function isVersion2Homepage(data: unknown): data is {
+  schemaVersion: 2;
+  content: Array<{ type: string; props: { id: string } }>;
+} {
+  if (!data || typeof data !== "object") return false;
+  const document = data as {
+    schemaVersion?: unknown;
+    content?: Array<{ type?: unknown; props?: { id?: unknown } }>;
+  };
+  if (document.schemaVersion !== 2 || !Array.isArray(document.content)) return false;
+  if (document.content.length < 1 || document.content[0]?.type !== "Hero") return false;
+  return document.content.every(
+    (component, index) =>
+      (index === 0 && component?.type === "Hero") ||
+      (index > 0 && (component?.type === "CollectionFeature" || component?.type === "PromoBanner")),
+  );
+}
 
 function validateValue(value: unknown, path: string, depth = 0): void {
-  if (depth > 8) throw new Error("Homepage content is nested too deeply.");
+  if (depth > 12) throw new Error("Homepage content is nested too deeply.");
   if (value == null || typeof value === "boolean" || typeof value === "number") return;
   if (typeof value === "string") {
     if (value.length > 4_000) throw new Error(`${path} is too long.`);
     const field = path.split(".").at(-1)?.toLowerCase() ?? "";
-    const isMediaOrLink = field === "image" || field.endsWith("image") || field.endsWith("url");
+    const isMediaOrLink =
+      field === "image" ||
+      field === "src" ||
+      field === "href" ||
+      field.endsWith("image") ||
+      field.endsWith("url");
     if (isMediaOrLink && value) {
       const safe = value.startsWith("/") || value.startsWith("#") || /^https:\/\//i.test(value);
       if (!safe) throw new Error(`${path} must use HTTPS or a site-relative URL.`);
     }
-    if (field.includes("color") && value && !/^#[0-9a-f]{6}$/i.test(value)) {
-      throw new Error(`${path} must be a six-digit hex colour.`);
+    if (field.includes("color") && value && !/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(value)) {
+      throw new Error(`${path} must be a six- or eight-digit hex colour.`);
     }
     return;
   }
@@ -52,13 +66,9 @@ function validateHomepageData(data: unknown) {
   if (encoded.length > MAX_DOCUMENT_BYTES) {
     throw new Error("Homepage content is too large. Remove unused sections or oversized text.");
   }
-  const document = data as {
-    root?: unknown;
-    content?: Array<{ type?: unknown; props?: { id?: unknown } }>;
-  };
-  if (!document || typeof document !== "object" || !Array.isArray(document.content)) {
-    throw new Error("Homepage document is invalid.");
-  }
+  if (!isVersion2Homepage(data))
+    throw new Error("Homepage document must use the focused editor schema version 2.");
+  const document = data;
   if (document.content.length > MAX_COMPONENTS) {
     throw new Error(`A homepage can contain at most ${MAX_COMPONENTS} sections.`);
   }
@@ -100,8 +110,14 @@ export const getEditorState = query({
       .order("desc")
       .take(MAX_VERSIONS);
     return {
-      draft: document?.draft_data ?? null,
-      published: document?.published_data ?? null,
+      draft: isVersion2Homepage(document?.draft_data) ? document?.draft_data : null,
+      published: null,
+      has_published: isVersion2Homepage(document?.published_data),
+      is_draft_published: document
+        ? document.published_revision != null
+          ? document.published_revision === document.draft_revision
+          : JSON.stringify(document.draft_data) === JSON.stringify(document.published_data)
+        : true,
       draft_revision: document?.draft_revision ?? 0,
       published_version: document?.published_version ?? 0,
       updated_at: document?.updated_at ?? null,
@@ -124,7 +140,7 @@ export const getPublished = query({
       .query("homepage_documents")
       .withIndex("by_page_key", (q) => q.eq("page_key", PAGE_KEY))
       .unique();
-    return document?.published_data ?? null;
+    return isVersion2Homepage(document?.published_data) ? document.published_data : null;
   },
 });
 
@@ -191,6 +207,7 @@ export const publish = mutation({
         published_data: data,
         draft_revision: revision,
         published_version: version,
+        published_revision: revision,
         updated_by: adminEmail,
         updated_at: timestamp,
         published_at: timestamp,
@@ -202,6 +219,7 @@ export const publish = mutation({
         published_data: data,
         draft_revision: revision,
         published_version: version,
+        published_revision: revision,
         updated_by: adminEmail,
         created_at: timestamp,
         updated_at: timestamp,
@@ -252,6 +270,7 @@ export const restoreVersion = mutation({
       published_data: data,
       draft_revision: revision,
       published_version: version,
+      published_revision: revision,
       updated_by: adminEmail,
       updated_at: timestamp,
       published_at: timestamp,
@@ -290,9 +309,41 @@ export const discardDraft = mutation({
     await ctx.db.patch(existing._id, {
       draft_data: existing.published_data,
       draft_revision: revision,
+      published_revision: revision,
       updated_by: adminEmail,
       updated_at: timestamp,
     });
     return { data: existing.published_data, revision, updated_at: timestamp };
+  },
+});
+
+export const resetToOriginalHomepage = mutation({
+  args: { token: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const setupToken = process.env.ADMIN_UPLOAD_TOKEN;
+    if (!setupToken || args.token !== setupToken) await requireAdmin(ctx);
+
+    const documents = await ctx.db
+      .query("homepage_documents")
+      .withIndex("by_page_key", (q) => q.eq("page_key", PAGE_KEY))
+      .collect();
+    const versions = await ctx.db
+      .query("homepage_versions")
+      .withIndex("by_page_key", (q) => q.eq("page_key", PAGE_KEY))
+      .collect();
+
+    await Promise.all([
+      ...documents.map((document) => ctx.db.delete(document._id)),
+      ...versions.map((version) => ctx.db.delete(version._id)),
+    ]);
+    await writeAuditLog(ctx, {
+      action: "homepage.reset_original",
+      entityType: "homepage",
+      entityId: PAGE_KEY,
+      summary: "Removed visual editor drafts and restored the original coded homepage",
+      metadata: { documentsDeleted: documents.length, versionsDeleted: versions.length },
+    });
+
+    return { documentsDeleted: documents.length, versionsDeleted: versions.length };
   },
 });

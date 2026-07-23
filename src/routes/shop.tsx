@@ -323,7 +323,7 @@ function ShopPage() {
                   >
                     {item.name}
                     {collection === item.slug ? (
-                      <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#f4b400]" />
+                      <span className="brand-mango-bg absolute inset-x-0 bottom-0 h-0.5" />
                     ) : null}
                   </button>
                 ))}

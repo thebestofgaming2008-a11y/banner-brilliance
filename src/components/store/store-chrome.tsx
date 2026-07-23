@@ -1,7 +1,6 @@
 import {
   ChevronRight,
   LayoutDashboard,
-  Menu,
   Minus,
   Plus,
   Search,
@@ -12,6 +11,7 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 
 import logoGold from "@/assets/fawzaan-logo-gold.png";
+import { MangoMenuIcon } from "@/components/store/mango-menu-icon";
 import { CurrencySelector } from "@/components/store/currency-selector";
 import { useAccount } from "@/lib/account";
 import { useCart } from "@/lib/cart";
@@ -33,7 +33,7 @@ function ChromeButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="grid h-8 w-8 place-items-center text-[#f4b400] transition-opacity hover:opacity-65"
+      className="grid h-9 w-9 place-items-center text-[#C85F22] transition-opacity hover:opacity-65"
     >
       {children}
     </button>
@@ -65,7 +65,7 @@ export function StoreHeader() {
       <header className="site-header sticky top-0 z-50 bg-white">
         <div className="relative mx-auto flex h-[65px] max-w-[1440px] items-center justify-between px-5 sm:px-6 md:px-8">
           <ChromeButton label="Open menu" onClick={() => setDrawer("menu")}>
-            <Menu size={24} />
+            <MangoMenuIcon />
           </ChromeButton>
           <a
             href="/"
@@ -77,19 +77,19 @@ export function StoreHeader() {
           <div className="flex items-center gap-2">
             {isAdmin ? (
               <a
-                href="/admin"
-                aria-label="Open admin dashboard"
-                title="Admin dashboard"
-                className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#f4b400]/40 px-2.5 text-[10px] font-bold uppercase text-[#a87800] transition hover:bg-[#fff7df] sm:px-3"
+                href="/admin?tab=homepage"
+                aria-label="Open homepage editor"
+                title="Open homepage editor"
+                className="inline-flex h-9 items-center gap-1.5 px-1.5 text-[10px] font-bold uppercase text-[#B95720] transition-opacity hover:opacity-65 sm:px-2"
               >
                 <LayoutDashboard size={15} />
-                <span className="hidden sm:inline">Admin</span>
+                <span>Edit</span>
               </a>
             ) : null}
             <ChromeButton label="Open cart" onClick={() => setDrawer("cart")}>
               <span className="relative">
                 <ShoppingBag size={23} />
-                <span className="absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full bg-[#f4b400] px-1 text-[9px] font-bold text-white">
+                <span className="brand-mango-bg absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9px] font-bold text-white">
                   {count}
                 </span>
               </span>
@@ -163,13 +163,6 @@ export function StoreHeader() {
             <li>
               <a href="/account">Account</a>
             </li>
-            {isAdmin ? (
-              <li>
-                <a href="/admin" className="inline-flex items-center gap-1.5 font-semibold">
-                  <LayoutDashboard size={14} /> Admin dashboard
-                </a>
-              </li>
-            ) : null}
             <li>
               <a href="/wishlist">Wishlist</a>
             </li>
@@ -277,7 +270,7 @@ export function StoreHeader() {
               <h2 className="mt-5 text-[22px] font-bold uppercase">Your cart is empty</h2>
               <a
                 href="/shop"
-                className="mt-6 bg-[#f4b400] px-6 py-3 text-[11px] font-bold uppercase"
+                className="brand-mango-bg mt-6 px-6 py-3 text-[11px] font-bold uppercase"
               >
                 Start shopping
               </a>
@@ -293,7 +286,7 @@ export function StoreHeader() {
             <p className="mt-2 text-[11px] text-black/50">Shipping calculated at checkout.</p>
             <a
               href="/cart"
-              className="mt-5 flex h-12 items-center justify-center bg-[#f4b400] text-[11px] font-bold uppercase"
+              className="brand-mango-bg mt-5 flex h-12 items-center justify-center text-[11px] font-bold uppercase"
             >
               View cart
             </a>
@@ -304,11 +297,34 @@ export function StoreHeader() {
   );
 }
 
+export function StoreHeaderPreview() {
+  return (
+    <header className="site-header sticky top-0 z-50 bg-white">
+      <div className="relative mx-auto flex h-[65px] max-w-[1440px] items-center justify-between px-5 sm:px-6 md:px-8">
+        <span className="grid h-9 w-9 place-items-center text-[#C85F22]" aria-hidden="true">
+          <MangoMenuIcon />
+        </span>
+        <span className="absolute left-1/2 top-1/2 h-[42px] w-[100px] -translate-x-1/2 -translate-y-1/2 sm:h-[44px] sm:w-[105px]">
+          <img src={logoGold} alt="Fawzaan" className="h-full w-full object-contain" />
+        </span>
+        <span className="grid h-9 w-9 place-items-center text-[#C85F22]" aria-hidden="true">
+          <span className="relative">
+            <ShoppingBag size={23} />
+            <span className="brand-mango-bg absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9px] font-bold text-white">
+              0
+            </span>
+          </span>
+        </span>
+      </div>
+    </header>
+  );
+}
+
 export function StoreFooter() {
   const { taxonomy } = useCatalogPresentation();
   const collections = taxonomy.filter((item) => item.type === "collection");
   return (
-    <footer className="border-t-[6px] border-[#f4b400] bg-black px-[22px] pb-7 pt-12 text-white md:px-8 md:pt-16">
+    <footer className="border-t-[6px] border-[#F18532] bg-black px-[22px] pb-7 pt-12 text-white md:px-8 md:pt-16">
       <div className="mx-auto grid max-w-[1120px] gap-11 md:grid-cols-[1.3fr_0.7fr_0.7fr_0.65fr] md:gap-12">
         <div>
           <img src={logoGold} alt="Fawzaan" className="h-14 w-auto" />
@@ -317,7 +333,7 @@ export function StoreFooter() {
           </p>
         </div>
         <div>
-          <h3 className="text-[11px] font-bold uppercase text-[#f4b400]">Shop</h3>
+          <h3 className="brand-mango-text text-[11px] font-bold uppercase">Shop</h3>
           <ul className="mt-5 space-y-3 text-[13px] text-white/65">
             <li>
               <a href="/shop">Shop all</a>
@@ -330,7 +346,7 @@ export function StoreFooter() {
           </ul>
         </div>
         <div>
-          <h3 className="text-[11px] font-bold uppercase text-[#f4b400]">Support</h3>
+          <h3 className="brand-mango-text text-[11px] font-bold uppercase">Support</h3>
           <ul className="mt-5 space-y-3 text-[13px] text-white/65">
             <li>
               <a href="/pages/shipping">Shipping</a>
@@ -353,7 +369,7 @@ export function StoreFooter() {
           </ul>
         </div>
         <div>
-          <h3 className="text-[11px] font-bold uppercase text-[#f4b400]">Region</h3>
+          <h3 className="brand-mango-text text-[11px] font-bold uppercase">Region</h3>
           <div className="mt-3 border-b border-white/20 pb-1">
             <CurrencySelector dark />
           </div>

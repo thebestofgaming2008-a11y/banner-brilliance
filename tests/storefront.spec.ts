@@ -55,6 +55,23 @@ test("home and live catalog render without browser errors", async ({ page }) => 
 
   await page.goto("/");
   await expect(page.getByRole("img", { name: "Fawzaan" }).first()).toBeVisible();
+  const hero = page.getByTestId("hero-slider");
+  await expect(hero).toHaveCSS("background-image", /linear-gradient/);
+  await expect(hero).toHaveCSS("touch-action", "pan-y");
+  const heroBox = await hero.boundingBox();
+  expect(heroBox).not.toBeNull();
+  if (heroBox) {
+    const pointerY = heroBox.y + Math.min(240, heroBox.height / 2);
+    await page.mouse.move(heroBox.x + heroBox.width * 0.72, pointerY);
+    await page.mouse.down();
+    await page.mouse.move(heroBox.x + heroBox.width * 0.28, pointerY, { steps: 8 });
+    await page.mouse.up();
+    await expect(hero.getByRole("button", { name: "Show AS-SALIHAAT SET" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    await expect(page).toHaveURL(/\/$/);
+  }
   await expect(page.getByRole("heading", { name: "SHOP ALL" })).toBeVisible();
   const managedFilter = presentation.taxonomy.find((item) => item.type === "filter");
   if (managedFilter) {
@@ -75,9 +92,21 @@ test("home and live catalog render without browser errors", async ({ page }) => 
 
 test("shop product cart and checkout path uses the live product", async ({ page }) => {
   const errors = watchPageErrors(page);
+  const catalogResponse = await page.request.get("/api/catalog/products");
+  const catalog = (await catalogResponse.json()) as Array<{
+    slug: string;
+    stock_quantity?: number;
+    is_active?: boolean;
+  }>;
+  const inStockProduct = catalog.find(
+    (product) => product.is_active !== false && Number(product.stock_quantity ?? 0) > 0,
+  );
+  expect(inStockProduct, "The live catalog needs at least one in-stock product").toBeTruthy();
   await page.goto("/shop", { waitUntil: "domcontentloaded", timeout: 60_000 });
   await expect(page.getByText(/^\d+ products$/).first()).toBeVisible();
-  const productLink = page.locator('article.store-product-card a[href^="/products/"]').first();
+  const productLink = page
+    .locator(`article.store-product-card a[href="/products/${inStockProduct!.slug}"]`)
+    .first();
   await expect(productLink).toBeVisible();
   const href = await productLink.getAttribute("href");
   const selectedSlug = href?.split("/products/")[1] ?? "";

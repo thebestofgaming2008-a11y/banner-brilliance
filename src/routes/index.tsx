@@ -1,10 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ChevronRight, Menu, Minus, Plus, Search, ShoppingBag, Star, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ChevronRight, Minus, Plus, Search, ShoppingBag, Star, X } from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 
 import { StoreFooter, StoreHeader } from "@/components/store/store-chrome";
 import { merchandiseProducts, type StoreProduct, useStoreProducts } from "@/data/store";
 import { HomepageRenderer } from "@/features/homepage/components";
+import { isHomepageEditorData } from "@/features/homepage/default-data";
+import type { HomepageData } from "@/features/homepage/types";
+import { MangoMenuIcon } from "@/components/store/mango-menu-icon";
 import { useCurrency } from "@/hooks/use-currency";
 import { useCatalogPresentation, type CatalogBanner } from "@/services/catalogPresentation";
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, seo } from "@/lib/seo";
@@ -12,7 +22,6 @@ import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, seo } from "@/lib/seo";
 import logoGold from "@/assets/fawzaan-logo-gold.png";
 import makkahGloves from "@/assets/collection-banners/makkah-gloves.jpg";
 import sabrWatchBlack from "@/assets/collection-banners/sabr-watch-black.jpg";
-import heroBg from "@/assets/figma-hero-bg.png";
 import heroNiqabFull from "@/assets/hero-products/hero-niqab-full.webp";
 import heroShemaghFull from "@/assets/hero-products/hero-shemagh-full.webp";
 import honeyAcacia from "@/assets/product-photos/honey-kashmir-acacia.jpg";
@@ -286,7 +295,7 @@ function IconButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`grid h-6 w-6 place-items-center text-[#f4b400] transition-opacity hover:opacity-70 ${className}`}
+      className={`grid h-9 w-9 place-items-center text-[#C85F22] transition-opacity hover:opacity-75 ${className}`}
     >
       {children}
     </button>
@@ -433,7 +442,7 @@ function Header() {
       >
         <div className="site-header__inner relative mx-auto flex h-[65px] w-full max-w-[1440px] items-center justify-between px-5 sm:px-8">
           <IconButton label="Open menu" onClick={() => setOpenDrawer("menu")}>
-            <Menu size={24} strokeWidth={2.2} />
+            <MangoMenuIcon />
           </IconButton>
 
           <a
@@ -450,7 +459,7 @@ function Header() {
 
           <IconButton label="Open cart" className="relative" onClick={() => setOpenDrawer("cart")}>
             <ShoppingBag size={24} strokeWidth={2} />
-            <span className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-[#f4b400] text-[10px] font-bold leading-none text-white">
+            <span className="brand-mango-bg absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full text-[10px] font-bold leading-none text-white">
               {quantities.reduce((total, quantity) => total + quantity, 0)}
             </span>
           </IconButton>
@@ -516,7 +525,7 @@ function Header() {
             ))}
           </ul>
         </nav>
-        <div className="bg-[#f4b400] px-6 py-5 text-[11px] font-bold uppercase text-black">
+        <div className="brand-mango-bg px-6 py-5 text-[11px] font-bold uppercase text-black">
           Premium modest essentials
         </div>
       </aside>
@@ -594,7 +603,7 @@ function Header() {
           <p className="mt-2 text-[11px] text-black/50">Shipping calculated at checkout.</p>
           <button
             type="button"
-            className="mt-5 h-12 w-full bg-[#f4b400] text-[11px] font-bold uppercase text-black"
+            className="brand-mango-bg mt-5 h-12 w-full text-[11px] font-bold uppercase text-black"
           >
             Checkout
           </button>
@@ -621,21 +630,12 @@ function HeroBanner({
 }) {
   return (
     <article
-      className="relative shrink-0 overflow-hidden bg-[#f5b90a]"
+      className="brand-mango-bg relative shrink-0 overflow-hidden"
       style={{
         width: `${100 / slideCount}%`,
         height: `clamp(560px, ${(FRAME_H / FRAME_W) * 100}vw, 820px)`,
       }}
     >
-      <img
-        src={heroBg}
-        alt=""
-        aria-hidden
-        loading={isPriority ? "eager" : "lazy"}
-        fetchPriority={isPriority ? "high" : "low"}
-        decoding="async"
-        className="absolute inset-0 h-full w-full object-cover"
-      />
       <a
         href={banner.href}
         aria-label={`Shop ${banner.title}`}
@@ -760,7 +760,7 @@ function ManagedHeroBanner({
       style={{
         width: `${100 / slideCount}%`,
         height: "clamp(560px, 145vw, 820px)",
-        backgroundColor: banner.background_color || "#f4b400",
+        backgroundColor: banner.background_color || "#F6AD32",
       }}
     >
       <ManagedBannerArtwork banner={banner} priority={isPriority} />
@@ -808,6 +808,10 @@ function ManagedHeroBanner({
 
 function HeroSlider() {
   const [active, setActive] = useState(0);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const drag = useRef<{ pointerId: number; startX: number; moved: boolean } | null>(null);
+  const suppressClick = useRef(false);
   const { banners: managedBanners } = useCatalogPresentation();
   const managedHeroBanners = managedBanners.filter(
     (banner) => banner.placement === "homepage_hero",
@@ -818,7 +822,7 @@ function HeroSlider() {
     : defaultHeroBanners.map((banner) => banner.title);
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (isDragging || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
     let timer: number | undefined;
 
@@ -848,19 +852,81 @@ function HeroSlider() {
       stopTimer();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [slideCount]);
+  }, [isDragging, slideCount]);
 
   useEffect(() => {
     setActive((current) => Math.min(current, Math.max(0, slideCount - 1)));
   }, [slideCount]);
 
+  const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    if (slideCount < 2 || event.button !== 0) return;
+    if ((event.target as HTMLElement).closest('[aria-label="Choose hero slide"]')) return;
+
+    drag.current = { pointerId: event.pointerId, startX: event.clientX, moved: false };
+    suppressClick.current = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsDragging(true);
+    setDragOffset(0);
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    const currentDrag = drag.current;
+    if (!currentDrag || currentDrag.pointerId !== event.pointerId) return;
+
+    const offset = event.clientX - currentDrag.startX;
+    if (Math.abs(offset) > 5) currentDrag.moved = true;
+    setDragOffset(offset);
+  };
+
+  const finishDrag = (event: ReactPointerEvent<HTMLElement>, cancelled = false) => {
+    const currentDrag = drag.current;
+    if (!currentDrag || currentDrag.pointerId !== event.pointerId) return;
+
+    const offset = event.clientX - currentDrag.startX;
+    const threshold = Math.min(96, Math.max(44, event.currentTarget.clientWidth * 0.12));
+    if (!cancelled && Math.abs(offset) >= threshold) {
+      const direction = offset < 0 ? 1 : -1;
+      setActive((current) => (current + direction + slideCount) % slideCount);
+    }
+
+    suppressClick.current = !cancelled && currentDrag.moved;
+    window.setTimeout(() => {
+      suppressClick.current = false;
+    }, 0);
+    drag.current = null;
+    setDragOffset(0);
+    setIsDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
   return (
-    <section className="relative overflow-hidden bg-[#f5b90a]" aria-label="Featured collections">
+    <section
+      className={`brand-mango-bg relative select-none overflow-hidden ${
+        isDragging ? "cursor-grabbing" : "cursor-grab"
+      }`}
+      aria-label="Featured collections"
+      data-testid="hero-slider"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={(event) => finishDrag(event)}
+      onPointerCancel={(event) => finishDrag(event, true)}
+      onClickCapture={(event) => {
+        if (!suppressClick.current) return;
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onDragStart={(event) => event.preventDefault()}
+      style={{ touchAction: "pan-y" }}
+    >
       <div
         className="hero-track flex"
+        data-hero-track
         style={{
           width: `${slideCount * 100}%`,
-          transform: `translate3d(-${active * (100 / slideCount)}%, 0, 0)`,
+          transform: `translate3d(calc(-${active * (100 / slideCount)}% + ${dragOffset}px), 0, 0)`,
+          transition: isDragging ? "none" : undefined,
         }}
       >
         {managedHeroBanners.length
@@ -1198,7 +1264,7 @@ function KufiCollection() {
   return (
     <section
       id="kufi-collection"
-      className="scroll-mt-[76px] bg-[#f4b400] px-[18px] py-12 md:px-8 md:py-20"
+      className="brand-mango-bg scroll-mt-[76px] px-[18px] py-12 md:px-8 md:py-20"
     >
       <div className="mx-auto grid max-w-[1120px] gap-4 md:grid-cols-[1.18fr_0.82fr] md:gap-5">
         <a
@@ -1324,7 +1390,7 @@ function ShopAllProducts() {
             >
               {filter.name}
               {selectedFilter.key === filter.key ? (
-                <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#f4b400]" />
+                <span className="brand-mango-bg absolute inset-x-0 bottom-0 h-0.5" />
               ) : null}
             </button>
           ))}
@@ -1547,7 +1613,7 @@ function WatchCollection() {
 
 function Footer() {
   return (
-    <footer className="border-t-[6px] border-[#f4b400] bg-black px-[22px] pb-7 pt-12 text-white md:px-8 md:pt-16">
+    <footer className="border-t-[6px] border-[#F18532] bg-black px-[22px] pb-7 pt-12 text-white md:px-8 md:pt-16">
       <div className="mx-auto grid max-w-[1120px] gap-11 md:grid-cols-[1.4fr_0.8fr_0.8fr] md:gap-16">
         <div>
           <img src={logoGold} alt="Fawzaan" className="h-14 w-auto object-contain" />
@@ -1556,7 +1622,7 @@ function Footer() {
           </p>
         </div>
         <div>
-          <h3 className="text-[11px] font-bold uppercase text-[#f4b400]">Shop</h3>
+          <h3 className="brand-mango-text text-[11px] font-bold uppercase">Shop</h3>
           <ul className="mt-5 space-y-3 text-[13px] text-white/65">
             <li>
               <a className="transition-colors hover:text-white" href="#shop-all">
@@ -1586,7 +1652,7 @@ function Footer() {
           </ul>
         </div>
         <div>
-          <h3 className="text-[11px] font-bold uppercase text-[#f4b400]">Support</h3>
+          <h3 className="brand-mango-text text-[11px] font-bold uppercase">Support</h3>
           <ul className="mt-5 space-y-3 text-[13px] text-white/65">
             <li>
               <a className="transition-colors hover:text-white" href="#">
@@ -1626,21 +1692,48 @@ function Index() {
   return (
     <main className="min-h-screen bg-white font-sans-ui text-black antialiased">
       <StoreHeader />
-      {homepage ? <HomepageRenderer data={homepage} /> : <LegacyHomepageContent />}
+      <LegacyHomepageContent homepage={homepage} />
       <StoreFooter />
     </main>
   );
 }
 
-function LegacyHomepageContent() {
+function editorSlice(data: HomepageData, mode: "hero" | "after-honey"): HomepageData {
+  return {
+    ...data,
+    content:
+      mode === "hero"
+        ? data.content.filter((item) => item.type === "Hero").slice(0, 1)
+        : data.content.filter(
+            (item) => item.type === "CollectionFeature" || item.type === "PromoBanner",
+          ),
+  };
+}
+
+export function LegacyHomepageContent({
+  homepage,
+  editMode = false,
+}: {
+  homepage?: HomepageData | null;
+  editMode?: boolean;
+}) {
+  const editorHomepage = isHomepageEditorData(homepage) ? homepage : null;
+  const customSections = editorHomepage ? editorSlice(editorHomepage, "after-honey") : null;
   return (
     <>
-      <HeroSlider />
+      {editorHomepage ? (
+        <HomepageRenderer data={editorSlice(editorHomepage, "hero")} editMode={editMode} />
+      ) : (
+        <HeroSlider />
+      )}
       <CollectionBanners />
       <ShopAllProducts />
       <ModestEssentials />
       <WatchCollection />
       <HoneyFeature />
+      {customSections?.content.length ? (
+        <HomepageRenderer data={customSections} editMode={editMode} />
+      ) : null}
       <ManagedCollectionSections />
       <ManagedHomepageBanners />
       <ExploreBeyond />

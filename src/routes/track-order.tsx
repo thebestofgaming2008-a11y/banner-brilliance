@@ -26,7 +26,7 @@ function TrackOrderPage() {
     <StorePage>
       <main className="mx-auto max-w-5xl px-[22px] py-12 md:px-8 md:py-20">
         <div className="grid overflow-hidden border border-black/10 md:grid-cols-[1.05fr_0.95fr]">
-          <section className="bg-[#f4b400] p-8 md:p-12">
+          <section className="brand-mango-bg p-8 md:p-12">
             <p className="section-kicker text-black/55">Order tracking</p>
             <h1 className="section-heading mt-3 text-[46px] leading-[0.95] md:text-[64px]">
               WHERE IS MY ORDER?
