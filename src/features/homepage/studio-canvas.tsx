@@ -1,3 +1,4 @@
+import { Plus } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { StoreFooter, StoreHeaderPreview } from "@/components/store/store-chrome";
@@ -26,14 +27,24 @@ function editorPreviewData(data: HomepageData, selectedRef: StudioBannerRef) {
 export function StorefrontFramePreview({
   data,
   editMode = false,
+  onAddSection,
 }: {
   data: HomepageData;
   editMode?: boolean;
+  onAddSection?: () => void;
 }) {
   return (
     <div className="studio-storefront-page min-h-screen bg-white font-sans-ui text-black">
       <StoreHeaderPreview />
       <LegacyHomepageContent homepage={data} editMode={editMode} />
+      {editMode && onAddSection ? (
+        <section className="studio-inline-add-section">
+          <button type="button" data-studio-add-section onClick={onAddSection}>
+            <Plus size={26} />
+            <span>Add homepage section</span>
+          </button>
+        </section>
+      ) : null}
       <StoreFooter />
     </div>
   );
@@ -59,6 +70,8 @@ export function StudioCanvas({
   onPatchLayer,
   onCropChange,
   onBackgroundCropChange,
+  onAddSection,
+  structuredMode = false,
 }: {
   data: HomepageData;
   selectedRef: StudioBannerRef;
@@ -82,6 +95,8 @@ export function StudioCanvas({
     id: string,
     patch: Pick<BannerFill, "offsetX" | "offsetY" | "zoom">,
   ) => void;
+  onAddSection: () => void;
+  structuredMode?: boolean;
 }) {
   const frameDocumentRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -116,7 +131,11 @@ export function StudioCanvas({
 
   useEffect(() => {
     if (!sceneRoot) return;
-    sceneRoot.scrollIntoView({ block: "center", behavior: "auto" });
+    const frame = sceneRoot.closest<HTMLElement>(".studio-canvas-frame");
+    if (!frame) return;
+    const frameRect = frame.getBoundingClientRect();
+    const sceneRect = sceneRoot.getBoundingClientRect();
+    frame.scrollTop = Math.max(0, frame.scrollTop + sceneRect.top - frameRect.top - 24);
   }, [sceneRoot, selectedRef.key, viewport]);
 
   const studioSession = useMemo<StudioBannerSession>(
@@ -128,7 +147,7 @@ export function StudioCanvas({
       cropLayerId,
       cropFillId,
       snapGuides,
-      interactionDisabled: activeTool !== "select",
+      interactionDisabled: structuredMode || activeTool !== "select",
       onSelectLayer: (id, additive) => {
         onEditLayer(null);
         onCropFill(null);
@@ -207,6 +226,7 @@ export function StudioCanvas({
       snapGuides,
       selectedLayerIds,
       selectedRef.key,
+      structuredMode,
       viewport,
     ],
   );
@@ -214,7 +234,7 @@ export function StudioCanvas({
   return (
     <div
       ref={stageRef}
-      className={`studio-canvas-stage ${activeTool === "hand" ? "is-panning" : ""}`}
+      className={`studio-canvas-stage ${activeTool === "hand" ? "is-panning" : ""} ${structuredMode ? "is-structured" : ""}`}
       data-viewport={viewport}
       onPointerDown={(event) => {
         if (activeTool !== "hand" || !stageRef.current) return;
@@ -257,9 +277,14 @@ export function StudioCanvas({
               className="studio-frame-document"
               onClickCapture={(event) => {
                 const target = event.target as HTMLElement;
+                if (target.closest("[data-studio-add-section]")) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onAddSection();
+                  return;
+                }
                 const banner = target.closest<HTMLElement>("[data-editor-banner-key]");
                 const bannerKey = banner?.dataset.editorBannerKey;
-                if (bannerKey === selectedRef.key) return;
                 event.preventDefault();
                 event.stopPropagation();
                 if (bannerKey) {
@@ -271,10 +296,10 @@ export function StudioCanvas({
                 }
               }}
             >
-              <StorefrontFramePreview data={previewData} editMode />
+              <StorefrontFramePreview data={previewData} editMode onAddSection={onAddSection} />
               <StudioSelection
                 host={coordinateRoot}
-                layers={cropLayerId || cropFillId ? [] : selectedLayers}
+                layers={structuredMode || cropLayerId || cropFillId ? [] : selectedLayers}
                 viewport={viewport}
                 onPatchLayer={onPatchLayer}
               />

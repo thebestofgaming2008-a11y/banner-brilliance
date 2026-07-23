@@ -244,6 +244,18 @@ export function sceneFromHero(slide: HeroSlide, index = 0): BannerScene {
           },
           "h1",
         ),
+        textLayer("body", "Subtitle", slide.body, {
+          x: (titleFrame.left / 390) * 100,
+          y: ((titleFrame.top + 58) / 649) * 100,
+          width: (titleFrame.width / 390) * 100,
+          height: 5,
+          fontFamily: "schibsted",
+          fontSize: (14 / 649) * 820,
+          fontWeight: 500,
+          lineHeight: 1.2,
+          textAlign: "center",
+          color,
+        }),
         buttonLayer("button", slide.buttonLabel || "Shop the collection", slide.buttonUrl, {
           x: (25 / 390) * 100,
           y: (614 / 649) * 100,
@@ -258,10 +270,10 @@ export function sceneFromHero(slide: HeroSlide, index = 0): BannerScene {
           paddingY: 0,
         }),
       ].map((layer) =>
-        layer.id === "title"
+        layer.id === "title" || layer.id === "body"
           ? {
               ...layer,
-              mobileStyle: { fontSize: 52 },
+              mobileStyle: { fontSize: layer.id === "title" ? 52 : 14 },
             }
           : layer,
       ),
@@ -639,27 +651,27 @@ export function createLayer(type: BannerLayer["type"], order: number): BannerLay
 
 export function createHeroSlide(index: number): HeroSlide {
   const slide: HeroSlide = {
-    eyebrow: "New collection",
-    title: `HERO SLIDE ${index + 1}`,
-    body: "",
-    buttonLabel: "Shop collection",
+    eyebrow: "",
+    title: `NEW COLLECTION ${index + 1}`,
+    body: "Discover the latest collection",
+    buttonLabel: "Shop the collection",
     buttonUrl: "/shop",
     backgroundImage: "",
     foregroundImage: "",
     backgroundColor: "#F6AD32",
     imageFocus: "center",
     gradient: { ...DEFAULT_HERO_GRADIENT },
-    layout: "banner",
-    textAlign: "left",
+    layout: "original",
+    textAlign: "center",
     textTone: "light",
     titleFont: "display",
-    titleSize: 76,
-    mobileTitleSize: 48,
+    titleSize: 52,
+    mobileTitleSize: 52,
     contentWidth: 650,
     contentOffsetX: 6,
     contentOffsetY: 9,
     foregroundScale: 100,
-    overlayOpacity: 12,
+    overlayOpacity: 0,
   };
   slide.scene = sceneFromHero(slide, index);
   return slide;

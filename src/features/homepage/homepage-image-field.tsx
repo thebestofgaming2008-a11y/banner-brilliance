@@ -50,12 +50,14 @@ export function HomepageImageInput({
   readOnly,
   compact = false,
   allowDestructiveCrop = true,
+  inputLabel = "Image URL",
 }: {
   value: string;
   onChange: (value: string) => void;
   readOnly?: boolean;
   compact?: boolean;
   allowDestructiveCrop?: boolean;
+  inputLabel?: string;
 }) {
   const [uploading, setUploading] = useState(false);
   const [cropOpen, setCropOpen] = useState(false);
@@ -110,6 +112,7 @@ export function HomepageImageInput({
       <input
         type="url"
         value={value ?? ""}
+        aria-label={inputLabel}
         readOnly={readOnly}
         onChange={(event) => onChange(event.target.value)}
         placeholder="Paste an image URL"

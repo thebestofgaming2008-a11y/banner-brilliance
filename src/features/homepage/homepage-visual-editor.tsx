@@ -10,7 +10,6 @@ import {
   Copy,
   Crop,
   Eye,
-  Frame,
   GripVertical,
   Hand,
   History,
@@ -59,6 +58,7 @@ import {
 } from "./default-data";
 import { StorefrontFramePreview, StudioCanvas } from "./studio-canvas";
 import { StudioInspector } from "./studio-inspector";
+import { StudioTemplateInspector, type HomepageTemplatePatch } from "./studio-template-inspector";
 import {
   createCollectionWithProducts,
   createHeroSlide,
@@ -68,6 +68,9 @@ import {
   ensureHomepageScenes,
   getScene,
   listStudioBanners,
+  sceneFromCollectionFeature,
+  sceneFromHero,
+  sceneFromPromo,
   updateScene,
   type StudioBannerRef,
 } from "./studio-model";
@@ -84,6 +87,7 @@ import type {
 const LOCAL_BACKUP_KEY = "fawzaan.homepage-studio.local-v4";
 const LEGACY_BACKUP_KEYS = ["fawzaan.homepage-studio.local-v3"];
 const HISTORY_LIMIT = 80;
+const ADVANCED_LAYOUT_TOOLS = false;
 
 type LocalBackup = { revision?: number; savedAt?: string; data?: HomepageData };
 
@@ -259,7 +263,6 @@ export function HomepageVisualEditor({
   const [activeTool, setActiveTool] = useState<"select" | "hand">("select");
   const [draggedBannerKey, setDraggedBannerKey] = useState<string | null>(null);
   const [draggedLayerId, setDraggedLayerId] = useState<string | null>(null);
-  const addWrapRef = useRef<HTMLDivElement>(null);
   const cropSnapshotRef = useRef<CropSnapshot | null>(null);
   const pastRef = useRef<HomepageData[]>([]);
   const futureRef = useRef<HomepageData[]>([]);
@@ -358,15 +361,6 @@ export function HomepageVisualEditor({
     }, 700);
     return () => window.clearTimeout(timer);
   }, [data, dirty]);
-
-  useEffect(() => {
-    if (!addOpen) return;
-    const close = (event: PointerEvent) => {
-      if (!addWrapRef.current?.contains(event.target as Node)) setAddOpen(false);
-    };
-    document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
-  }, [addOpen]);
 
   const setHistoryCounts = () =>
     setHistoryState({ past: pastRef.current.length, future: futureRef.current.length });
@@ -829,6 +823,44 @@ export function HomepageVisualEditor({
     commit(next, true);
   };
 
+  const patchSelectedTemplate = (patch: HomepageTemplatePatch) => {
+    const current = dataRef.current;
+    if (!current || !selectedRef) return;
+    const next = clone(current);
+    const item = next.content.find((entry) => entry.props.id === selectedRef.itemId);
+    if (!item) return;
+
+    if (selectedRef.kind === "hero" && item.type === "Hero") {
+      const index = selectedRef.index ?? 0;
+      const slide = item.props.slides[index];
+      if (!slide) return;
+      Object.assign(slide, patch);
+      slide.layout = "original";
+      slide.textAlign = "center";
+      slide.textTone = "light";
+      slide.titleFont = "display";
+      slide.buttonLabel = "Shop the collection";
+      slide.scene = sceneFromHero(slide, index);
+    } else if (selectedRef.kind === "collection-feature" && item.type === "CollectionFeature") {
+      Object.assign(item.props, patch);
+      item.props.layout = "banner-top";
+      item.props.textAlign = "left";
+      item.props.textTone = "light";
+      item.props.titleFont = "sans";
+      item.props.buttonLabel = "Shop collection";
+      item.props.productLimit = 4;
+      item.props.scene = sceneFromCollectionFeature(item.props);
+    } else if (selectedRef.kind === "standalone" && item.type === "PromoBanner") {
+      Object.assign(item.props, patch);
+      item.props.textAlign = "left";
+      item.props.textTone = "light";
+      item.props.titleFont = "sans";
+      item.props.buttonLabel = "Shop collection";
+      item.props.scene = sceneFromPromo(item.props);
+    }
+    commit(next, true);
+  };
+
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -1112,21 +1144,25 @@ export function HomepageVisualEditor({
           <IconButton label="Redo" disabled={!historyState.future} onClick={redo}>
             <Redo2 size={17} />
           </IconButton>
-          <span className="studio-divider" />
-          <IconButton
-            label="Align horizontal centers"
-            disabled={!selectedLayerIds.length}
-            onClick={() => alignSelected("horizontal")}
-          >
-            <AlignCenterHorizontal size={17} />
-          </IconButton>
-          <IconButton
-            label="Align vertical centers"
-            disabled={!selectedLayerIds.length}
-            onClick={() => alignSelected("vertical")}
-          >
-            <AlignCenterVertical size={17} />
-          </IconButton>
+          {ADVANCED_LAYOUT_TOOLS ? (
+            <>
+              <span className="studio-divider" />
+              <IconButton
+                label="Align horizontal centers"
+                disabled={!selectedLayerIds.length}
+                onClick={() => alignSelected("horizontal")}
+              >
+                <AlignCenterHorizontal size={17} />
+              </IconButton>
+              <IconButton
+                label="Align vertical centers"
+                disabled={!selectedLayerIds.length}
+                onClick={() => alignSelected("vertical")}
+              >
+                <AlignCenterVertical size={17} />
+              </IconButton>
+            </>
+          ) : null}
         </div>
         <div className="studio-topbar__right">
           <button
@@ -1214,19 +1250,23 @@ export function HomepageVisualEditor({
           >
             <Hand size={18} />
           </IconButton>
-          <span className="studio-divider" />
-          <IconButton label="Text" onClick={() => addLayer("text")}>
-            <Type size={18} />
-          </IconButton>
-          <IconButton label="Image" onClick={() => addLayer("image")}>
-            <ImageIcon size={18} />
-          </IconButton>
-          <IconButton label="Button" onClick={() => addLayer("button")}>
-            <RectangleHorizontal size={18} />
-          </IconButton>
-          <IconButton label="Rectangle" onClick={() => addLayer("shape")}>
-            <RectangleHorizontal size={18} />
-          </IconButton>
+          {ADVANCED_LAYOUT_TOOLS ? (
+            <>
+              <span className="studio-divider" />
+              <IconButton label="Text" onClick={() => addLayer("text")}>
+                <Type size={18} />
+              </IconButton>
+              <IconButton label="Image" onClick={() => addLayer("image")}>
+                <ImageIcon size={18} />
+              </IconButton>
+              <IconButton label="Button" onClick={() => addLayer("button")}>
+                <RectangleHorizontal size={18} />
+              </IconButton>
+              <IconButton label="Rectangle" onClick={() => addLayer("shape")}>
+                <RectangleHorizontal size={18} />
+              </IconButton>
+            </>
+          ) : null}
         </nav>
 
         {leftOpen ? (
@@ -1239,13 +1279,15 @@ export function HomepageVisualEditor({
               >
                 File
               </button>
-              <button
-                type="button"
-                className={leftTab === "assets" ? "is-active" : ""}
-                onClick={() => setLeftTab("assets")}
-              >
-                Assets
-              </button>
+              {ADVANCED_LAYOUT_TOOLS ? (
+                <button
+                  type="button"
+                  className={leftTab === "assets" ? "is-active" : ""}
+                  onClick={() => setLeftTab("assets")}
+                >
+                  Assets
+                </button>
+              ) : null}
             </div>
             {leftTab !== "assets" ? (
               <div className="studio-left-scroll">
@@ -1253,6 +1295,9 @@ export function HomepageVisualEditor({
                   <div className="studio-pages-header">
                     <span>Hero slides</span>
                     <div>
+                      <IconButton label="Add hero banner" onClick={addHero}>
+                        <Plus size={14} />
+                      </IconButton>
                       <IconButton label="Move banner up" onClick={() => moveBanner(-1)}>
                         <ChevronUp size={14} />
                       </IconButton>
@@ -1352,75 +1397,77 @@ export function HomepageVisualEditor({
                     ) : null}
                   </div>
                 </>
-                <>
-                  <div className="studio-layer-header">
-                    <span>{selectedRef.label} layers</span>
-                    <small>{scene.layers.length}</small>
-                  </div>
-                  <div className="studio-layer-list">
-                    {[...scene.layers].reverse().map((layer) => {
-                      const style =
-                        viewport === "mobile"
-                          ? { ...layer.style, ...(layer.mobileStyle ?? {}) }
-                          : layer.style;
-                      return (
-                        <div
-                          key={layer.id}
-                          draggable
-                          className={`studio-layer-row ${selectedLayerIds.includes(layer.id) ? "is-active" : ""}`}
-                          onDragStart={() => setDraggedLayerId(layer.id)}
-                          onDragOver={(event) => event.preventDefault()}
-                          onDrop={() => {
-                            if (draggedLayerId) reorderLayer(draggedLayerId, layer.id);
-                            setDraggedLayerId(null);
-                          }}
-                        >
-                          <button
-                            type="button"
-                            className="studio-layer-select"
-                            onClick={(event) => {
-                              setCropLayerId(null);
-                              setCropFillId(null);
-                              setEditingLayerId(null);
-                              setSelectedLayerIds(
-                                event.shiftKey
-                                  ? [...new Set([...selectedLayerIds, layer.id])]
-                                  : [layer.id],
-                              );
+                {ADVANCED_LAYOUT_TOOLS ? (
+                  <>
+                    <div className="studio-layer-header">
+                      <span>{selectedRef.label} layers</span>
+                      <small>{scene.layers.length}</small>
+                    </div>
+                    <div className="studio-layer-list">
+                      {[...scene.layers].reverse().map((layer) => {
+                        const style =
+                          viewport === "mobile"
+                            ? { ...layer.style, ...(layer.mobileStyle ?? {}) }
+                            : layer.style;
+                        return (
+                          <div
+                            key={layer.id}
+                            draggable
+                            className={`studio-layer-row ${selectedLayerIds.includes(layer.id) ? "is-active" : ""}`}
+                            onDragStart={() => setDraggedLayerId(layer.id)}
+                            onDragOver={(event) => event.preventDefault()}
+                            onDrop={() => {
+                              if (draggedLayerId) reorderLayer(draggedLayerId, layer.id);
+                              setDraggedLayerId(null);
                             }}
                           >
-                            {layer.type === "text" ? (
-                              <Type size={14} />
-                            ) : layer.type === "image" ? (
-                              <ImageIcon size={14} />
-                            ) : layer.type === "button" ? (
-                              <RectangleHorizontal size={14} />
-                            ) : (
-                              <Circle size={14} />
-                            )}
-                            <span>{layer.name}</span>
-                          </button>
-                          <span className="studio-layer-actions">
                             <button
                               type="button"
-                              aria-label={`${style.visible ? "Hide" : "Show"} ${layer.name}`}
-                              onClick={() => patchLayer(layer.id, { visible: !style.visible })}
+                              className="studio-layer-select"
+                              onClick={(event) => {
+                                setCropLayerId(null);
+                                setCropFillId(null);
+                                setEditingLayerId(null);
+                                setSelectedLayerIds(
+                                  event.shiftKey
+                                    ? [...new Set([...selectedLayerIds, layer.id])]
+                                    : [layer.id],
+                                );
+                              }}
                             >
-                              {style.visible ? <Eye size={12} /> : <Minus size={12} />}
+                              {layer.type === "text" ? (
+                                <Type size={14} />
+                              ) : layer.type === "image" ? (
+                                <ImageIcon size={14} />
+                              ) : layer.type === "button" ? (
+                                <RectangleHorizontal size={14} />
+                              ) : (
+                                <Circle size={14} />
+                              )}
+                              <span>{layer.name}</span>
                             </button>
-                            <button
-                              type="button"
-                              aria-label={`${style.locked ? "Unlock" : "Lock"} ${layer.name}`}
-                              onClick={() => patchLayer(layer.id, { locked: !style.locked })}
-                            >
-                              {style.locked ? <Lock size={12} /> : <Unlock size={12} />}
-                            </button>
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
+                            <span className="studio-layer-actions">
+                              <button
+                                type="button"
+                                aria-label={`${style.visible ? "Hide" : "Show"} ${layer.name}`}
+                                onClick={() => patchLayer(layer.id, { visible: !style.visible })}
+                              >
+                                {style.visible ? <Eye size={12} /> : <Minus size={12} />}
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={`${style.locked ? "Unlock" : "Lock"} ${layer.name}`}
+                                onClick={() => patchLayer(layer.id, { locked: !style.locked })}
+                              >
+                                {style.locked ? <Lock size={12} /> : <Unlock size={12} />}
+                              </button>
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : null}
               </div>
             ) : (
               <div className="studio-assets-panel">
@@ -1463,19 +1510,19 @@ export function HomepageVisualEditor({
               <span>Homepage</span>
               <ChevronRight size={13} />
               <strong>{selectedRef.label}</strong>
-              {selectedLayerIds.length ? (
+              {ADVANCED_LAYOUT_TOOLS && selectedLayerIds.length ? (
                 <>
                   <ChevronRight size={13} />
                   <span>{selectedLayers.map((layer) => layer.name).join(", ")}</span>
                 </>
-              ) : (
+              ) : ADVANCED_LAYOUT_TOOLS ? (
                 <>
                   <ChevronRight size={13} />
                   <span>Background</span>
                 </>
-              )}
+              ) : null}
             </div>
-            {cropLayerId || cropFillId ? (
+            {ADVANCED_LAYOUT_TOOLS && (cropLayerId || cropFillId) ? (
               <div className="studio-modebar" aria-label="Crop controls">
                 <button type="button" onClick={cancelCrop}>
                   <X size={14} /> Cancel
@@ -1525,66 +1572,6 @@ export function HomepageVisualEditor({
                 <Monitor size={16} />
               </IconButton>
             </div>
-            <div className="studio-add-wrap" ref={addWrapRef}>
-              <button
-                type="button"
-                className="studio-add-button"
-                onClick={() => setAddOpen((value) => !value)}
-              >
-                <Plus size={15} /> Add
-              </button>
-              {addOpen ? (
-                <div className="studio-add-menu" role="menu" aria-label="Add homepage content">
-                  <header>
-                    <strong>Add to homepage</strong>
-                    <button
-                      type="button"
-                      aria-label="Close add menu"
-                      onClick={() => setAddOpen(false)}
-                    >
-                      <X size={14} />
-                    </button>
-                  </header>
-                  <small className="studio-add-menu__group">Hero carousel</small>
-                  <button type="button" onClick={addHero}>
-                    <Frame size={17} />
-                    <span>
-                      <strong>Hero slide</strong>
-                      <small>Joins the animated carousel</small>
-                    </span>
-                  </button>
-                  <small className="studio-add-menu__group">After Honey</small>
-                  <button type="button" onClick={() => addSection("standalone")}>
-                    <ImageIcon size={17} />
-                    <span>
-                      <strong>Banner only</strong>
-                      <small>Full-width collection banner</small>
-                    </span>
-                  </button>
-                  <button type="button" onClick={() => addSection("collection")}>
-                    <Layers3 size={17} />
-                    <span>
-                      <strong>Banner above products</strong>
-                      <small>Horizontal banner, product grid below</small>
-                    </span>
-                  </button>
-                  <button type="button" onClick={() => addSection("collection", "banner-left")}>
-                    <Layers3 size={17} />
-                    <span>
-                      <strong>Banner left</strong>
-                      <small>Banner left, products right</small>
-                    </span>
-                  </button>
-                  <button type="button" onClick={() => addSection("collection", "banner-right")}>
-                    <Layers3 size={17} />
-                    <span>
-                      <strong>Banner right</strong>
-                      <small>Products left, banner right</small>
-                    </span>
-                  </button>
-                </div>
-              ) : null}
-            </div>
           </div>
           <StudioCanvas
             data={data}
@@ -1619,6 +1606,8 @@ export function HomepageVisualEditor({
                 true,
               )
             }
+            onAddSection={() => setAddOpen(true)}
+            structuredMode={!ADVANCED_LAYOUT_TOOLS}
           />
           <div className="studio-zoom-control">
             <IconButton
@@ -1639,24 +1628,78 @@ export function HomepageVisualEditor({
           </div>
         </main>
 
-        <StudioInspector
-          scene={scene}
-          selectedLayers={selectedLayers}
-          viewport={viewport}
-          cropLayerId={cropLayerId}
-          cropFillId={cropFillId}
-          onUpdateScene={(next) => mutateScene(() => next, true)}
-          onPatchLayer={patchLayer}
-          onPatchLayerContent={patchLayerContent}
-          onDeleteLayer={(id) => deleteLayers([id])}
-          onDuplicateLayer={duplicateLayer}
-          onMoveLayer={moveLayer}
-          onCropLayer={(id) => (id ? beginLayerCrop(id) : finishCrop())}
-          onCropFill={(id) => (id ? beginFillCrop(id) : finishCrop())}
-          sectionSettings={sectionSettings}
-          prototypeSettings={prototypeSettings}
-        />
+        {ADVANCED_LAYOUT_TOOLS ? (
+          <StudioInspector
+            scene={scene}
+            selectedLayers={selectedLayers}
+            viewport={viewport}
+            cropLayerId={cropLayerId}
+            cropFillId={cropFillId}
+            onUpdateScene={(next) => mutateScene(() => next, true)}
+            onPatchLayer={patchLayer}
+            onPatchLayerContent={patchLayerContent}
+            onDeleteLayer={(id) => deleteLayers([id])}
+            onDuplicateLayer={duplicateLayer}
+            onMoveLayer={moveLayer}
+            onCropLayer={(id) => (id ? beginLayerCrop(id) : finishCrop())}
+            onCropFill={(id) => (id ? beginFillCrop(id) : finishCrop())}
+            sectionSettings={sectionSettings}
+            prototypeSettings={prototypeSettings}
+          />
+        ) : (
+          <StudioTemplateInspector
+            data={data}
+            selectedRef={selectedRef}
+            categories={categories}
+            onPatch={patchSelectedTemplate}
+            onDuplicate={duplicateBanner}
+            onDelete={deleteBanner}
+          />
+        )}
       </div>
+
+      {addOpen ? (
+        <div
+          className="studio-modal-backdrop studio-template-add-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Add homepage section"
+          onMouseDown={() => setAddOpen(false)}
+        >
+          <div
+            className="studio-template-add-dialog"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header>
+              <div>
+                <h2>Add homepage section</h2>
+                <p>New sections appear after Honey.</p>
+              </div>
+              <button type="button" aria-label="Close" onClick={() => setAddOpen(false)}>
+                <X size={17} />
+              </button>
+            </header>
+            <div className="studio-template-add-options">
+              <button type="button" onClick={() => addSection("standalone")}>
+                <ImageIcon size={21} />
+                <span>
+                  <strong>Banner only</strong>
+                  <small>A fixed full-width promotional banner.</small>
+                </span>
+                <ChevronRight size={17} />
+              </button>
+              <button type="button" onClick={() => addSection("collection")}>
+                <Layers3 size={21} />
+                <span>
+                  <strong>Banner + product row</strong>
+                  <small>A fixed banner with collection products underneath.</small>
+                </span>
+                <ChevronRight size={17} />
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {previewOpen ? (
         <div

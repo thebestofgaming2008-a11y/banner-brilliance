@@ -195,7 +195,9 @@ export function BannerSceneView({
   const resolvedViewport = useSceneViewport(studioViewport ?? viewport);
   const height = resolvedViewport === "mobile" ? scene.mobileHeight : scene.height;
   const fills = useMemo(() => scene.fills.filter((fill) => fill.enabled), [scene.fills]);
-  const backgroundSelected = Boolean(studio && studio.selectedLayerIds.length === 0);
+  const backgroundSelected = Boolean(
+    studio && !studio.interactionDisabled && studio.selectedLayerIds.length === 0,
+  );
 
   return (
     <div
@@ -205,6 +207,7 @@ export function BannerSceneView({
       data-editor-banner-key={editorKey}
       data-editor-active={studio ? "true" : undefined}
       onPointerDown={(event) => {
+        if (studio?.interactionDisabled) return;
         if (event.target !== event.currentTarget) return;
         selectBackground?.();
         const imageFill = [...fills].reverse().find((fill) => fill.type === "image");
@@ -232,7 +235,7 @@ export function BannerSceneView({
         ownerWindow.addEventListener("pointercancel", stop);
       }}
       onDoubleClick={(event) => {
-        if (event.target !== event.currentTarget || !studio) return;
+        if (event.target !== event.currentTarget || !studio || studio.interactionDisabled) return;
         event.preventDefault();
         const imageFill = [...fills].reverse().find((fill) => fill.type === "image");
         studio.onEditBackground(imageFill?.id ?? null);
@@ -390,6 +393,7 @@ export function BannerSceneView({
             style: { ...layerCss(style), zIndex: index + 1, pointerEvents: "auto" as const },
             onMouseDown: (event: MouseEvent<HTMLElement>) => {
               event.stopPropagation();
+              if (studio?.interactionDisabled) return;
               if (studio && (event.ctrlKey || event.metaKey)) {
                 studio.onSelectDeep(event.clientX, event.clientY);
               } else {
@@ -400,6 +404,7 @@ export function BannerSceneView({
             onDoubleClick: (event: MouseEvent<HTMLElement>) => {
               event.preventDefault();
               event.stopPropagation();
+              if (studio?.interactionDisabled) return;
               editLayer?.(layer.id);
             },
           };

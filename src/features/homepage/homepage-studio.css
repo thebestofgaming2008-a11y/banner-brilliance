@@ -199,10 +199,10 @@
   display: grid;
   min-height: 0;
   flex: 1;
-  grid-template-columns: 240px minmax(360px, 1fr) 240px;
+  grid-template-columns: 240px minmax(360px, 1fr) 300px;
 }
 .studio-main.is-left-collapsed {
-  grid-template-columns: minmax(360px, 1fr) 240px;
+  grid-template-columns: minmax(360px, 1fr) 300px;
 }
 .studio-bottom-toolbar {
   position: fixed;
@@ -681,7 +681,7 @@
 }
 .studio-ruler--horizontal {
   top: 88px;
-  right: 240px;
+  right: 300px;
   left: 240px;
   height: 17px;
   border-bottom: 1px solid #555;
@@ -1494,10 +1494,10 @@
 }
 @media (max-width: 1120px) {
   .studio-main {
-    grid-template-columns: 210px minmax(340px, 1fr) 260px;
+    grid-template-columns: 210px minmax(340px, 1fr) 300px;
   }
   .studio-main.is-left-collapsed {
-    grid-template-columns: minmax(340px, 1fr) 260px;
+    grid-template-columns: minmax(340px, 1fr) 300px;
   }
   .studio-topbar {
     grid-template-columns: minmax(210px, 1fr) auto minmax(260px, 1fr);
@@ -1506,7 +1506,7 @@
     display: none;
   }
   .studio-ruler--horizontal {
-    right: 260px;
+    right: 300px;
     left: 210px;
   }
   .studio-ruler--vertical {
@@ -2236,4 +2236,340 @@
   border-radius: 4px;
   background: #0d99ff24;
   color: #5eb9ff;
+}
+
+/* Fixed-template editor */
+.studio-left-tabs button:only-child {
+  grid-column: 1 / -1;
+}
+.studio-template-inspector {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  background: #2c2c2c;
+}
+.studio-template-header {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--studio-border);
+  padding: 8px 10px 8px 13px;
+}
+.studio-template-header > div:first-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.studio-template-header strong,
+.studio-template-header span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.studio-template-header strong {
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+.studio-template-header span {
+  color: #999;
+  font-size: 9px;
+}
+.studio-template-header > div:last-child {
+  display: flex;
+  gap: 2px;
+}
+.studio-template-header button {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #bbb;
+}
+.studio-template-header button:hover {
+  background: #3b3b3b;
+  color: #fff;
+}
+.studio-template-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  scrollbar-color: #707070 transparent;
+  scrollbar-width: thin;
+}
+.studio-template-kind {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-bottom: 1px solid #444;
+  padding: 10px 13px;
+  color: #aaa;
+  font-size: 10px;
+}
+.studio-template-section {
+  display: grid;
+  gap: 10px;
+  border-bottom: 1px solid #444;
+  padding: 13px;
+}
+.studio-template-section h3 {
+  margin: 0 0 1px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+.studio-template-field {
+  display: grid;
+  gap: 5px;
+}
+.studio-template-field > span,
+.studio-template-colour > span:first-child {
+  color: #aaa;
+  font-size: 9px;
+}
+.studio-template-field input,
+.studio-template-field textarea,
+.studio-template-field select {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  outline: 0;
+  background: #383838;
+  padding: 0 8px;
+  color: #fff;
+  font:
+    400 11px/1.35 Inter,
+    sans-serif;
+}
+.studio-template-field input,
+.studio-template-field select {
+  height: 30px;
+}
+.studio-template-field textarea {
+  min-height: 62px;
+  resize: vertical;
+  padding-top: 7px;
+}
+.studio-template-field input:hover,
+.studio-template-field textarea:hover,
+.studio-template-field select:hover {
+  border-color: #555;
+}
+.studio-template-field input:focus,
+.studio-template-field textarea:focus,
+.studio-template-field select:focus {
+  border-color: var(--studio-accent);
+}
+.studio-template-segment {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  border-radius: 5px;
+  background: #222;
+  padding: 2px;
+}
+.studio-template-segment button {
+  height: 27px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #aaa;
+  font:
+    500 10px/1 Inter,
+    sans-serif;
+}
+.studio-template-segment button.is-active {
+  background: #4a4a4a;
+  color: #fff;
+}
+.studio-template-colours {
+  display: grid;
+  gap: 7px;
+}
+.studio-template-colour {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.studio-template-colour > span:last-child {
+  display: flex;
+  height: 30px;
+  min-width: 118px;
+  align-items: center;
+  gap: 7px;
+  border-radius: 4px;
+  background: #383838;
+  padding: 0 8px 0 5px;
+}
+.studio-template-colour input[type="color"] {
+  width: 19px;
+  height: 19px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+.studio-template-colour code {
+  color: #ddd;
+  font:
+    400 10px/1 Inter,
+    sans-serif;
+}
+.studio-template-image .homepage-image-input {
+  display: grid;
+  gap: 7px;
+}
+.studio-template-image .homepage-image-input > div:first-child {
+  border-color: #505050;
+  border-radius: 4px;
+  background: #222;
+}
+.studio-template-image .homepage-image-input > input[type="url"] {
+  height: 30px;
+  border-color: transparent;
+  border-radius: 4px;
+  background: #383838;
+  color: #fff;
+  font-size: 10px;
+}
+.studio-template-image .homepage-image-input > input[type="url"]:focus {
+  border-color: var(--studio-accent);
+}
+.studio-template-image .homepage-image-input > div.flex {
+  gap: 5px;
+}
+.studio-template-image .homepage-image-input > div.flex label,
+.studio-template-image .homepage-image-input > div.flex button {
+  height: 30px;
+  border-color: #555;
+  border-radius: 4px;
+  background: #383838;
+  padding: 0 9px;
+  color: #ddd;
+  font-size: 10px;
+}
+.studio-template-image .homepage-image-input > div.flex label {
+  background: #444;
+}
+.studio-inline-add-section {
+  width: 100%;
+  background: #fff;
+  padding: 36px clamp(18px, 4vw, 64px) 46px;
+}
+.studio-inline-add-section button {
+  display: flex;
+  width: min(1180px, 100%);
+  min-height: 132px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 auto;
+  border: 1px dashed #8c8c8c;
+  border-radius: 6px;
+  background: #fafafa;
+  color: #222;
+  font:
+    600 15px/1 Inter,
+    sans-serif;
+}
+.studio-inline-add-section button:hover {
+  border-color: #111;
+  background: #f4f4f4;
+}
+.studio-canvas-stage.is-structured [data-editor-active="true"] .homepage-banner-layer {
+  cursor: default;
+  user-select: auto;
+}
+.studio-canvas-stage.is-structured [data-editor-active="true"] .homepage-banner-layer:hover {
+  outline: 0;
+}
+.studio-template-add-backdrop {
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.studio-template-add-dialog {
+  width: min(520px, 100%);
+  overflow: hidden;
+  border: 1px solid #4a4a4a;
+  border-radius: 8px;
+  background: #2c2c2c;
+  box-shadow: 0 24px 80px #000c;
+  color: #fff;
+}
+.studio-template-add-dialog > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #444;
+  padding: 17px 18px 15px;
+}
+.studio-template-add-dialog h2,
+.studio-template-add-dialog p {
+  margin: 0;
+}
+.studio-template-add-dialog h2 {
+  font-size: 15px;
+}
+.studio-template-add-dialog p {
+  margin-top: 4px;
+  color: #999;
+  font-size: 10px;
+}
+.studio-template-add-dialog > header button {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #bbb;
+}
+.studio-template-add-dialog > header button:hover {
+  background: #3b3b3b;
+  color: #fff;
+}
+.studio-template-add-options {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+.studio-template-add-options > button {
+  display: grid;
+  min-height: 76px;
+  grid-template-columns: 28px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #484848;
+  border-radius: 6px;
+  background: #333;
+  padding: 12px;
+  color: #ddd;
+  text-align: left;
+}
+.studio-template-add-options > button:hover {
+  border-color: var(--studio-accent);
+  background: #383838;
+  color: #fff;
+}
+.studio-template-add-options span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+.studio-template-add-options strong {
+  font-size: 12px;
+}
+.studio-template-add-options small {
+  color: #999;
+  font-size: 10px;
 }
