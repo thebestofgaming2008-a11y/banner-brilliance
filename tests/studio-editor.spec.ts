@@ -58,6 +58,22 @@ test.describe("fixed-template homepage studio", () => {
     const scene = frame.locator('[data-editor-active="true"]');
     await title.click({ force: true });
 
+    const desktopStart = await title.evaluate((element) => ({
+      x: Number.parseFloat(element.style.left),
+      y: Number.parseFloat(element.style.top),
+    }));
+    await page.getByRole("button", { name: "Mobile viewport", exact: true }).click();
+    const mobileTitleBefore = storefront(page, "mobile").locator(
+      '[data-editor-active="true"] [data-banner-layer="title"]',
+    );
+    await mobileTitleBefore.click({ force: true });
+    const mobileStart = await mobileTitleBefore.evaluate((element) => ({
+      x: Number.parseFloat(element.style.left),
+      y: Number.parseFloat(element.style.top),
+    }));
+    await page.getByRole("button", { name: "Desktop viewport", exact: true }).click();
+    await title.click({ force: true });
+
     const titleBox = await title.boundingBox();
     const sceneBox = await scene.boundingBox();
     expect(titleBox).not.toBeNull();
@@ -67,10 +83,14 @@ test.describe("fixed-template homepage studio", () => {
     const startY = titleBox!.y + titleBox!.height / 2;
     await page.mouse.move(startX, startY);
     await page.mouse.down();
-    await page.mouse.move(sceneBox!.x + sceneBox!.width / 2, startY, { steps: 8 });
+    await page.mouse.move(sceneBox!.x + sceneBox!.width / 2, startY + 40, { steps: 8 });
     await expect(frame.locator(".studio-smart-guide.is-vertical")).toBeVisible();
     await page.mouse.up();
 
+    const desktopEnd = await title.evaluate((element) => ({
+      x: Number.parseFloat(element.style.left),
+      y: Number.parseFloat(element.style.top),
+    }));
     await page.getByRole("button", { name: "Align text right" }).click();
     await expect(title).toHaveCSS("text-align", "right");
 
@@ -79,6 +99,12 @@ test.describe("fixed-template homepage studio", () => {
       '[data-editor-active="true"] [data-banner-layer="title"]',
     );
     await mobileTitle.click({ force: true });
+    const mobileEnd = await mobileTitle.evaluate((element) => ({
+      x: Number.parseFloat(element.style.left),
+      y: Number.parseFloat(element.style.top),
+    }));
+    expect(mobileEnd.x - mobileStart.x).toBeCloseTo(desktopEnd.x - desktopStart.x, 3);
+    expect(mobileEnd.y - mobileStart.y).toBeCloseTo(desktopEnd.y - desktopStart.y, 3);
     await page.getByRole("button", { name: "Align text left" }).click();
     await expect(mobileTitle).toHaveCSS("text-align", "left");
   });

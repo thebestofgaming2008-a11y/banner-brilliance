@@ -89,8 +89,10 @@ const LOCAL_BACKUP_KEY = "fawzaan.homepage-studio.local-v4";
 const LEGACY_BACKUP_KEYS = ["fawzaan.homepage-studio.local-v3"];
 const HISTORY_LIMIT = 80;
 const ADVANCED_LAYOUT_TOOLS = false;
+const RESPONSIVE_GEOMETRY_KEYS = ["x", "y", "width", "height", "rotation"] as const;
 
 type LocalBackup = { revision?: number; savedAt?: string; data?: HomepageData };
+type ResponsiveGeometryKey = (typeof RESPONSIVE_GEOMETRY_KEYS)[number];
 
 type CropSnapshot =
   | {
@@ -160,6 +162,34 @@ async function clearLocalBackups() {
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function patchLayerForViewport(
+  layer: BannerLayer,
+  patch: Partial<BannerLayerStyle>,
+  viewport: HomepageViewport,
+): BannerLayer {
+  if (viewport === "mobile") {
+    return { ...layer, mobileStyle: { ...(layer.mobileStyle ?? {}), ...patch } };
+  }
+
+  const mobileGeometryPatch: Partial<Pick<BannerLayerStyle, ResponsiveGeometryKey>> = {};
+  RESPONSIVE_GEOMETRY_KEYS.forEach((key) => {
+    const nextValue = patch[key];
+    if (typeof nextValue !== "number") return;
+    const desktopValue = layer.style[key];
+    const mobileValue = layer.mobileStyle?.[key] ?? desktopValue;
+    mobileGeometryPatch[key] = mobileValue + (nextValue - desktopValue);
+  });
+
+  return {
+    ...layer,
+    style: { ...layer.style, ...patch },
+    mobileStyle:
+      Object.keys(mobileGeometryPatch).length > 0
+        ? { ...(layer.mobileStyle ?? {}), ...mobileGeometryPatch }
+        : layer.mobileStyle,
+  };
 }
 
 function timeLabel(value: string | null | undefined) {
@@ -563,11 +593,7 @@ export function HomepageVisualEditor({
         (current) => ({
           ...current,
           layers: current.layers.map((layer) =>
-            layer.id === id
-              ? viewport === "mobile"
-                ? { ...layer, mobileStyle: { ...(layer.mobileStyle ?? {}), ...patch } }
-                : { ...layer, style: { ...layer.style, ...patch } }
-              : layer,
+            layer.id === id ? patchLayerForViewport(layer, patch, viewport) : layer,
           ),
         }),
         true,
