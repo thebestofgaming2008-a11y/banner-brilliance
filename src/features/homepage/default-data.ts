@@ -1,4 +1,4 @@
-import { DEFAULT_HERO_GRADIENT } from "./brand";
+import { DEFAULT_HERO_GRADIENT, IKHWAAN_HERO_GRADIENT, SALIHAAT_HERO_GRADIENT } from "./brand";
 import type { HeroGradient, HeroProps, HeroSlide, HomepageData } from "./types";
 
 export const DEFAULT_HOMEPAGE_DATA: HomepageData = {
@@ -25,7 +25,7 @@ export const DEFAULT_HOMEPAGE_DATA: HomepageData = {
             foregroundImage: "/homepage/hero-shemagh.webp",
             backgroundColor: "#F6AD32",
             imageFocus: "center",
-            gradient: { ...DEFAULT_HERO_GRADIENT },
+            gradient: { ...IKHWAAN_HERO_GRADIENT },
             layout: "original",
             textAlign: "left",
             textTone: "light",
@@ -48,7 +48,7 @@ export const DEFAULT_HOMEPAGE_DATA: HomepageData = {
             foregroundImage: "/homepage/hero-niqab.webp",
             backgroundColor: "#F6AD32",
             imageFocus: "center",
-            gradient: { ...DEFAULT_HERO_GRADIENT },
+            gradient: { ...SALIHAAT_HERO_GRADIENT },
             layout: "original",
             textAlign: "left",
             textTone: "light",

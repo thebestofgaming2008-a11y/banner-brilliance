@@ -13,7 +13,8 @@ import { StoreFooter, StoreHeader } from "@/components/store/store-chrome";
 import { merchandiseProducts, type StoreProduct, useStoreProducts } from "@/data/store";
 import { HomepageRenderer } from "@/features/homepage/components";
 import { isHomepageEditorData } from "@/features/homepage/default-data";
-import type { HomepageData } from "@/features/homepage/types";
+import { IKHWAAN_HERO_GRADIENT, SALIHAAT_HERO_GRADIENT } from "@/features/homepage/brand";
+import type { HeroGradient, HomepageData } from "@/features/homepage/types";
 import { MangoMenuIcon } from "@/components/store/mango-menu-icon";
 import { useCurrency } from "@/hooks/use-currency";
 import { useCatalogPresentation, type CatalogBanner } from "@/services/catalogPresentation";
@@ -67,6 +68,7 @@ type Banner = {
   titleY: number;
   titleW: number;
   href: string;
+  gradient: HeroGradient;
 };
 
 type Product = StoreProduct & {
@@ -89,6 +91,7 @@ const defaultHeroBanners: Banner[] = [
     titleY: 121,
     titleW: 316,
     href: "/shop?collection=Shemaghs",
+    gradient: IKHWAAN_HERO_GRADIENT,
   },
   {
     title: "AS-SALIHAAT SET",
@@ -98,6 +101,7 @@ const defaultHeroBanners: Banner[] = [
     titleY: 100,
     titleW: 319,
     href: "/shop?collection=Niqabs",
+    gradient: SALIHAAT_HERO_GRADIENT,
   },
 ];
 
@@ -635,7 +639,9 @@ function HeroBanner({
       style={{
         width: `${100 / slideCount}%`,
         height: `clamp(560px, ${(FRAME_H / FRAME_W) * 100}vw, 820px)`,
+        backgroundImage: `linear-gradient(${banner.gradient.angle}deg, ${banner.gradient.startColor}, ${banner.gradient.endColor})`,
       }}
+      data-default-hero={banner.title}
     >
       <a
         href={banner.href}
