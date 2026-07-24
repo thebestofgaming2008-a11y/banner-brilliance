@@ -117,13 +117,13 @@ export function StudioCanvas({
   );
   const editableLayerIds = useMemo(
     () =>
-      selectedRef.kind === "hero"
-        ? scene.layers
-            .filter(
-              (layer) => layer.type === "text" || layer.type === "button" || layer.type === "image",
-            )
-            .map((layer) => layer.id)
-        : [],
+      scene.layers
+        .filter((layer) =>
+          selectedRef.kind === "hero"
+            ? layer.type === "text" || layer.type === "button" || layer.type === "image"
+            : layer.type === "image",
+        )
+        .map((layer) => layer.id),
     [scene.layers, selectedRef.kind],
   );
 
@@ -352,7 +352,7 @@ export function StudioCanvas({
                   <StudioSelection
                     host={coordinateRoot}
                     layers={
-                      selectedRef.kind !== "hero" || cropLayerId || cropFillId
+                      cropLayerId || cropFillId
                         ? []
                         : selectedLayers.filter((layer) => editableLayerIds.includes(layer.id))
                     }

@@ -739,9 +739,14 @@ function BannerTemplate({
   item,
   categories,
   products,
+  selectedLayer,
+  viewport,
+  cropLayerId,
   cropFillId,
   onPatch,
+  onPatchLayer,
   onPatchFill,
+  onCropLayer,
   onCropFill,
 }: {
   item:
@@ -749,15 +754,34 @@ function BannerTemplate({
     | { type: "PromoBanner"; props: PromoBannerProps & { id: string } };
   categories: AdminCategory[];
   products: StoreProduct[];
+  selectedLayer: BannerLayer | null;
+  viewport: HomepageViewport;
+  cropLayerId: string | null;
   cropFillId: string | null;
   onPatch: (patch: HomepageTemplatePatch) => void;
+  onPatchLayer: (id: string, patch: Partial<BannerLayerStyle>) => void;
   onPatchFill: (id: string, patch: Partial<BannerFill>) => void;
+  onCropLayer: (id: string | null) => void;
   onCropFill: (id: string | null) => void;
 }) {
   const withProducts = item.type === "CollectionFeature";
-  const image = withProducts ? item.props.image : item.props.backgroundImage;
+  const imageOnly = item.props.contentMode === "image-only";
   const colour = withProducts ? item.props.bannerColor : item.props.backgroundColor;
   const imageFill = item.props.scene?.fills.find((fill) => fill.type === "image");
+  const bannerImageLayer = item.props.scene?.layers.find((layer) => layer.id === "banner-image");
+  const activeImageLayer =
+    selectedLayer?.type === "image" ? selectedLayer : (bannerImageLayer ?? null);
+  const editingForeground = item.type === "PromoBanner" && activeImageLayer?.id === "foreground";
+  const image = withProducts
+    ? item.props.image
+    : editingForeground
+      ? item.props.foregroundImage
+      : item.props.backgroundImage;
+  const activeImageStyle = activeImageLayer
+    ? viewport === "mobile"
+      ? { ...activeImageLayer.style, ...(activeImageLayer.mobileStyle ?? {}) }
+      : activeImageLayer.style
+    : null;
   const textColour =
     item.props.textColor || (item.props.textTone === "light" ? "#ffffff" : "#000000");
   const buttonBackground =
@@ -768,93 +792,142 @@ function BannerTemplate({
   return (
     <>
       <section className="studio-template-section">
-        <h3>Content</h3>
-        <TextField
-          label="Small label"
-          value={item.props.eyebrow}
-          onChange={(eyebrow) => onPatch({ eyebrow })}
-        />
-        <TextField
-          label="Title"
-          value={item.props.title}
-          onChange={(title) => onPatch({ title })}
-        />
-        <TextField
-          label="Subtitle"
-          value={item.props.body}
-          multiline
-          onChange={(body) => onPatch({ body })}
-        />
-        <TextField
-          label="Shop button text"
-          value={item.props.buttonLabel}
-          onChange={(buttonLabel) => onPatch({ buttonLabel })}
-        />
-        <TextField
-          label="Shop button link"
-          value={item.props.buttonUrl}
-          onChange={(buttonUrl) => onPatch({ buttonUrl })}
-        />
-      </section>
-
-      <section className="studio-template-section">
-        <h3>Typography</h3>
-        <AlignmentButtons
-          value={item.props.textAlign}
-          label="Banner text alignment"
-          onChange={(textAlign) => onPatch({ textAlign })}
-        />
-        <div className="studio-template-responsive-values">
-          <NumberField
-            label="Desktop title"
-            value={item.props.titleSize}
-            min={24}
-            max={140}
-            onChange={(titleSize) => onPatch({ titleSize })}
-          />
-          <NumberField
-            label="Mobile title"
-            value={item.props.mobileTitleSize}
-            min={20}
-            max={84}
-            onChange={(mobileTitleSize) => onPatch({ mobileTitleSize })}
-          />
+        <h3>Banner type</h3>
+        <div className="studio-template-segment" role="group" aria-label="Banner content">
+          <button
+            type="button"
+            className={!imageOnly ? "is-active" : ""}
+            onClick={() => onPatch({ contentMode: "text-overlay" })}
+          >
+            Image + text
+          </button>
+          <button
+            type="button"
+            className={imageOnly ? "is-active" : ""}
+            onClick={() => onPatch({ contentMode: "image-only" })}
+          >
+            Image only
+          </button>
         </div>
-        <ColourField
-          label="Text colour"
-          value={colourInputValue(textColour, "#ffffff")}
-          onChange={(textColor) =>
-            onPatch({
-              textColor,
-              textTone: darkTextForColour(textColor) ? "dark" : "light",
-            })
-          }
-        />
-        <ColourField
-          label="Button colour"
-          value={colourInputValue(buttonBackground, "#ffffff")}
-          onChange={(buttonBackgroundColor) => onPatch({ buttonBackgroundColor })}
-        />
-        <ColourField
-          label="Button text"
-          value={colourInputValue(buttonText, "#000000")}
-          onChange={(buttonTextColor) => onPatch({ buttonTextColor })}
-        />
       </section>
 
       <section className="studio-template-section">
-        <h3>Banner image</h3>
+        <h3>{activeImageLayer?.name || "Banner image"}</h3>
         <div className="studio-template-image">
           <HomepageImageInput
             value={image}
-            inputLabel="Banner image URL"
+            inputLabel={editingForeground ? "Product image URL" : "Banner image URL"}
             allowDestructiveCrop={false}
             onChange={(nextImage) =>
-              onPatch(withProducts ? { image: nextImage } : { backgroundImage: nextImage })
+              onPatch(
+                withProducts
+                  ? { image: nextImage }
+                  : editingForeground
+                    ? { foregroundImage: nextImage }
+                    : { backgroundImage: nextImage },
+              )
             }
           />
         </div>
-        {imageFill && image ? (
+        {activeImageLayer && activeImageStyle ? (
+          <>
+            <div className="studio-template-position">
+              <label>
+                <span>X</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={Number(activeImageStyle.x.toFixed(1))}
+                  onChange={(event) =>
+                    onPatchLayer(activeImageLayer.id, { x: Number(event.target.value) })
+                  }
+                />
+              </label>
+              <label>
+                <span>Y</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={Number(activeImageStyle.y.toFixed(1))}
+                  onChange={(event) =>
+                    onPatchLayer(activeImageLayer.id, { y: Number(event.target.value) })
+                  }
+                />
+              </label>
+              <label>
+                <span>W</span>
+                <input
+                  type="number"
+                  min="0.5"
+                  step="0.1"
+                  value={Number(activeImageStyle.width.toFixed(1))}
+                  onChange={(event) =>
+                    onPatchLayer(activeImageLayer.id, { width: Number(event.target.value) })
+                  }
+                />
+              </label>
+              <label>
+                <span>H</span>
+                <input
+                  type="number"
+                  min="0.5"
+                  step="0.1"
+                  value={Number(activeImageStyle.height.toFixed(1))}
+                  onChange={(event) =>
+                    onPatchLayer(activeImageLayer.id, { height: Number(event.target.value) })
+                  }
+                />
+              </label>
+            </div>
+            <div className="studio-template-segment" role="group" aria-label="Banner image fit">
+              {(["cover", "contain", "fill"] as const).map((fit) => (
+                <button
+                  key={fit}
+                  type="button"
+                  className={(activeImageStyle.objectFit ?? "cover") === fit ? "is-active" : ""}
+                  onClick={() => onPatchLayer(activeImageLayer.id, { objectFit: fit })}
+                >
+                  {fit[0]!.toUpperCase() + fit.slice(1)}
+                </button>
+              ))}
+            </div>
+            <div className="studio-template-responsive-values studio-template-responsive-values--three">
+              <NumberField
+                label="Crop X"
+                value={activeImageStyle.cropX ?? 0}
+                min={-100}
+                max={100}
+                onChange={(cropX) => onPatchLayer(activeImageLayer.id, { cropX })}
+              />
+              <NumberField
+                label="Crop Y"
+                value={activeImageStyle.cropY ?? 0}
+                min={-100}
+                max={100}
+                onChange={(cropY) => onPatchLayer(activeImageLayer.id, { cropY })}
+              />
+              <NumberField
+                label="Zoom %"
+                value={activeImageStyle.cropZoom ?? 100}
+                min={10}
+                max={500}
+                onChange={(cropZoom) => onPatchLayer(activeImageLayer.id, { cropZoom })}
+              />
+            </div>
+            <button
+              type="button"
+              className={`studio-template-action ${cropLayerId === activeImageLayer.id ? "is-active" : ""}`}
+              onClick={() =>
+                onCropLayer(cropLayerId === activeImageLayer.id ? null : activeImageLayer.id)
+              }
+            >
+              <Crop size={14} />
+              <span>
+                {cropLayerId === activeImageLayer.id ? "Finish image crop" : "Crop banner image"}
+              </span>
+            </button>
+          </>
+        ) : imageFill && image ? (
           <>
             <div className="studio-template-segment" role="group" aria-label="Banner image fit">
               {(["cover", "contain", "fill"] as const).map((fit) => (
@@ -867,29 +940,6 @@ function BannerTemplate({
                   {fit[0]!.toUpperCase() + fit.slice(1)}
                 </button>
               ))}
-            </div>
-            <div className="studio-template-responsive-values studio-template-responsive-values--three">
-              <NumberField
-                label="Image X"
-                value={imageFill.offsetX ?? 0}
-                min={-100}
-                max={100}
-                onChange={(offsetX) => onPatchFill(imageFill.id, { offsetX })}
-              />
-              <NumberField
-                label="Image Y"
-                value={imageFill.offsetY ?? 0}
-                min={-100}
-                max={100}
-                onChange={(offsetY) => onPatchFill(imageFill.id, { offsetY })}
-              />
-              <NumberField
-                label="Zoom %"
-                value={imageFill.zoom ?? 100}
-                min={10}
-                max={500}
-                onChange={(zoom) => onPatchFill(imageFill.id, { zoom })}
-              />
             </div>
             <button
               type="button"
@@ -909,6 +959,85 @@ function BannerTemplate({
           }
         />
       </section>
+
+      {!imageOnly ? (
+        <>
+          <section className="studio-template-section">
+            <h3>Content</h3>
+            <TextField
+              label="Small label"
+              value={item.props.eyebrow}
+              onChange={(eyebrow) => onPatch({ eyebrow })}
+            />
+            <TextField
+              label="Title"
+              value={item.props.title}
+              onChange={(title) => onPatch({ title })}
+            />
+            <TextField
+              label="Subtitle"
+              value={item.props.body}
+              multiline
+              onChange={(body) => onPatch({ body })}
+            />
+            <TextField
+              label="Shop button text"
+              value={item.props.buttonLabel}
+              onChange={(buttonLabel) => onPatch({ buttonLabel })}
+            />
+            <TextField
+              label="Shop button link"
+              value={item.props.buttonUrl}
+              onChange={(buttonUrl) => onPatch({ buttonUrl })}
+            />
+          </section>
+
+          <section className="studio-template-section">
+            <h3>Typography</h3>
+            <AlignmentButtons
+              value={item.props.textAlign}
+              label="Banner text alignment"
+              onChange={(textAlign) => onPatch({ textAlign })}
+            />
+            <div className="studio-template-responsive-values">
+              <NumberField
+                label="Desktop title"
+                value={item.props.titleSize}
+                min={24}
+                max={140}
+                onChange={(titleSize) => onPatch({ titleSize })}
+              />
+              <NumberField
+                label="Mobile title"
+                value={item.props.mobileTitleSize}
+                min={20}
+                max={84}
+                onChange={(mobileTitleSize) => onPatch({ mobileTitleSize })}
+              />
+            </div>
+            <ColourField
+              label="Text colour"
+              value={colourInputValue(textColour, "#ffffff")}
+              onChange={(textColor) =>
+                onPatch({
+                  textColor,
+                  textTone: darkTextForColour(textColor) ? "dark" : "light",
+                })
+              }
+            />
+            <ColourField
+              label="Button colour"
+              value={colourInputValue(buttonBackground, "#ffffff")}
+              onChange={(buttonBackgroundColor) => onPatch({ buttonBackgroundColor })}
+            />
+            <ColourField
+              label="Button text"
+              value={colourInputValue(buttonText, "#000000")}
+              onChange={(buttonTextColor) => onPatch({ buttonTextColor })}
+            />
+          </section>
+        </>
+      ) : null}
 
       {withProducts ? (
         <section className="studio-template-section">
@@ -1100,9 +1229,14 @@ export function StudioTemplateInspector({
             item={item}
             categories={categories}
             products={products}
+            selectedLayer={selectedLayer}
+            viewport={viewport}
+            cropLayerId={cropLayerId}
             cropFillId={cropFillId}
             onPatch={onPatch}
+            onPatchLayer={onPatchLayer}
             onPatchFill={onPatchFill}
+            onCropLayer={onCropLayer}
             onCropFill={onCropFill}
           />
         </div>

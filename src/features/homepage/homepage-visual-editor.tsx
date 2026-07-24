@@ -290,12 +290,52 @@ function refreshHeroScene(
   return preserveSceneTransforms(sceneFromHero(slide, index), previous, preserveFillTransforms);
 }
 
+function refreshBannerPresentation(
+  generated: BannerScene,
+  previous?: BannerScene,
+  preserveFillTransforms = true,
+): BannerScene {
+  const preserved = preserveSceneTransforms(generated, previous, preserveFillTransforms);
+  const generatedLayers = new Map(generated.layers.map((layer) => [layer.id, layer]));
+  return {
+    ...preserved,
+    layers: preserved.layers.map((layer) => {
+      if (layer.type === "image") return layer;
+      const current = generatedLayers.get(layer.id);
+      return current
+        ? {
+            ...layer,
+            style: {
+              ...layer.style,
+              visible: current.style.visible,
+              textAlign: current.style.textAlign,
+              color: current.style.color,
+              backgroundColor: current.style.backgroundColor,
+              fontFamily: current.style.fontFamily,
+              fontSize: current.style.fontSize,
+            },
+            mobileStyle: {
+              ...(layer.mobileStyle ?? {}),
+              visible: current.mobileStyle?.visible ?? current.style.visible,
+              textAlign: current.mobileStyle?.textAlign ?? current.style.textAlign,
+              color: current.mobileStyle?.color ?? current.style.color,
+              backgroundColor:
+                current.mobileStyle?.backgroundColor ?? current.style.backgroundColor,
+              fontFamily: current.mobileStyle?.fontFamily ?? current.style.fontFamily,
+              fontSize: current.mobileStyle?.fontSize ?? current.style.fontSize,
+            },
+          }
+        : layer;
+    }),
+  };
+}
+
 function refreshCollectionScene(
   props: CollectionFeatureProps,
   previous?: BannerScene,
   preserveFillTransforms = true,
 ) {
-  return preserveSceneTransforms(
+  return refreshBannerPresentation(
     sceneFromCollectionFeature(props),
     previous,
     preserveFillTransforms,
@@ -307,7 +347,7 @@ function refreshPromoScene(
   previous?: BannerScene,
   preserveFillTransforms = true,
 ) {
-  return preserveSceneTransforms(sceneFromPromo(props), previous, preserveFillTransforms);
+  return refreshBannerPresentation(sceneFromPromo(props), previous, preserveFillTransforms);
 }
 
 function IconButton({

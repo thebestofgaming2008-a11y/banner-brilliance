@@ -430,7 +430,11 @@ export function BannerSceneView({
             "data-layer-type": layer.type,
             "data-selected": selected || undefined,
             className: `homepage-banner-layer absolute z-10 box-border m-0 overflow-visible ${selected ? "is-selected" : ""}`,
-            style: { ...layerCss(style), zIndex: index + 1, pointerEvents: "auto" as const },
+            style: {
+              ...layerCss(style),
+              zIndex: index + 1,
+              pointerEvents: studio && !layerEditable ? ("none" as const) : ("auto" as const),
+            },
             onMouseDown: (event: MouseEvent<HTMLElement>) => {
               event.stopPropagation();
               if (studio?.interactionDisabled || !layerEditable) return;
@@ -511,7 +515,7 @@ export function BannerSceneView({
                 />
                 {cropping ? <span className="studio-crop-overlay" aria-hidden="true" /> : null}
               </div>
-            ) : (
+            ) : studio && layerEditable ? (
               <div
                 key={layer.id}
                 {...commonProps}
@@ -519,7 +523,7 @@ export function BannerSceneView({
               >
                 Image
               </div>
-            );
+            ) : null;
           }
 
           if (layer.type === "shape") return <div key={layer.id} {...commonProps} />;

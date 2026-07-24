@@ -717,28 +717,16 @@ export function HomepageCollectionFeature({
   const resolvedTextColor = textColor || (lightText ? "#ffffff" : "#000000");
   const resolvedButtonBackground = buttonBackgroundColor || (lightText ? "#ffffff" : "#000000");
   const resolvedButtonText = buttonTextColor || (lightText ? "#000000" : "#ffffff");
-  const backgroundScene = scene ? { ...scene, layers: [] } : null;
   const banner = (
-    <a
+    <div
       data-homepage-banner-id={id}
       data-editor-banner-key={editMode ? editorKey : undefined}
       data-editor-active={editMode && editorSession ? "true" : undefined}
-      href={safeLink(buttonUrl)}
-      onClick={(event) => {
-        if (editMode) event.preventDefault();
-      }}
       className="group relative block min-h-[500px] overflow-hidden md:min-h-[620px]"
       style={{ backgroundColor: bannerColor, color: resolvedTextColor }}
     >
-      {backgroundScene ? (
-        <div className="absolute inset-0 overflow-hidden">
-          <BannerSceneView
-            scene={backgroundScene}
-            editorKey={editMode ? editorKey : undefined}
-            interactive={false}
-            className="h-full"
-          />
-        </div>
+      {scene ? (
+        <BannerSceneView scene={scene} editorKey={editMode ? editorKey : undefined} />
       ) : image ? (
         <img
           src={image}
@@ -747,35 +735,38 @@ export function HomepageCollectionFeature({
           className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.015]"
         />
       ) : null}
-      {backgroundScene ? null : (
+      {scene ? null : (
         <div
           className={`absolute inset-0 bg-gradient-to-t ${lightText ? "from-black/80 via-black/15" : "from-white/85 via-white/15"} to-transparent`}
         />
       )}
-      <div
-        className={`absolute inset-x-0 bottom-0 z-20 flex flex-col p-6 md:p-9 ${editMode ? "pointer-events-none" : ""} ${textAlignClass(textAlign)}`}
-      >
-        {eyebrow ? <p className="section-kicker opacity-70">{eyebrow}</p> : null}
-        <h2
-          className={`mt-2 leading-none ${fontClass(titleFont)}`}
-          style={{ fontSize: `clamp(${mobileTitleSize}px, 6vw, ${titleSize}px)` }}
+      {scene ? null : (
+        <div
+          className={`absolute inset-x-0 bottom-0 z-20 flex flex-col p-6 md:p-9 ${editMode ? "pointer-events-none" : ""} ${textAlignClass(textAlign)}`}
         >
-          {title}
-        </h2>
-        {body ? <p className="mt-4 max-w-sm text-sm leading-6 opacity-75">{body}</p> : null}
-        {buttonLabel ? (
-          <span
-            className="mt-7 inline-flex h-11 items-center px-5 text-[10px] font-bold uppercase"
-            style={{
-              backgroundColor: resolvedButtonBackground,
-              color: resolvedButtonText,
-            }}
+          {eyebrow ? <p className="section-kicker opacity-70">{eyebrow}</p> : null}
+          <h2
+            className={`mt-2 leading-none ${fontClass(titleFont)}`}
+            style={{ fontSize: `clamp(${mobileTitleSize}px, 6vw, ${titleSize}px)` }}
           >
-            {buttonLabel}
-          </span>
-        ) : null}
-      </div>
-    </a>
+            {title}
+          </h2>
+          {body ? <p className="mt-4 max-w-sm text-sm leading-6 opacity-75">{body}</p> : null}
+          {buttonLabel ? (
+            <a
+              href={safeLink(buttonUrl)}
+              className="mt-7 inline-flex h-11 items-center px-5 text-[10px] font-bold uppercase"
+              style={{
+                backgroundColor: resolvedButtonBackground,
+                color: resolvedButtonText,
+              }}
+            >
+              {buttonLabel}
+            </a>
+          ) : null}
+        </div>
+      )}
+    </div>
   );
   const grid = selected.length ? (
     <div
@@ -810,7 +801,6 @@ export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
   const resolvedButtonText = props.buttonTextColor || (lightText ? "#000000" : "#ffffff");
   const editorKey = props.id ? `${props.id}:standalone` : undefined;
   const editorSession = useStudioBannerSession(editorKey);
-  const backgroundScene = props.scene ? { ...props.scene, layers: [] } : null;
   return (
     <section className="bg-white px-[18px] py-10 md:px-8 md:py-16">
       <div
@@ -824,15 +814,8 @@ export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
           color: resolvedTextColor,
         }}
       >
-        {backgroundScene ? (
-          <div className="absolute inset-0 overflow-hidden">
-            <BannerSceneView
-              scene={backgroundScene}
-              editorKey={props.editMode ? editorKey : undefined}
-              interactive={false}
-              className="h-full"
-            />
-          </div>
+        {props.scene ? (
+          <BannerSceneView scene={props.scene} editorKey={props.editMode ? editorKey : undefined} />
         ) : props.backgroundImage ? (
           <img
             src={props.backgroundImage}
@@ -842,7 +825,7 @@ export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
             style={{ objectPosition: props.imageFocus }}
           />
         ) : null}
-        {!backgroundScene && props.foregroundImage ? (
+        {!props.scene && props.foregroundImage ? (
           <img
             src={props.foregroundImage}
             alt=""
@@ -851,39 +834,41 @@ export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
             style={{ width: `${Math.min(100, Math.max(20, props.foregroundScale))}%` }}
           />
         ) : null}
-        {backgroundScene ? null : (
+        {props.scene ? null : (
           <div
             className={`absolute inset-0 z-[11] ${lightText ? "bg-black" : "bg-white"}`}
             style={{ opacity: props.overlayOpacity / 100 }}
           />
         )}
-        <div
-          className={`relative z-20 flex min-h-[inherit] flex-col justify-end p-7 md:p-12 ${props.editMode ? "pointer-events-none" : ""} ${textAlignClass(props.textAlign)}`}
-          style={{ minHeight: `${Math.max(300, props.minHeight)}px` }}
-        >
-          {props.eyebrow ? <p className="section-kicker opacity-65">{props.eyebrow}</p> : null}
-          <h2
-            className={`mt-3 leading-none ${fontClass(props.titleFont)}`}
-            style={{ fontSize: `clamp(${props.mobileTitleSize}px, 6vw, ${props.titleSize}px)` }}
+        {props.scene ? null : (
+          <div
+            className={`relative z-20 flex min-h-[inherit] flex-col justify-end p-7 md:p-12 ${props.editMode ? "pointer-events-none" : ""} ${textAlignClass(props.textAlign)}`}
+            style={{ minHeight: `${Math.max(300, props.minHeight)}px` }}
           >
-            {props.title}
-          </h2>
-          {props.body ? (
-            <p className="mt-4 max-w-lg text-sm leading-6 opacity-75">{props.body}</p>
-          ) : null}
-          {props.buttonLabel ? (
-            <a
-              href={safeLink(props.buttonUrl)}
-              className="mt-7 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase"
-              style={{
-                backgroundColor: resolvedButtonBackground,
-                color: resolvedButtonText,
-              }}
+            {props.eyebrow ? <p className="section-kicker opacity-65">{props.eyebrow}</p> : null}
+            <h2
+              className={`mt-3 leading-none ${fontClass(props.titleFont)}`}
+              style={{ fontSize: `clamp(${props.mobileTitleSize}px, 6vw, ${props.titleSize}px)` }}
             >
-              {props.buttonLabel}
-            </a>
-          ) : null}
-        </div>
+              {props.title}
+            </h2>
+            {props.body ? (
+              <p className="mt-4 max-w-lg text-sm leading-6 opacity-75">{props.body}</p>
+            ) : null}
+            {props.buttonLabel ? (
+              <a
+                href={safeLink(props.buttonUrl)}
+                className="mt-7 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase"
+                style={{
+                  backgroundColor: resolvedButtonBackground,
+                  color: resolvedButtonText,
+                }}
+              >
+                {props.buttonLabel}
+              </a>
+            ) : null}
+          </div>
+        )}
       </div>
     </section>
   );

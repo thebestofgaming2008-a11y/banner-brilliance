@@ -309,6 +309,98 @@ test("published banner scenes preserve responsive layers, fills, and links", asy
                 autoplay: "on",
               },
             },
+            {
+              type: "PromoBanner",
+              props: {
+                id: "image-only-poster",
+                contentMode: "image-only",
+                eyebrow: "Hidden label",
+                title: "HIDDEN POSTER TITLE",
+                body: "Hidden description",
+                buttonLabel: "Hidden button",
+                buttonUrl: "/shop",
+                backgroundImage: "/homepage/honey.jpg",
+                foregroundImage: "",
+                backgroundColor: "#111111",
+                textTone: "light",
+                textAlign: "left",
+                titleFont: "sans",
+                titleSize: 60,
+                mobileTitleSize: 40,
+                imageFocus: "center",
+                foregroundScale: 50,
+                overlayOpacity: 0,
+                minHeight: 480,
+                scene: {
+                  version: 1,
+                  name: "Image only poster",
+                  height: 480,
+                  mobileHeight: 420,
+                  fills: [
+                    {
+                      id: "fill-solid",
+                      type: "solid",
+                      enabled: true,
+                      opacity: 100,
+                      color: "#111111",
+                    },
+                  ],
+                  layers: [
+                    {
+                      id: "banner-image",
+                      name: "Banner image",
+                      type: "image",
+                      src: "/homepage/honey.jpg",
+                      style: {
+                        x: 4,
+                        y: 5,
+                        width: 92,
+                        height: 90,
+                        rotation: 0,
+                        opacity: 100,
+                        visible: true,
+                        objectFit: "cover",
+                        objectPosition: "center",
+                        cropX: 12,
+                        cropY: -8,
+                        cropZoom: 130,
+                      },
+                      mobileStyle: {
+                        x: 0,
+                        y: 0,
+                        width: 100,
+                        height: 100,
+                        cropX: 4,
+                        cropY: 2,
+                        cropZoom: 115,
+                      },
+                    },
+                    {
+                      id: "title",
+                      name: "Title",
+                      type: "text",
+                      semantic: "h2",
+                      text: "HIDDEN POSTER TITLE",
+                      style: {
+                        x: 6,
+                        y: 60,
+                        width: 60,
+                        height: 15,
+                        rotation: 0,
+                        opacity: 100,
+                        visible: false,
+                        fontFamily: "schibsted",
+                        fontSize: 60,
+                        fontWeight: 400,
+                        lineHeight: 0.95,
+                        textAlign: "left",
+                        color: "#ffffff",
+                      },
+                    },
+                  ],
+                },
+              },
+            },
           ],
         },
       }),
@@ -316,7 +408,7 @@ test("published banner scenes preserve responsive layers, fills, and links", asy
   });
 
   await page.goto("/");
-  const scene = page.locator(".homepage-banner-scene");
+  const scene = page.locator('.homepage-banner-scene[data-editor-banner-key="scene-hero:hero:0"]');
   const title = page.getByRole("heading", { level: 1, name: "SCENE HERO" });
   await expect(scene).toBeVisible();
   await expect(scene.locator('[data-fill-id="fill-radial"]')).toHaveCSS(
@@ -340,5 +432,20 @@ test("published banner scenes preserve responsive layers, fills, and links", asy
     const expectedX = mobile ? 0.08 : 0.1;
     expect(Math.abs((titleBox.x - sceneBox.x) / sceneBox.width - expectedX)).toBeLessThan(0.02);
   }
+
+  const poster = page.locator('[data-homepage-banner-id="image-only-poster"]');
+  const posterScene = poster.locator(".homepage-banner-scene");
+  const posterImage = poster.locator('[data-banner-layer="banner-image"]');
+  await expect(posterImage.locator("img")).toBeVisible();
+  await expect(poster.getByRole("heading", { name: "HIDDEN POSTER TITLE" })).toBeHidden();
+  const posterIsMobile = (page.viewportSize()?.width ?? 1280) <= 639;
+  await expect(posterScene).toHaveAttribute(
+    "data-scene-viewport",
+    posterIsMobile ? "mobile" : "desktop",
+  );
+  await expect(posterImage.locator("img")).toHaveCSS(
+    "transform",
+    posterIsMobile ? /matrix\(1\.15/ : /matrix\(1\.3/,
+  );
   expect(errors).toEqual([]);
 });

@@ -249,7 +249,10 @@ test.describe("fixed-template homepage studio", () => {
     await expect(standalone).toContainText("LIMITED RELEASE");
     await expect(standalone).toContainText("RAMADAN OFFER");
     await expect(standalone).toContainText("View the offer");
-    await expect(standalone.locator(".items-end")).toBeVisible();
+    await expect(standalone.getByRole("heading", { name: "RAMADAN OFFER" })).toHaveCSS(
+      "text-align",
+      "right",
+    );
     await inspector.getByLabel("Text colour", { exact: true }).fill("#123456");
     await inspector.getByLabel("Button colour", { exact: true }).fill("#fedcba");
     await inspector.getByLabel("Button text", { exact: true }).fill("#102030");
@@ -257,7 +260,7 @@ test.describe("fixed-template homepage studio", () => {
       "color",
       "rgb(18, 52, 86)",
     );
-    await expect(standalone.getByRole("link", { name: "View the offer" })).toHaveCSS(
+    await expect(standalone.locator('[data-banner-layer="button"]')).toHaveCSS(
       "background-color",
       "rgb(254, 220, 186)",
     );
@@ -265,19 +268,48 @@ test.describe("fixed-template homepage studio", () => {
     await inspector.getByLabel("Banner image URL").fill("/homepage/hero-shemagh.webp");
     await expect(inspector.getByRole("button", { name: "Crop banner image" })).toBeVisible();
     await inspector.getByLabel("Zoom %", { exact: true }).fill("125");
+    const bannerImage = standalone.locator('[data-banner-layer="banner-image"]');
     await expect
-      .poll(() =>
-        standalone
-          .locator('[data-fill-id="fill-image"] img')
-          .evaluate((element) => element.style.transform),
-      )
+      .poll(() => bannerImage.locator("img").evaluate((element) => element.style.transform))
       .toContain("scale(1.25)");
-    await standalone.locator(".homepage-banner-scene").dblclick({
-      force: true,
-      position: { x: 500, y: 200 },
-    });
-    await expect(page.getByText("Crop background", { exact: true })).toBeVisible();
+    await bannerImage.click({ force: true, position: { x: 500, y: 200 } });
+    const selection = standalone.locator(
+      '.studio-selection-box[data-selection-layer="banner-image"]',
+    );
+    await expect(selection).toBeVisible();
+    await expect(selection.locator(".studio-selection-handle")).toHaveCount(8);
+    const imagePositionBefore = await bannerImage.evaluate((element) => ({
+      x: Number.parseFloat(element.style.left),
+    }));
+    const imageBox = await bannerImage.boundingBox();
+    expect(imageBox).not.toBeNull();
+    if (imageBox) {
+      await page.mouse.move(imageBox.x + imageBox.width / 2, imageBox.y + imageBox.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(
+        imageBox.x + imageBox.width / 2 + 30,
+        imageBox.y + imageBox.height / 2 + 10,
+        { steps: 4 },
+      );
+      await page.mouse.up();
+    }
+    await expect
+      .poll(() => bannerImage.evaluate((element) => Number.parseFloat(element.style.left)))
+      .toBeGreaterThan(imagePositionBefore.x);
+    await inspector.getByLabel("W", { exact: true }).fill("92");
+    await expect
+      .poll(() => bannerImage.evaluate((element) => Number.parseFloat(element.style.width)))
+      .toBe(92);
+    await inspector.getByRole("button", { name: "Crop banner image" }).click();
+    await expect(page.getByText("Crop image", { exact: true })).toBeVisible();
+    await expect(bannerImage).toHaveClass(/is-cropping/);
     await page.getByRole("button", { name: "Done", exact: true }).click();
+
+    await inspector.getByRole("button", { name: "Image only", exact: true }).click();
+    await expect(standalone.getByRole("heading", { name: "RAMADAN OFFER" })).toBeHidden();
+    await expect(standalone.locator('[data-banner-layer="button"]')).toBeHidden();
+    await expect(bannerImage.locator("img")).toBeVisible();
+    await expect(inspector.getByLabel("Title", { exact: true })).toHaveCount(0);
 
     await frame.getByRole("button", { name: "Add homepage section" }).click();
     await page
@@ -307,6 +339,18 @@ test.describe("fixed-template homepage studio", () => {
         .locator("xpath=..")
         .locator("article"),
     ).toHaveCount(3);
+
+    await inspector.getByLabel("Banner image URL").fill("/homepage/honey.jpg");
+    const collectionBanner = frame.locator('[data-homepage-banner-id][data-editor-active="true"]');
+    const collectionImage = collectionBanner.locator('[data-banner-layer="banner-image"]');
+    await expect(collectionImage.locator("img")).toBeVisible();
+    await collectionImage.click({ force: true, position: { x: 400, y: 180 } });
+    await expect(
+      collectionBanner.locator('.studio-selection-box[data-selection-layer="banner-image"]'),
+    ).toBeVisible();
+    await inspector.getByRole("button", { name: "Crop banner image" }).click();
+    await expect(collectionImage).toHaveClass(/is-cropping/);
+    await page.getByRole("button", { name: "Done", exact: true }).click();
   });
 
   test("keeps Preview separate from publishing", async ({ page }) => {

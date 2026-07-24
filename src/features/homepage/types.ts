@@ -194,6 +194,7 @@ export type SplitEditorialProps = {
 };
 
 export type CollectionFeatureProps = {
+  contentMode?: "text-overlay" | "image-only";
   eyebrow: string;
   title: string;
   body: string;
@@ -219,6 +220,7 @@ export type CollectionFeatureProps = {
 };
 
 export type PromoBannerProps = {
+  contentMode?: "text-overlay" | "image-only";
   eyebrow: string;
   title: string;
   body: string;

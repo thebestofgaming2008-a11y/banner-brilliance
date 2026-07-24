@@ -101,7 +101,12 @@ function buttonLayer(
   };
 }
 
-function imageLayer(id: string, name: string, src: string, style: Partial<BannerLayerStyle>) {
+function imageLayer(
+  id: string,
+  name: string,
+  src: string,
+  style: Partial<BannerLayerStyle>,
+): BannerLayer {
   return {
     id,
     name,
@@ -447,107 +452,226 @@ export function sceneFromCollectionCard(card: CollectionCard, index = 0): Banner
 }
 
 export function sceneFromCollectionFeature(props: CollectionFeatureProps): BannerScene {
-  const scene = sceneFromCollectionCard(
+  const imageOnly = props.contentMode === "image-only";
+  const light = props.textTone === "light";
+  const color = props.textColor || (light ? "#ffffff" : "#000000");
+  const image = imageLayer("banner-image", "Banner image", props.image, {
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+    objectFit: "cover",
+    objectPosition: "center",
+    lockAspectRatio: false,
+  });
+  image.mobileStyle = { x: 0, y: 0, width: 100, height: 100 };
+  const overlay: BannerLayer = {
+    id: "banner-overlay",
+    name: "Text overlay",
+    type: "shape",
+    style: baseStyle({
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 100,
+      locked: true,
+      visible: !imageOnly,
+      backgroundColor: light ? "#00000066" : "#ffffff73",
+    }),
+  };
+  const eyebrow = textLayer("eyebrow", "Eyebrow", props.eyebrow, {
+    x: 6,
+    y: 60,
+    width: 58,
+    height: 5,
+    fontSize: 12,
+    fontWeight: 600,
+    textTransform: "uppercase",
+    textAlign: props.textAlign,
+    color,
+    visible: !imageOnly,
+  });
+  eyebrow.mobileStyle = { x: 6, y: 59, width: 88, height: 5 };
+  const title = textLayer(
+    "title",
+    "Title",
+    props.title,
     {
-      eyebrow: props.eyebrow,
-      title: props.title,
-      body: props.body,
-      buttonLabel: props.buttonLabel,
-      buttonUrl: props.buttonUrl,
-      image: props.image,
+      x: 6,
+      y: 66,
+      width: 74,
+      height: 15,
+      fontFamily: "schibsted",
+      fontSize: props.titleSize,
+      fontWeight: 400,
+      lineHeight: 0.95,
+      textAlign: props.textAlign,
+      color,
+      visible: !imageOnly,
     },
-    0,
+    "h2",
   );
+  title.mobileStyle = {
+    x: 6,
+    y: 65,
+    width: 88,
+    height: 16,
+    fontSize: props.mobileTitleSize,
+  };
+  const body = textLayer("body", "Description", props.body, {
+    x: 6,
+    y: 82,
+    width: 54,
+    height: 7,
+    fontSize: 14,
+    lineHeight: 1.4,
+    textAlign: props.textAlign,
+    color,
+    visible: !imageOnly,
+  });
+  body.mobileStyle = { x: 6, y: 82, width: 88, height: 7 };
+  const button = buttonLayer("button", props.buttonLabel, props.buttonUrl, {
+    x: 6,
+    y: 91,
+    width: 22,
+    height: 7,
+    textAlign: "center",
+    color: props.buttonTextColor || (light ? "#000000" : "#ffffff"),
+    backgroundColor: props.buttonBackgroundColor || (light ? "#ffffff" : "#000000"),
+    visible: !imageOnly,
+  });
+  button.mobileStyle = { x: 6, y: 90, width: 36, height: 8 };
   return {
-    ...scene,
+    version: 1,
     name: props.title || "Collection with products",
     height: 620,
     mobileHeight: 500,
-    layers: scene.layers.map((layer) =>
-      layer.id === "title" ? { ...layer, semantic: "h2" as const } : layer,
-    ),
     fills: [
       { id: "fill-solid", type: "solid", enabled: true, opacity: 100, color: props.bannerColor },
-      {
-        id: "fill-image",
-        type: "image",
-        enabled: Boolean(props.image),
-        opacity: 100,
-        src: props.image,
-        fit: "cover",
-        position: "center",
-      },
-      {
-        id: "fill-gradient",
-        type: "linear",
-        enabled: true,
-        opacity: 78,
-        angle: 0,
-        stops: [
-          { color: props.textTone === "light" ? "#000000" : "#ffffff", position: 0 },
-          { color: props.textTone === "light" ? "#00000000" : "#ffffff00", position: 75 },
-        ],
-      },
     ],
+    layers: [image, overlay, eyebrow, title, body, button],
   };
 }
 
 export function sceneFromPromo(props: PromoBannerProps): BannerScene {
+  const imageOnly = props.contentMode === "image-only";
   const light = props.textTone === "light";
+  const color = props.textColor || (light ? "#ffffff" : "#000000");
+  const image = imageLayer("banner-image", "Banner image", props.backgroundImage, {
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+    objectFit: "cover",
+    objectPosition: props.imageFocus || "center",
+    lockAspectRatio: false,
+  });
+  image.mobileStyle = { x: 0, y: 0, width: 100, height: 100 };
+  const overlay: BannerLayer = {
+    id: "banner-overlay",
+    name: "Text overlay",
+    type: "shape",
+    style: baseStyle({
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 100,
+      locked: true,
+      visible: !imageOnly,
+      backgroundColor: light ? "#00000066" : "#ffffff73",
+    }),
+  };
+  const eyebrow = textLayer("eyebrow", "Eyebrow", props.eyebrow, {
+    x: 6,
+    y: 55,
+    width: 40,
+    height: 5,
+    fontSize: 12,
+    textTransform: "uppercase",
+    textAlign: props.textAlign,
+    color,
+    visible: !imageOnly,
+  });
+  eyebrow.mobileStyle = { x: 6, y: 57, width: 88, height: 5 };
+  const title = textLayer(
+    "title",
+    "Title",
+    props.title,
+    {
+      x: 6,
+      y: 62,
+      width: 58,
+      height: 14,
+      fontFamily: props.titleFont === "display" ? "instrument" : "schibsted",
+      fontSize: props.titleSize,
+      fontWeight: 400,
+      lineHeight: 0.95,
+      textAlign: props.textAlign,
+      color,
+      visible: !imageOnly,
+    },
+    "h2",
+  );
+  title.mobileStyle = {
+    x: 6,
+    y: 63,
+    width: 88,
+    height: 16,
+    fontSize: props.mobileTitleSize,
+  };
+  const body = textLayer("body", "Description", props.body, {
+    x: 6,
+    y: 78,
+    width: 50,
+    height: 7,
+    fontSize: 14,
+    lineHeight: 1.4,
+    textAlign: props.textAlign,
+    color,
+    visible: !imageOnly,
+  });
+  body.mobileStyle = { x: 6, y: 80, width: 88, height: 7 };
+  const button = buttonLayer("button", props.buttonLabel, props.buttonUrl, {
+    x: 6,
+    y: 87,
+    width: 20,
+    height: 7,
+    color: props.buttonTextColor || (light ? "#000000" : "#ffffff"),
+    backgroundColor: props.buttonBackgroundColor || (light ? "#ffffff" : "#000000"),
+    visible: !imageOnly,
+  });
+  button.mobileStyle = { x: 6, y: 89, width: 36, height: 8 };
   return {
     version: 1,
     name: props.title || "Standalone banner",
     height: props.minHeight,
     mobileHeight: Math.min(props.minHeight, 520),
-    fills: defaultFills(props.backgroundColor, props.backgroundImage, { enabled: "off" }),
+    fills: [
+      {
+        id: "fill-solid",
+        type: "solid",
+        enabled: true,
+        opacity: 100,
+        color: props.backgroundColor,
+      },
+    ],
     layers: [
-      imageLayer("foreground", "Product image", props.foregroundImage, {
-        x: 52,
-        y: 4,
-        width: 45,
-        height: 96,
-      }),
-      textLayer("eyebrow", "Eyebrow", props.eyebrow, {
-        x: 6,
-        y: 55,
-        width: 40,
-        height: 5,
-        fontSize: 12,
-        textTransform: "uppercase",
-        color: light ? "#ffffff" : "#000000",
-      }),
-      textLayer(
-        "title",
-        "Title",
-        props.title,
-        {
-          x: 6,
-          y: 62,
-          width: 48,
-          height: 14,
-          fontFamily: props.titleFont === "display" ? "instrument" : "schibsted",
-          fontSize: props.titleSize,
-          fontWeight: 400,
-          lineHeight: 0.95,
-          color: light ? "#ffffff" : "#000000",
-        },
-        "h2",
-      ),
-      textLayer("body", "Description", props.body, {
-        x: 6,
-        y: 78,
-        width: 40,
-        height: 7,
-        fontSize: 14,
-        lineHeight: 1.4,
-        color: light ? "#ffffff" : "#000000",
-      }),
-      buttonLayer("button", props.buttonLabel, props.buttonUrl, {
-        x: 6,
-        y: 87,
-        width: 18,
-        height: 7,
-      }),
+      image,
+      overlay,
+      ...(!imageOnly && props.foregroundImage
+        ? [
+            imageLayer("foreground", "Product image", props.foregroundImage, {
+              x: 52,
+              y: 4,
+              width: 45,
+              height: 96,
+            }),
+          ]
+        : []),
+      eyebrow,
+      title,
+      body,
+      button,
     ],
   };
 }
@@ -741,6 +865,7 @@ export function createStandaloneBanner(): HomepageContentItem {
   const id = createStudioId("banner");
   const props: PromoBannerProps & { id: string } = {
     id,
+    contentMode: "text-overlay",
     eyebrow: "Collection",
     title: "NEW BANNER",
     body: "",
@@ -773,6 +898,7 @@ export function createCollectionWithProducts(
   const id = createStudioId("collection");
   const props: CollectionFeatureProps & { id: string } = {
     id,
+    contentMode: "text-overlay",
     eyebrow: "Collection",
     title: "NEW COLLECTION",
     body: "",
