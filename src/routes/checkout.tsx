@@ -2,12 +2,15 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CircleAlert,
+  Check,
   Clock,
   ExternalLink,
   Lock,
   MapPin,
   MessageCircle,
   ShieldCheck,
+  Tag,
+  X,
 } from "lucide-react";
 import { SiteHeader } from "@/components/brand/SiteHeader";
 import { useCart } from "@/lib/cart";
@@ -19,7 +22,9 @@ import {
   createBackendWhatsAppOrder,
   createRazorpayOrder,
   getRazorpayCheckoutStatus,
+  quoteCheckoutPromotion,
   verifyRazorpayPayment,
+  type CheckoutPromotionQuote,
 } from "@/services/orderService";
 import { toast } from "sonner";
 import { seo } from "@/lib/seo";
@@ -123,6 +128,10 @@ function CheckoutPage() {
   const [phone, setPhone] = useState(defaultAddress?.phone ?? "");
   const [processing, setProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [promotionInput, setPromotionInput] = useState("");
+  const [promotionQuote, setPromotionQuote] = useState<CheckoutPromotionQuote | null>(null);
+  const [promotionError, setPromotionError] = useState<string | null>(null);
+  const [promotionLoading, setPromotionLoading] = useState(false);
   const [pendingPayment, setPendingPayment] = useState<PendingPayment | null>(() => {
     if (typeof window === "undefined") return null;
     try {
@@ -157,7 +166,17 @@ function CheckoutPage() {
   const indiaCheckout = isIndia(country);
   const postalRequired = countryUsesPostalCode(country);
   const shippingLabel = indiaCheckout ? "Included" : "Confirmed on WhatsApp";
-  const total = subtotal;
+  const discount = promotionQuote?.discount ?? 0;
+  const total = promotionQuote?.total ?? subtotal;
+  const appliedPromotionCode = promotionQuote?.promotion?.code;
+  const cartSignature = useMemo(
+    () =>
+      items
+        .map((item) => `${item.id}:${item.qty}:${item.price}`)
+        .sort()
+        .join("|"),
+    [items],
+  );
   const canPlaceOrder =
     email.includes("@") &&
     first.trim() &&
@@ -185,6 +204,39 @@ function CheckoutPage() {
     if (!indiaCheckout || items.length === 0) return;
     void loadRazorpayScript().catch(() => undefined);
   }, [indiaCheckout, items.length]);
+
+  useEffect(() => {
+    setPromotionQuote(null);
+    setPromotionError(null);
+  }, [cartSignature]);
+
+  const applyPromotion = async () => {
+    const code = promotionInput.trim();
+    if (!code) {
+      setPromotionError("Enter a promotion code.");
+      return;
+    }
+    setPromotionLoading(true);
+    setPromotionError(null);
+    try {
+      const quote = await quoteCheckoutPromotion(items, code);
+      if (!quote.promotion) throw new Error("Promotion code not found.");
+      setPromotionInput(quote.promotion.code);
+      setPromotionQuote(quote);
+      toast.success(`${quote.promotion.code} applied. You save ${format(quote.discount)}.`);
+    } catch (error) {
+      setPromotionQuote(null);
+      setPromotionError(error instanceof Error ? error.message : "This promotion is unavailable.");
+    } finally {
+      setPromotionLoading(false);
+    }
+  };
+
+  const removePromotion = () => {
+    setPromotionQuote(null);
+    setPromotionError(null);
+    setPromotionInput("");
+  };
 
   const rememberAddress = async () => {
     if (!account) return;
@@ -250,6 +302,7 @@ function CheckoutPage() {
       customer,
       total,
       requestId: internationalRequestId.current,
+      promotionCode: appliedPromotionCode,
     });
     await rememberAddress().catch(() => undefined);
     clear();
@@ -268,6 +321,7 @@ function CheckoutPage() {
       subtotal,
       shipping: 0,
       total,
+      promotionCode: appliedPromotionCode,
     });
     const razorpay = new window.Razorpay({
       key: order.key_id,
@@ -604,11 +658,81 @@ function CheckoutPage() {
                 </li>
               ))}
             </ul>
+            <div className="mt-5 border-t border-ink/15 pt-4">
+              <label
+                htmlFor="promotion-code"
+                className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-ink/70"
+              >
+                <Tag className="h-3.5 w-3.5" />
+                Promotion code
+              </label>
+              {promotionQuote?.promotion ? (
+                <div className="mt-2 flex items-center gap-3 border border-emerald-700/25 bg-emerald-50 px-3 py-2.5 text-emerald-950">
+                  <Check className="h-4 w-4 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">
+                      {promotionQuote.promotion.code}
+                    </p>
+                    <p className="text-xs text-emerald-900/70">
+                      You save {format(promotionQuote.discount)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={removePromotion}
+                    aria-label="Remove promotion code"
+                    className="grid h-8 w-8 shrink-0 place-items-center text-emerald-950/60 transition hover:bg-emerald-100 hover:text-emerald-950"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-2 flex gap-2">
+                  <input
+                    id="promotion-code"
+                    value={promotionInput}
+                    onChange={(event) => {
+                      setPromotionInput(event.target.value.toUpperCase());
+                      setPromotionError(null);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void applyPromotion();
+                      }
+                    }}
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder="Enter code"
+                    className="h-11 min-w-0 flex-1 border border-ink/20 bg-ivory px-3 text-sm uppercase outline-none transition placeholder:normal-case placeholder:text-ink/35 focus:border-ink"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void applyPromotion()}
+                    disabled={promotionLoading || !promotionInput.trim()}
+                    className="h-11 bg-ink px-4 text-xs font-semibold uppercase tracking-[0.14em] text-ivory transition hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {promotionLoading ? "Checking..." : "Apply"}
+                  </button>
+                </div>
+              )}
+              {promotionError ? (
+                <p className="mt-2 text-xs leading-5 text-rose-700" role="alert">
+                  {promotionError}
+                </p>
+              ) : null}
+            </div>
             <dl className="mt-5 space-y-2 border-t border-ink/15 pt-4 text-sm">
               <div className="flex justify-between">
                 <dt className="text-ink/70">Product subtotal</dt>
                 <dd>{format(subtotal)}</dd>
               </div>
+              {discount > 0 ? (
+                <div className="flex justify-between text-emerald-800">
+                  <dt>Promotion</dt>
+                  <dd>-{format(discount)}</dd>
+                </div>
+              ) : null}
               <div className="flex justify-between">
                 <dt className="text-ink/70">Shipping</dt>
                 <dd>{shippingLabel}</dd>

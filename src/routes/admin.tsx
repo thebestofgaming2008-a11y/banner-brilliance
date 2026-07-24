@@ -65,6 +65,7 @@ import {
   Copy,
   Monitor,
   Smartphone,
+  BadgePercent,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { api } from "../../convex/_generated/api";
@@ -99,6 +100,9 @@ import {
   deleteMarketingDraft,
   sendMarketingTest,
   sendMarketingCampaign,
+  listPromotions,
+  savePromotion,
+  deletePromotion,
   type ProductInput,
   type AdminOrder,
   type AdminCustomer,
@@ -110,6 +114,8 @@ import {
   type MarketingCampaign,
   type MarketingCampaignInput,
   type MarketingConfiguration,
+  type Promotion,
+  type PromotionInput,
 } from "@/services/adminService";
 import type { Product } from "@/services/productService";
 import { catalog as storefrontCatalog } from "@/lib/products";
@@ -120,6 +126,7 @@ import {
   type HomepagePreviewProduct,
 } from "@/components/admin/homepage-content-preview";
 import { HomepageEditorPortal } from "@/components/admin/homepage-editor-portal";
+import { PromotionsPanel } from "@/components/admin/promotions-panel";
 
 const CATEGORIES = [
   {
@@ -195,6 +202,7 @@ const NAV = [
   { key: "orders", label: "Orders", Icon: ShoppingBag },
   { key: "products", label: "Products", Icon: Package },
   { key: "inventory", label: "Inventory", Icon: Boxes },
+  { key: "promotions", label: "Promotions", Icon: BadgePercent },
   { key: "homepage", label: "Homepage", Icon: ImageIcon },
   { key: "reviews", label: "Reviews", Icon: MessageSquare },
   { key: "customers", label: "Customers", Icon: Users },
@@ -205,6 +213,7 @@ const PAGE_DESCRIPTIONS: Record<TabKey, string> = {
   orders: "Confirm, pack, ship, and track customer orders.",
   products: "Add products and manage their details, images, and visibility.",
   inventory: "Keep stock accurate and find low-stock products.",
+  promotions: "Create checkout codes and choose which offer appears on the storefront.",
   homepage: "Change hero slides, offers, and collection sections.",
   reviews: "Approve or hide customer reviews.",
   customers: "View customer accounts and order activity.",
@@ -330,6 +339,7 @@ const Admin = () => {
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [storefrontBanners, setStorefrontBanners] = useState<StorefrontBanner[]>([]);
   const [paymentRecoveries, setPaymentRecoveries] = useState<PaymentRecovery[]>([]);
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([]);
   const [marketingConfig, setMarketingConfig] = useState<MarketingConfiguration | null>(null);
   const [loading, setLoading] = useState(true);
@@ -370,8 +380,9 @@ const Admin = () => {
       listCategories(),
       listStorefrontBanners(),
       listPaymentRecoveries(),
+      listPromotions(),
     ])
-      .then(([p, o, c, r, cats, banners, recoveries]) => {
+      .then(([p, o, c, r, cats, banners, recoveries, promotionRows]) => {
         if (cancelled) return;
         setProducts(p);
         setOrders(o);
@@ -380,6 +391,7 @@ const Admin = () => {
         setCategories(cats);
         setStorefrontBanners(banners);
         setPaymentRecoveries(recoveries);
+        setPromotions(promotionRows);
         setLoading(false);
       })
       .catch((error) => {
@@ -401,6 +413,7 @@ const Admin = () => {
   const refreshReviews = async () => setReviews(await listAllReviews(200));
   const refreshStorefrontBanners = async () => setStorefrontBanners(await listStorefrontBanners());
   const refreshPaymentRecoveries = async () => setPaymentRecoveries(await listPaymentRecoveries());
+  const refreshPromotions = async () => setPromotions(await listPromotions());
   const refreshCampaigns = async () => setCampaigns(await listMarketingCampaigns());
 
   const setProductArchived = async (product: Product, archived: boolean) => {
@@ -662,7 +675,7 @@ const Admin = () => {
     {
       label: "Commerce",
       items: NAV.filter((item) =>
-        ["orders", "products", "inventory", "homepage"].includes(item.key),
+        ["orders", "products", "inventory", "promotions", "homepage"].includes(item.key),
       ),
     },
     {
@@ -1261,6 +1274,30 @@ const Admin = () => {
                   }}
                 />
               </Section>
+            )}
+
+            {!loading && !adminLoadError && tab === "promotions" && (
+              <PromotionsPanel
+                promotions={promotions}
+                products={products}
+                onSave={async (input: PromotionInput, id?: string) => {
+                  const saved = await savePromotion(input, id);
+                  await refreshPromotions();
+                  notify({
+                    title: id ? "Promotion updated" : "Promotion created",
+                    description: `${saved.code} is ready for checkout.`,
+                  });
+                  return saved;
+                }}
+                onDelete={async (id: string) => {
+                  const removed = await deletePromotion(id);
+                  if (removed) {
+                    await refreshPromotions();
+                    notify({ title: "Promotion deleted" });
+                  }
+                  return removed;
+                }}
+              />
             )}
 
             {!loading && !adminLoadError && tab === "homepage" && (
@@ -2091,6 +2128,11 @@ function OrderRow({
           <p className="text-sm font-semibold tabular-nums">
             {formatPrice(order.total_inr ?? order.total)}
           </p>
+          {order.promotion_code ? (
+            <p className="mt-0.5 font-mono text-[10px] font-semibold text-emerald-700">
+              {order.promotion_code} · -{formatPrice(order.discount)}
+            </p>
+          ) : null}
           <PaymentBadge
             status={order.payment_status}
             testId={`admin-order-payment-badge-${order.id}`}
@@ -2169,6 +2211,11 @@ function OrderRow({
           status={order.payment_status}
           testId={`admin-order-mobile-payment-badge-${order.id}`}
         />
+        {order.promotion_code ? (
+          <span className="rounded bg-emerald-50 px-2 py-1 font-mono text-[10px] font-semibold text-emerald-800">
+            {order.promotion_code} · -{formatPrice(order.discount)}
+          </span>
+        ) : null}
       </div>
       <div className="grid grid-cols-1 gap-2 px-4 pb-4 md:hidden">
         <select

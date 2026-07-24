@@ -135,6 +135,11 @@ test("shop product cart and checkout path uses the live product", async ({ page 
   await page.getByRole("link", { name: "Proceed to checkout" }).click();
   await expect(page).toHaveURL(/\/checkout$/);
   await expect(page.getByRole("heading", { name: "Delivery details" })).toBeVisible();
+  const promotionCode = page.getByLabel("Promotion code");
+  await expect(promotionCode).toBeVisible();
+  await promotionCode.fill("not-a-real-code");
+  await page.getByRole("button", { name: "Apply" }).click();
+  await expect(page.getByText("Promotion code not found.")).toBeVisible();
   const countryButton = page.getByRole("button", { name: /^Country:/ });
   await countryButton.click();
   const countrySearch = page.getByRole("searchbox", { name: "Search countries" });

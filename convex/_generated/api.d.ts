@@ -20,6 +20,8 @@ import type * as marketing from "../marketing.js";
 import type * as media from "../media.js";
 import type * as orders from "../orders.js";
 import type * as products from "../products.js";
+import type * as promotionRules from "../promotionRules.js";
+import type * as promotions from "../promotions.js";
 import type * as razorpay from "../razorpay.js";
 import type * as reviews from "../reviews.js";
 import type * as seed from "../seed.js";
@@ -46,6 +48,8 @@ declare const fullApi: ApiFromModules<{
   media: typeof media;
   orders: typeof orders;
   products: typeof products;
+  promotionRules: typeof promotionRules;
+  promotions: typeof promotions;
   razorpay: typeof razorpay;
   reviews: typeof reviews;
   seed: typeof seed;

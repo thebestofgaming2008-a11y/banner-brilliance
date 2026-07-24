@@ -442,10 +442,21 @@ function handleGeoRequest(request: Request): Response | null {
 }
 
 function cleanApiError(error: unknown) {
-  const message = error instanceof Error ? error.message : "Payment request failed.";
-  const uncaught = [...message.matchAll(/Uncaught Error:\s*([^\n]+)/gi)].at(-1)?.[1]?.trim();
+  const data =
+    error && typeof error === "object" && "data" in error
+      ? (error as { data?: unknown }).data
+      : null;
+  const message =
+    typeof data === "string" && data.trim()
+      ? data
+      : error instanceof Error
+        ? error.message
+        : "Payment request failed.";
+  const uncaught = [...message.matchAll(/Uncaught (?:ConvexError|Error):\s*([^\n]+)/gi)]
+    .at(-1)?.[1]
+    ?.trim();
   const clean = (uncaught ?? message)
-    .replace(/^Uncaught Error:\s*/i, "")
+    .replace(/^Uncaught (?:ConvexError|Error):\s*/i, "")
     .replace(/\s+at\s+handler[\s\S]*$/i, "")
     .replace(/\s*\n[\s\S]*$/, "")
     .trim();
@@ -466,7 +477,8 @@ function cleanApiError(error: unknown) {
 function paymentErrorStatus(message: string, fallback = 500) {
   if (/payment provider|secure payment|temporarily unavailable|did not respond/i.test(message))
     return 503;
-  if (/missing|required|invalid|mismatch|signature|amount/i.test(message)) return 400;
+  if (/missing|required|invalid|mismatch|signature|amount|promotion|discount/i.test(message))
+    return 400;
   return fallback;
 }
 

@@ -18,6 +18,7 @@ import { MangoMenuIcon } from "@/components/store/mango-menu-icon";
 import { useCurrency } from "@/hooks/use-currency";
 import { useCatalogPresentation, type CatalogBanner } from "@/services/catalogPresentation";
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, seo } from "@/lib/seo";
+import { PromotionPopover } from "@/components/store/promotion-popover";
 
 import logoGold from "@/assets/fawzaan-logo-gold.png";
 import makkahGloves from "@/assets/collection-banners/makkah-gloves.jpg";
@@ -1694,6 +1695,7 @@ function Index() {
       <StoreHeader />
       <LegacyHomepageContent homepage={homepage} />
       <StoreFooter />
+      <PromotionPopover />
     </main>
   );
 }

@@ -10,6 +10,7 @@ import {
   query,
 } from "./_generated/server";
 import { api, internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import {
   isAdminEmail,
   nowIso,
@@ -19,6 +20,12 @@ import {
   writeAuditLog,
 } from "./lib";
 import { checkoutShippingForCountry } from "./shipping";
+import {
+  evaluatePromotion,
+  normalizePromotionCode,
+  releasePromotionUse,
+  reservePromotionUse,
+} from "./promotionRules";
 
 const cartItem = v.object({
   cartKey: v.optional(v.string()),
@@ -53,6 +60,7 @@ const checkoutPayload = {
   subtotal: v.number(),
   shipping: v.number(),
   total: v.number(),
+  promotion_code: v.optional(v.string()),
 };
 
 const ORDER_STATUSES = new Set([
@@ -227,7 +235,7 @@ async function orderWithItems(ctx: any, order: any): Promise<Record<string, any>
   };
 }
 
-async function checkoutQuote(ctx: any, cart: Array<any>) {
+async function checkoutQuote(ctx: any, cart: Array<any>, promotionCode?: string | null) {
   if (!cart.length) throw new Error("Cart is empty.");
   let subtotal = 0;
   let itemCount = 0;
@@ -274,14 +282,18 @@ async function checkoutQuote(ctx: any, cart: Array<any>) {
     });
   }
   const shipping = 0;
-  const total = subtotal + shipping;
+  const promotion = await evaluatePromotion(ctx, promotionCode, validatedCart, subtotal);
+  const discount = promotion?.discount ?? 0;
+  const total = Math.max(0, Math.round((subtotal + shipping - discount) * 100) / 100);
   return {
     subtotal,
     shipping,
+    discount,
     total,
     amountPaise: Math.round(total * 100),
     itemCount,
     validatedCart,
+    promotion,
   };
 }
 
@@ -310,9 +322,12 @@ async function releaseExpiredReservations(ctx: any) {
     .collect();
   for (const intent of expired) {
     if (intent.stock_reserved !== false) await restoreReservedStock(ctx, intent.cart);
+    if (intent.promotion_reserved)
+      await releasePromotionUse(ctx, intent.promotion_id as Id<"discounts"> | null | undefined);
     await ctx.db.patch(intent._id, {
       status: "released",
       stock_reserved: false,
+      promotion_reserved: false,
       updated_at: nowIso(),
     });
   }
@@ -334,9 +349,12 @@ async function failCheckoutIntent(
     .first();
   if (!intent || intent.status !== "pending") return null;
   if (intent.stock_reserved !== false) await restoreReservedStock(ctx, intent.cart);
+  if (intent.promotion_reserved)
+    await releasePromotionUse(ctx, intent.promotion_id as Id<"discounts"> | null | undefined);
   await ctx.db.patch(intent._id, {
     status: "failed",
     stock_reserved: false,
+    promotion_reserved: false,
     payment_id: args.razorpay_payment_id ?? null,
     error: cleanNullable(args.error, 500),
     updated_at: nowIso(),
@@ -354,6 +372,11 @@ async function savePaidOrder(
     razorpay_payment_id: string;
     razorpay_signature: string;
     locked_amount_paise?: number;
+    locked_discount?: number;
+    locked_promotion_id?: Id<"discounts"> | null;
+    locked_promotion_code?: string | null;
+    promotion_code?: string;
+    promotion_already_reserved?: boolean;
     stock_already_reserved?: boolean;
   },
 ) {
@@ -430,9 +453,35 @@ async function savePaidOrder(
     normalizedItems.push({ product, qty, unitPrice, selectedColor, selectedSize });
   }
 
+  const currentPromotion =
+    args.locked_discount === undefined
+      ? await evaluatePromotion(
+          ctx,
+          args.promotion_code,
+          normalizedItems.map((item) => ({
+            productId: String(item.product._id),
+            qty: item.qty,
+            priceInr: item.unitPrice,
+          })),
+          computedSubtotal,
+        )
+      : null;
+  const computedDiscount = Math.min(
+    computedSubtotal,
+    Math.max(0, args.locked_discount ?? currentPromotion?.discount ?? 0),
+  );
+  const promotionId = args.locked_promotion_id ?? currentPromotion?.promotionId ?? null;
+  const promotionCode =
+    args.locked_promotion_code ??
+    currentPromotion?.code ??
+    normalizePromotionCode(args.promotion_code);
+  if (currentPromotion && !args.promotion_already_reserved)
+    await reservePromotionUse(ctx, currentPromotion.promotionId);
+
   const shippingMeta = requireIndiaShipping(customer.country);
   const computedShipping = shippingMeta.amount;
-  const computedTotal = computedSubtotal + computedShipping;
+  const computedTotal =
+    Math.round(Math.max(0, computedSubtotal + computedShipping - computedDiscount) * 100) / 100;
   if (
     args.locked_amount_paise !== undefined &&
     Math.round(computedTotal * 100) !== args.locked_amount_paise
@@ -455,7 +504,9 @@ async function savePaidOrder(
     shipping_payment_status: shippingMeta.paymentStatus,
     shipping_payment_note: shippingMeta.note,
     customer_country_type: shippingMeta.countryType,
-    discount: 0,
+    discount: computedDiscount,
+    promotion_id: promotionId,
+    promotion_code: promotionCode || null,
     total: computedTotal,
     total_inr: computedTotal,
     currency: "INR",
@@ -512,9 +563,49 @@ async function savePaidOrder(
 }
 
 export const quoteCheckout = query({
-  args: { cart: v.array(cartItem) },
+  args: {
+    cart: v.array(cartItem),
+    promotion_code: v.optional(v.string()),
+  },
+  returns: v.object({
+    subtotal: v.number(),
+    shipping: v.number(),
+    discount: v.number(),
+    total: v.number(),
+    amountPaise: v.number(),
+    itemCount: v.number(),
+    promotion: v.union(
+      v.object({
+        id: v.id("discounts"),
+        code: v.string(),
+        name: v.string(),
+        type: v.union(v.literal("percent"), v.literal("fixed")),
+        value: v.number(),
+        eligibleSubtotal: v.number(),
+      }),
+      v.null(),
+    ),
+  }),
   handler: async (ctx, args) => {
-    return await checkoutQuote(ctx, args.cart);
+    const quote = await checkoutQuote(ctx, args.cart, args.promotion_code);
+    return {
+      subtotal: quote.subtotal,
+      shipping: quote.shipping,
+      discount: quote.discount,
+      total: quote.total,
+      amountPaise: quote.amountPaise,
+      itemCount: quote.itemCount,
+      promotion: quote.promotion
+        ? {
+            id: quote.promotion.promotionId,
+            code: quote.promotion.code,
+            name: quote.promotion.name,
+            type: quote.promotion.type,
+            value: quote.promotion.value,
+            eligibleSubtotal: quote.promotion.eligibleSubtotal,
+          }
+        : null,
+    };
   },
 });
 
@@ -523,6 +614,9 @@ function buildWhatsAppOrderMessage(
   customer: Record<string, any>,
   cart: Array<any>,
   subtotal: number,
+  discount: number,
+  promotionCode: string | null,
+  total: number,
 ) {
   const productBase = String(process.env.PUBLIC_SITE_URL ?? process.env.SITE_URL ?? "")
     .trim()
@@ -551,6 +645,12 @@ function buildWhatsAppOrderMessage(
         "",
       ]),
       `Product subtotal: INR ${subtotal.toLocaleString("en-IN")}`,
+      ...(discount > 0
+        ? [
+            `Promotion${promotionCode ? ` (${promotionCode})` : ""}: -INR ${discount.toLocaleString("en-IN")}`,
+            `Discounted subtotal: INR ${total.toLocaleString("en-IN")}`,
+          ]
+        : []),
       "Please confirm availability, international shipping, and payment details.",
     ]
       .filter((line) => line !== "")
@@ -563,6 +663,7 @@ export const createWhatsAppOrder = mutation({
     cart: v.array(cartItem),
     customer: checkoutCustomer,
     client_request_id: v.string(),
+    promotion_code: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const requestId = cleanText(args.client_request_id, 100);
@@ -594,7 +695,8 @@ export const createWhatsAppOrder = mutation({
       throw new Error("India orders must use the secure Razorpay checkout.");
     }
 
-    const quote = await checkoutQuote(ctx, args.cart);
+    const quote = await checkoutQuote(ctx, args.cart, args.promotion_code);
+    if (quote.promotion) await reservePromotionUse(ctx, quote.promotion.promotionId);
     const identity = await ctx.auth.getUserIdentity();
     const userId = identity ? await getAuthUserId(ctx) : null;
     const timestamp = nowIso();
@@ -604,6 +706,9 @@ export const createWhatsAppOrder = mutation({
       customer,
       quote.validatedCart,
       quote.subtotal,
+      quote.discount,
+      quote.promotion?.code ?? null,
+      quote.total,
     );
     const orderId = await ctx.db.insert("orders", {
       order_number: orderNumber,
@@ -621,9 +726,11 @@ export const createWhatsAppOrder = mutation({
       shipping_payment_note:
         "International shipping and payment are confirmed manually on WhatsApp.",
       customer_country_type: "international",
-      discount: 0,
-      total: quote.subtotal,
-      total_inr: quote.subtotal,
+      discount: quote.discount,
+      promotion_id: quote.promotion?.promotionId ?? null,
+      promotion_code: quote.promotion?.code ?? null,
+      total: quote.total,
+      total_inr: quote.total,
       currency: "INR",
       shipping_address: customer,
       payment_provider: "WHATSAPP",
@@ -728,7 +835,10 @@ export const createRazorpayCheckoutOrder = action({
   args: checkoutPayload,
   handler: async (ctx, args) => {
     validateCheckoutCustomer(args.customer);
-    const quote = await ctx.runQuery(api.orders.quoteCheckout, { cart: args.cart });
+    const quote = await ctx.runQuery(api.orders.quoteCheckout, {
+      cart: args.cart,
+      promotion_code: args.promotion_code,
+    });
     if (quote.amountPaise < 100) throw new Error("Order total must be at least INR 1.");
     const { keyId } = razorpayKeys();
     const receipt = `FZ-${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`.slice(0, 40);
@@ -741,6 +851,7 @@ export const createRazorpayCheckoutOrder = action({
         notes: {
           customer: cleanText(args.customer.name, 80),
           email: cleanText(args.customer.email, 120),
+          promotion: quote.promotion?.code ?? "",
         },
       }),
     });
@@ -760,6 +871,7 @@ export const createRazorpayCheckoutOrder = action({
       cart: args.cart,
       customer: args.customer,
       amount_paise: quote.amountPaise,
+      promotion_code: args.promotion_code,
     });
     return { keyId, orderId: order.id, amount: order.amount, currency: order.currency, receipt };
   },
@@ -772,6 +884,7 @@ export const reserveCheckoutIntent = internalMutation({
     cart: v.array(cartItem),
     customer: checkoutCustomer,
     amount_paise: v.number(),
+    promotion_code: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await releaseExpiredReservations(ctx);
@@ -782,10 +895,11 @@ export const reserveCheckoutIntent = internalMutation({
       )
       .first();
     if (existing) return existing._id;
-    const quote = await checkoutQuote(ctx, args.cart);
+    const quote = await checkoutQuote(ctx, args.cart, args.promotion_code);
     if (quote.amountPaise !== args.amount_paise)
       throw new Error("Checkout total changed. Please try again.");
     const timestamp = nowIso();
+    if (quote.promotion) await reservePromotionUse(ctx, quote.promotion.promotionId);
     for (const item of quote.validatedCart) {
       const product = (await getCheckoutProduct(ctx, item.productId)) as any;
       if (!product) throw new Error("Product is no longer available.");
@@ -805,6 +919,12 @@ export const reserveCheckoutIntent = internalMutation({
       cart: quote.validatedCart,
       customer: args.customer,
       amount_paise: args.amount_paise,
+      subtotal_inr: quote.subtotal,
+      shipping_inr: quote.shipping,
+      discount_inr: quote.discount,
+      promotion_id: quote.promotion?.promotionId ?? null,
+      promotion_code: quote.promotion?.code ?? null,
+      promotion_reserved: Boolean(quote.promotion),
       error: null,
       stock_reserved: true,
       reconciliation_attempts: 0,
@@ -911,6 +1031,10 @@ async function finalizeCheckoutIntentHandler(
     razorpay_payment_id: args.razorpay_payment_id,
     razorpay_signature: "verified-by-server",
     locked_amount_paise: hasServerSnapshot ? intent.amount_paise : undefined,
+    locked_discount: hasServerSnapshot ? Number(intent.discount_inr ?? 0) : undefined,
+    locked_promotion_id: hasServerSnapshot ? (intent.promotion_id ?? null) : undefined,
+    locked_promotion_code: hasServerSnapshot ? (intent.promotion_code ?? null) : undefined,
+    promotion_already_reserved: Boolean(intent.promotion_reserved),
     stock_already_reserved: stockAlreadyReserved,
   });
   await ctx.db.patch(intent._id, {
@@ -918,6 +1042,7 @@ async function finalizeCheckoutIntentHandler(
     payment_id: args.razorpay_payment_id,
     error: null,
     stock_reserved: false,
+    promotion_reserved: false,
     updated_at: nowIso(),
   });
   return order;
@@ -963,7 +1088,12 @@ export const verifyRazorpayPayment = action({
     });
     const expectedAmountPaise =
       reservedIntent?.amount_paise ??
-      (await ctx.runQuery(api.orders.quoteCheckout, { cart: args.cart })).amountPaise;
+      (
+        await ctx.runQuery(api.orders.quoteCheckout, {
+          cart: args.cart,
+          promotion_code: args.promotion_code,
+        })
+      ).amountPaise;
 
     const [razorpayOrder, fetchedPayment] = await Promise.all([
       razorpayRequest(ctx, `/orders/${args.razorpay_order_id}`),
@@ -1023,6 +1153,7 @@ export const verifyRazorpayPayment = action({
       subtotal: args.subtotal,
       shipping: args.shipping,
       total: args.total,
+      promotion_code: args.promotion_code,
       user_id: userId,
       razorpay_order_id: args.razorpay_order_id,
       razorpay_payment_id: args.razorpay_payment_id,

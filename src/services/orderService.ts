@@ -36,11 +36,39 @@ type BackendCheckoutPayload = {
   subtotal: number;
   shipping: number;
   total: number;
+  promotion_code?: string;
 };
 
 type WhatsAppOrderResult = {
   order: Record<string, unknown> | null;
   whatsappUrl: string;
+};
+
+function publicConvexError(error: unknown, fallback: string) {
+  if (error && typeof error === "object" && "data" in error) {
+    const data = (error as { data?: unknown }).data;
+    if (typeof data === "string" && data.trim()) return data;
+  }
+  const message = error instanceof Error ? error.message : "";
+  const convexMessage = message.match(/Uncaught ConvexError:\s*([^\n]+)/)?.[1];
+  return convexMessage?.trim() || message || fallback;
+}
+
+export type CheckoutPromotionQuote = {
+  subtotal: number;
+  shipping: number;
+  discount: number;
+  total: number;
+  amountPaise: number;
+  itemCount: number;
+  promotion: {
+    id: string;
+    code: string;
+    name: string;
+    type: "percent" | "fixed";
+    value: number;
+    eligibleSubtotal: number;
+  } | null;
 };
 
 function optionValue(variant: string | undefined, index: number) {
@@ -97,15 +125,9 @@ function resolveCheckoutProduct(item: CartItem, products: Product[]) {
   });
 }
 
-async function buildBackendCheckoutPayload(args: {
-  cart: CartItem[];
-  customer: CheckoutCustomer;
-  subtotal: number;
-  shipping: number;
-  total: number;
-}): Promise<BackendCheckoutPayload> {
+async function buildBackendCart(items: CartItem[]): Promise<BackendCheckoutItem[]> {
   const products = await listActiveProducts();
-  const cart = args.cart.map((item) => {
+  return items.map((item) => {
     const slug = productSlugFromCartItem(item);
     const product = resolveCheckoutProduct(item, products);
     const productId = product?.id;
@@ -129,6 +151,17 @@ async function buildBackendCheckoutPayload(args: {
       selectedSize,
     };
   });
+}
+
+async function buildBackendCheckoutPayload(args: {
+  cart: CartItem[];
+  customer: CheckoutCustomer;
+  subtotal: number;
+  shipping: number;
+  total: number;
+  promotionCode?: string;
+}): Promise<BackendCheckoutPayload> {
+  const cart = await buildBackendCart(args.cart);
 
   return {
     cart,
@@ -136,7 +169,23 @@ async function buildBackendCheckoutPayload(args: {
     subtotal: args.subtotal,
     shipping: args.shipping,
     total: args.total,
+    promotion_code: args.promotionCode?.trim() || undefined,
   };
+}
+
+export async function quoteCheckoutPromotion(
+  cart: CartItem[],
+  promotionCode: string,
+): Promise<CheckoutPromotionQuote> {
+  const backendCart = await buildBackendCart(cart);
+  try {
+    return (await convex.query(api.orders.quoteCheckout, {
+      cart: backendCart,
+      promotion_code: promotionCode,
+    })) as CheckoutPromotionQuote;
+  } catch (error) {
+    throw new Error(publicConvexError(error, "This promotion is unavailable."));
+  }
 }
 
 function productPageUrl(item: CartItem) {
@@ -184,6 +233,7 @@ export async function createBackendWhatsAppOrder(args: {
   customer: CheckoutCustomer;
   total: number;
   requestId: string;
+  promotionCode?: string;
 }): Promise<WhatsAppOrderResult> {
   const payload = await buildBackendCheckoutPayload({
     cart: args.cart,
@@ -191,12 +241,19 @@ export async function createBackendWhatsAppOrder(args: {
     subtotal: args.total,
     shipping: 0,
     total: args.total,
+    promotionCode: args.promotionCode,
   });
-  const order = (await convex.mutation(api.orders.createWhatsAppOrder, {
-    cart: payload.cart,
-    customer: payload.customer,
-    client_request_id: args.requestId,
-  })) as Record<string, unknown> | null;
+  let order: Record<string, unknown> | null;
+  try {
+    order = (await convex.mutation(api.orders.createWhatsAppOrder, {
+      cart: payload.cart,
+      customer: payload.customer,
+      client_request_id: args.requestId,
+      promotion_code: payload.promotion_code,
+    })) as Record<string, unknown> | null;
+  } catch (error) {
+    throw new Error(publicConvexError(error, "The international order could not be saved."));
+  }
   if (!order) throw new Error("The international order could not be saved.");
   const savedMessage = String(
     order.whatsapp_message ?? buildWhatsAppMessage(args.cart, args.customer, args.total),
@@ -213,6 +270,7 @@ export async function createRazorpayOrder(args: {
   subtotal: number;
   shipping: number;
   total: number;
+  promotionCode?: string;
 }) {
   const payload = await buildBackendCheckoutPayload(args);
   const response = await fetch("/api/create-order", {

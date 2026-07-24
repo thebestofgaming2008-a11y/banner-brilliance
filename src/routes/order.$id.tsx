@@ -40,6 +40,8 @@ type TrackedOrder = {
   payment_status?: string;
   total_inr?: number;
   total?: number;
+  discount?: number;
+  promotion_code?: string;
   shipping_address?: TrackedAddress;
   items?: TrackedItem[];
   tracking_number?: string;
@@ -186,6 +188,11 @@ function OrderLookup({ orderNumber, email }: { orderNumber: string; email: strin
               <p className="mt-1 text-lg font-bold">
                 {formatPrice(Number(trackedOrder.total_inr ?? trackedOrder.total ?? 0))}
               </p>
+              {trackedOrder.promotion_code && Number(trackedOrder.discount ?? 0) > 0 ? (
+                <p className="mt-2 text-xs font-medium text-emerald-700">
+                  {trackedOrder.promotion_code} saved {formatPrice(Number(trackedOrder.discount))}
+                </p>
+              ) : null}
             </div>
             <div className="border border-black/10 p-5">
               <div className="flex items-center gap-2">

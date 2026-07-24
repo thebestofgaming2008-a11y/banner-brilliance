@@ -350,6 +350,67 @@ export async function restoreDefaultHomepageHero(): Promise<number> {
   return await convex.mutation(api.admin.restoreDefaultHomepageHero, {});
 }
 
+export interface Promotion {
+  id: string;
+  name: string;
+  code: string;
+  type: "percent" | "fixed";
+  value: number;
+  active: boolean;
+  usage_limit: number | null;
+  used_count: number;
+  starts_at: string | null;
+  ends_at: string | null;
+  minimum_subtotal: number | null;
+  maximum_discount: number | null;
+  scope_type: "all" | "products";
+  product_ids: string[];
+  storefront_enabled: boolean;
+  storefront_title: string | null;
+  storefront_message: string | null;
+  storefront_badge: string | null;
+  storefront_button_label: string | null;
+  storefront_button_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PromotionInput = Omit<Promotion, "id" | "used_count" | "created_at" | "updated_at">;
+
+function promotionServiceError(error: unknown) {
+  if (error && typeof error === "object" && "data" in error) {
+    const data = (error as { data?: unknown }).data;
+    if (typeof data === "string" && data.trim()) return data;
+  }
+  return error instanceof Error ? error.message : "Promotion request failed.";
+}
+
+export async function listPromotions(): Promise<Promotion[]> {
+  return (await convex.query(api.promotions.listAdmin, {})) as Promotion[];
+}
+
+export async function savePromotion(input: PromotionInput, id?: string): Promise<Promotion> {
+  try {
+    return (await convex.mutation(api.promotions.save, {
+      ...input,
+      product_ids: input.product_ids as Id<"products">[],
+      id: id ? (id as Id<"discounts">) : undefined,
+    })) as Promotion;
+  } catch (error) {
+    throw new Error(promotionServiceError(error));
+  }
+}
+
+export async function deletePromotion(id: string): Promise<boolean> {
+  try {
+    return await convex.mutation(api.promotions.remove, {
+      id: id as Id<"discounts">,
+    });
+  } catch (error) {
+    throw new Error(promotionServiceError(error));
+  }
+}
+
 export interface LaunchReadiness {
   ready: boolean;
   blockers: string[];
@@ -382,6 +443,8 @@ export interface AdminOrder {
   customer_country_type?: string | null;
   shipping_address?: AdminShippingAddress | null;
   shipping_cost?: number | null;
+  discount?: number | null;
+  promotion_code?: string | null;
   tracking_carrier?: string | null;
   tracking_number?: string | null;
   tracking_url?: string | null;
