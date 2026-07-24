@@ -19,9 +19,9 @@ import { MangoMenuIcon } from "@/components/store/mango-menu-icon";
 import { useCurrency } from "@/hooks/use-currency";
 import { useCatalogPresentation, type CatalogBanner } from "@/services/catalogPresentation";
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, seo } from "@/lib/seo";
+import { STORE_LOGO_URL } from "@/lib/store-config";
 import { PromotionPopover } from "@/components/store/promotion-popover";
 
-import logoGold from "@/assets/fawzaan-logo-gold.png";
 import makkahGloves from "@/assets/collection-banners/makkah-gloves.jpg";
 import sabrWatchBlack from "@/assets/collection-banners/sabr-watch-black.jpg";
 import heroNiqabFull from "@/assets/hero-products/hero-niqab-full.webp";
@@ -456,7 +456,7 @@ function Header() {
             aria-label="Fawzaan home"
           >
             <img
-              src={logoGold}
+              src={STORE_LOGO_URL}
               alt="Fawzaan"
               className="site-header__logo h-full w-full object-contain"
             />
@@ -487,7 +487,7 @@ function Header() {
         className={`store-drawer fixed inset-y-0 left-0 z-[70] flex w-[min(90vw,420px)] flex-col bg-white ${openDrawer === "menu" ? "is-open" : "-translate-x-full"}`}
       >
         <div className="flex h-[65px] items-center justify-between border-b border-black/10 px-6">
-          <img src={logoGold} alt="Fawzaan" className="h-9 w-auto object-contain" />
+          <img src={STORE_LOGO_URL} alt="Fawzaan" className="h-9 w-auto object-contain" />
           <IconButton label="Close menu" onClick={closeDrawer}>
             <X size={23} />
           </IconButton>
@@ -1623,7 +1623,7 @@ function Footer() {
     <footer className="border-t-[6px] border-[#F18532] bg-black px-[22px] pb-7 pt-12 text-white md:px-8 md:pt-16">
       <div className="mx-auto grid max-w-[1120px] gap-11 md:grid-cols-[1.4fr_0.8fr_0.8fr] md:gap-16">
         <div>
-          <img src={logoGold} alt="Fawzaan" className="h-14 w-auto object-contain" />
+          <img src={STORE_LOGO_URL} alt="Fawzaan" className="h-14 w-auto object-contain" />
           <p className="mt-5 max-w-sm text-[13px] leading-5 text-white/60">
             Premium modest essentials: shemaghs, niqabs, kufis, and raw Kashmir honey.
           </p>

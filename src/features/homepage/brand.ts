@@ -6,16 +6,16 @@ export const MANGO_SOLID = "#F6AD32";
 
 export const IKHWAAN_HERO_GRADIENT: HeroGradient = {
   enabled: "on",
-  startColor: "#FE6708",
-  endColor: "#FBC563",
+  startColor: "#FFBB00",
+  endColor: "#FF0051",
   angle: 105,
   opacity: 100,
 };
 
 export const SALIHAAT_HERO_GRADIENT: HeroGradient = {
   enabled: "on",
-  startColor: "#F9C039",
-  endColor: "#F8B537",
+  startColor: "#FF0051",
+  endColor: "#FF00E1",
   angle: 105,
   opacity: 100,
 };

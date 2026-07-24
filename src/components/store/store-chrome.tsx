@@ -10,11 +10,11 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
-import logoGold from "@/assets/fawzaan-logo-gold.png";
 import { MangoMenuIcon } from "@/components/store/mango-menu-icon";
 import { CurrencySelector } from "@/components/store/currency-selector";
 import { useAccount } from "@/lib/account";
 import { useCart } from "@/lib/cart";
+import { STORE_LOGO_URL } from "@/lib/store-config";
 import { useCurrency } from "@/hooks/use-currency";
 import { useCatalogPresentation } from "@/services/catalogPresentation";
 
@@ -72,7 +72,7 @@ export function StoreHeader() {
             aria-label="Fawzaan home"
             className="absolute left-1/2 top-1/2 h-[42px] w-[100px] -translate-x-1/2 -translate-y-1/2 sm:h-[44px] sm:w-[105px]"
           >
-            <img src={logoGold} alt="Fawzaan" className="h-full w-full object-contain" />
+            <img src={STORE_LOGO_URL} alt="Fawzaan" className="h-full w-full object-contain" />
           </a>
           <div className="flex items-center gap-2">
             {isAdmin ? (
@@ -114,7 +114,7 @@ export function StoreHeader() {
         className={`store-drawer store-drawer--menu fixed inset-y-0 left-0 z-[70] flex h-[100dvh] w-full max-w-[420px] flex-col bg-white ${drawer === "menu" ? "is-open" : ""}`}
       >
         <div className="drawer-reveal flex h-[65px] items-center justify-between border-b border-black/10 px-6">
-          <img src={logoGold} alt="Fawzaan" className="h-9 w-auto" />
+          <img src={STORE_LOGO_URL} alt="Fawzaan" className="h-9 w-auto" />
           <ChromeButton label="Close menu" onClick={() => setDrawer(null)}>
             <X size={23} />
           </ChromeButton>
@@ -305,7 +305,7 @@ export function StoreHeaderPreview() {
           <MangoMenuIcon />
         </span>
         <span className="absolute left-1/2 top-1/2 h-[42px] w-[100px] -translate-x-1/2 -translate-y-1/2 sm:h-[44px] sm:w-[105px]">
-          <img src={logoGold} alt="Fawzaan" className="h-full w-full object-contain" />
+          <img src={STORE_LOGO_URL} alt="Fawzaan" className="h-full w-full object-contain" />
         </span>
         <span className="grid h-9 w-9 place-items-center text-[#C85F22]" aria-hidden="true">
           <span className="relative">
@@ -327,7 +327,7 @@ export function StoreFooter() {
     <footer className="border-t-[6px] border-[#F18532] bg-black px-[22px] pb-7 pt-12 text-white md:px-8 md:pt-16">
       <div className="mx-auto grid max-w-[1120px] gap-11 md:grid-cols-[1.3fr_0.7fr_0.7fr_0.65fr] md:gap-12">
         <div>
-          <img src={logoGold} alt="Fawzaan" className="h-14 w-auto" />
+          <img src={STORE_LOGO_URL} alt="Fawzaan" className="h-14 w-auto" />
           <p className="mt-5 max-w-sm text-[13px] leading-5 text-white/60">
             Premium modest essentials selected for faith, heritage, and everyday quality.
           </p>

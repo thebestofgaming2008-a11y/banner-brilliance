@@ -31,6 +31,17 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
   expect(logo.ok()).toBeTruthy();
   expect(logo.headers()["content-type"]).toBe("image/png");
 
+  const catalog = await request.get("/api/catalog/products");
+  expect(catalog.ok()).toBeTruthy();
+  expect(catalog.headers()["cache-control"]).toBe(
+    "public, max-age=0, s-maxage=60, stale-while-revalidate=300",
+  );
+  const presentation = await request.get("/api/catalog/presentation");
+  expect(presentation.ok()).toBeTruthy();
+  expect(presentation.headers()["cache-control"]).toBe(
+    "public, max-age=0, s-maxage=60, stale-while-revalidate=300",
+  );
+
   await page.goto("/products/makkah-gloves", { waitUntil: "domcontentloaded" });
   const productSchemas = (
     await page.locator('script[type="application/ld+json"]').allTextContents()

@@ -108,6 +108,8 @@ const productPatch = {
   in_stock: v.optional(v.union(v.boolean(), v.null())),
 };
 
+const MAX_PUBLIC_PRODUCTS = 500;
+
 function slugify(s: string): string {
   return s
     .toLowerCase()
@@ -700,7 +702,7 @@ export const listActiveProducts = query({
     const rows = await ctx.db
       .query("products")
       .withIndex("by_active", (q) => q.eq("is_active", true))
-      .collect();
+      .take(MAX_PUBLIC_PRODUCTS);
     return rows
       .filter(isLaunchReady)
       .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))
@@ -744,11 +746,12 @@ export const listByCategory = query({
   args: { category: v.string() },
   handler: async (ctx, args) => {
     const requested = args.category === "essentials" ? "children" : args.category;
-    const rows = await ctx.db.query("products").collect();
+    const rows = await ctx.db
+      .query("products")
+      .withIndex("by_active", (q) => q.eq("is_active", true))
+      .take(MAX_PUBLIC_PRODUCTS);
     return rows
-      .filter(
-        (p) => p.is_active !== false && isLaunchReady(p) && topCategoryForProduct(p) === requested,
-      )
+      .filter((p) => isLaunchReady(p) && topCategoryForProduct(p) === requested)
       .map(publicProductCard);
   },
 });

@@ -9,6 +9,30 @@ function watchPageErrors(page: Page) {
   return errors;
 }
 
+test("coded homepage uses the client-approved hero gradients", async ({ page }) => {
+  await page.route("**/api/catalog/presentation*", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ taxonomy: [], banners: [], homepage: null }),
+    });
+  });
+
+  await page.goto("/");
+  const hero = page.getByRole("region", { name: "Featured collection" });
+  const ikhwaan = hero.locator('[data-default-hero="AL-IKHWAAN SET"]');
+  await expect(ikhwaan).toHaveCSS(
+    "background-image",
+    /linear-gradient\(105deg, rgb\(255, 187, 0\), rgb\(255, 0, 81\)\)/,
+  );
+
+  await hero.getByRole("button", { name: "Show AS-SALIHAAT SET" }).click();
+  const salihaat = hero.locator('[data-default-hero="AS-SALIHAAT SET"]');
+  await expect(salihaat).toHaveCSS(
+    "background-image",
+    /linear-gradient\(105deg, rgb\(255, 0, 81\), rgb\(255, 0, 225\)\)/,
+  );
+});
+
 test("published visual homepage content renders responsively", async ({ page }) => {
   const errors = watchPageErrors(page);
   await page.route("**/api/catalog/presentation*", async (route) => {

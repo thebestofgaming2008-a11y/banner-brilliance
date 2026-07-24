@@ -31,7 +31,7 @@ type R2BucketLike = {
 const PUBLIC_SITE_URL = "https://fawzaanstore.pages.dev";
 const SITEMAP_LASTMOD = "2026-07-18";
 const CATALOG_CACHE_HEADERS = {
-  "cache-control": "no-store",
+  "cache-control": "public, max-age=0, s-maxage=60, stale-while-revalidate=300",
 };
 const CURRENCY_CACHE_HEADERS = {
   "cache-control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",

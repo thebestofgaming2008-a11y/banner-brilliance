@@ -1,3 +1,4 @@
+export const STORE_LOGO_URL = "/fawzaan-logo.png";
 export const STORE_WHATSAPP_DISPLAY = "+91 91529 99764";
 export const STORE_WHATSAPP_PHONE = String(
   import.meta.env.VITE_WHATSAPP_ORDER_PHONE || "919152999764",
