@@ -5,6 +5,54 @@ import "react-easy-crop/react-easy-crop.css";
 
 import { uploadProductImage } from "@/services/adminService";
 
+const MAX_HOMEPAGE_IMAGE_BYTES = 25 * 1024 * 1024;
+const MAX_HOMEPAGE_IMAGE_EDGE = 2560;
+const TARGET_HOMEPAGE_IMAGE_BYTES = 4 * 1024 * 1024;
+
+function canvasBlob(canvas: HTMLCanvasElement, quality: number) {
+  return new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("Could not optimize this image."))),
+      "image/webp",
+      quality,
+    ),
+  );
+}
+
+async function optimizeHomepageImage(file: File) {
+  if (!file.type.startsWith("image/")) return file;
+  if (file.size > MAX_HOMEPAGE_IMAGE_BYTES) {
+    throw new Error("Homepage images must be 25 MB or smaller.");
+  }
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_HOMEPAGE_IMAGE_EDGE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d", { alpha: true });
+    if (!context) throw new Error("Image optimization is unavailable in this browser.");
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    let blob = await canvasBlob(canvas, 0.86);
+    if (blob.size > TARGET_HOMEPAGE_IMAGE_BYTES) blob = await canvasBlob(canvas, 0.74);
+    if (blob.size > TARGET_HOMEPAGE_IMAGE_BYTES) blob = await canvasBlob(canvas, 0.64);
+    if (blob.size >= file.size && file.size <= TARGET_HOMEPAGE_IMAGE_BYTES && scale === 1) {
+      return file;
+    }
+    const stem = file.name.replace(/\.[^.]+$/, "") || "homepage-banner";
+    return new File([blob], `${stem}.webp`, {
+      type: "image/webp",
+      lastModified: file.lastModified,
+    });
+  } catch (error) {
+    if (file.size <= TARGET_HOMEPAGE_IMAGE_BYTES) return file;
+    throw error instanceof Error
+      ? error
+      : new Error("This image could not be optimized. Export it as JPG or WebP and try again.");
+  }
+}
+
 async function loadImage(src: string) {
   return await new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
@@ -71,7 +119,8 @@ export function HomepageImageInput({
     setUploading(true);
     setError("");
     try {
-      const url = await uploadProductImage(file);
+      const optimized = await optimizeHomepageImage(file);
+      const url = await uploadProductImage(optimized);
       if (!url) throw new Error("Upload did not return a public image URL.");
       onChange(url);
     } catch (uploadError) {

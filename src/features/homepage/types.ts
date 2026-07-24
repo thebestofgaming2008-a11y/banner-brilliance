@@ -83,6 +83,7 @@ export type BannerLayer = {
   semantic?: "h1" | "h2" | "h3" | "p" | "span";
   text?: string;
   src?: string;
+  alt?: string;
   href?: string;
   style: BannerLayerStyle;
   mobileStyle?: Partial<BannerLayerStyle>;
@@ -195,6 +196,8 @@ export type SplitEditorialProps = {
 
 export type CollectionFeatureProps = {
   contentMode?: "text-overlay" | "image-only";
+  imageAlt?: string;
+  imageLink?: string;
   eyebrow: string;
   title: string;
   body: string;
@@ -221,6 +224,8 @@ export type CollectionFeatureProps = {
 
 export type PromoBannerProps = {
   contentMode?: "text-overlay" | "image-only";
+  imageAlt?: string;
+  imageLink?: string;
   eyebrow: string;
   title: string;
   body: string;

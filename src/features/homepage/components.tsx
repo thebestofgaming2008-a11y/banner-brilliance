@@ -50,7 +50,11 @@ function textAlignClass(value: "left" | "center" | "right") {
 
 function safeLink(url: string) {
   const value = String(url || "#").trim();
-  return value.startsWith("/") || value.startsWith("#") || /^https:\/\//i.test(value) ? value : "#";
+  return (value.startsWith("/") && !value.startsWith("//")) ||
+    value.startsWith("#") ||
+    /^https:\/\//i.test(value)
+    ? value
+    : "#";
 }
 
 export function HomepageHero({
@@ -670,6 +674,9 @@ export function HomepageSplitEditorial({
 
 export function HomepageCollectionFeature({
   id,
+  contentMode,
+  imageAlt,
+  imageLink,
   eyebrow,
   title,
   body,
@@ -726,7 +733,20 @@ export function HomepageCollectionFeature({
       style={{ backgroundColor: bannerColor, color: resolvedTextColor }}
     >
       {scene ? (
-        <BannerSceneView scene={scene} editorKey={editMode ? editorKey : undefined} />
+        contentMode === "image-only" && imageLink ? (
+          <a
+            href={safeLink(imageLink)}
+            aria-label={imageAlt || title || "View promotion"}
+            className="block"
+            onClick={(event) => {
+              if (editMode) event.preventDefault();
+            }}
+          >
+            <BannerSceneView scene={scene} editorKey={editMode ? editorKey : undefined} />
+          </a>
+        ) : (
+          <BannerSceneView scene={scene} editorKey={editMode ? editorKey : undefined} />
+        )
       ) : image ? (
         <img
           src={image}
@@ -815,7 +835,26 @@ export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
         }}
       >
         {props.scene ? (
-          <BannerSceneView scene={props.scene} editorKey={props.editMode ? editorKey : undefined} />
+          props.contentMode === "image-only" && props.imageLink ? (
+            <a
+              href={safeLink(props.imageLink)}
+              aria-label={props.imageAlt || props.title || "View promotion"}
+              className="block"
+              onClick={(event) => {
+                if (props.editMode) event.preventDefault();
+              }}
+            >
+              <BannerSceneView
+                scene={props.scene}
+                editorKey={props.editMode ? editorKey : undefined}
+              />
+            </a>
+          ) : (
+            <BannerSceneView
+              scene={props.scene}
+              editorKey={props.editMode ? editorKey : undefined}
+            />
+          )
         ) : props.backgroundImage ? (
           <img
             src={props.backgroundImage}

@@ -9,6 +9,7 @@ import type {
   HeroSlide,
   HomepageContentItem,
   HomepageData,
+  HomepageTextAlign,
   PromoBannerProps,
 } from "./types";
 
@@ -451,20 +452,97 @@ export function sceneFromCollectionCard(card: CollectionCard, index = 0): Banner
   };
 }
 
-export function sceneFromCollectionFeature(props: CollectionFeatureProps): BannerScene {
-  const imageOnly = props.contentMode === "image-only";
-  const light = props.textTone === "light";
-  const color = props.textColor || (light ? "#ffffff" : "#000000");
-  const image = imageLayer("banner-image", "Banner image", props.image, {
+function alignedX(width: number, alignment: HomepageTextAlign) {
+  if (alignment === "center") return (100 - width) / 2;
+  if (alignment === "right") return 94 - width;
+  return 6;
+}
+
+function presetBannerImage(src: string, alt = ""): BannerLayer {
+  const image = imageLayer("banner-image", "Banner image", src, {
     x: 0,
     y: 0,
     width: 100,
     height: 100,
+    locked: true,
     objectFit: "cover",
     objectPosition: "center",
-    lockAspectRatio: false,
+    cropX: 0,
+    cropY: 0,
+    cropZoom: 100,
+    lockAspectRatio: true,
   });
-  image.mobileStyle = { x: 0, y: 0, width: 100, height: 100 };
+  image.alt = alt;
+  image.mobileStyle = {
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+    locked: true,
+    objectFit: "cover",
+    objectPosition: "center",
+    cropX: 0,
+    cropY: 0,
+    cropZoom: 100,
+    lockAspectRatio: true,
+  };
+  return image;
+}
+
+export function migratePresetBannerScene(
+  generated: BannerScene,
+  previous?: BannerScene,
+  preserveCrop = true,
+): BannerScene {
+  if (!previous || !preserveCrop) return generated;
+  const previousImage = previous.layers?.find((layer) => layer.id === "banner-image");
+  const previousFill = [...(previous.fills ?? [])]
+    .reverse()
+    .find((fill) => fill.type === "image" && fill.src);
+  const cropValue = (value: number | undefined) =>
+    Math.min(50, Math.max(-50, Number.isFinite(value) ? Number(value) : 0));
+  const zoomValue = (value: number | undefined) =>
+    Math.min(300, Math.max(100, Number.isFinite(value) ? Number(value) : 100));
+  return {
+    ...generated,
+    layers: generated.layers.map((layer) => {
+      if (layer.id !== "banner-image") return layer;
+      return {
+        ...layer,
+        style: {
+          ...layer.style,
+          cropX: cropValue(previousImage?.style.cropX ?? previousFill?.offsetX),
+          cropY: cropValue(previousImage?.style.cropY ?? previousFill?.offsetY),
+          cropZoom: zoomValue(previousImage?.style.cropZoom ?? previousFill?.zoom),
+        },
+        mobileStyle: {
+          ...(layer.mobileStyle ?? {}),
+          cropX: cropValue(
+            previousImage?.mobileStyle?.cropX ??
+              previousImage?.style.cropX ??
+              previousFill?.offsetX,
+          ),
+          cropY: cropValue(
+            previousImage?.mobileStyle?.cropY ??
+              previousImage?.style.cropY ??
+              previousFill?.offsetY,
+          ),
+          cropZoom: zoomValue(
+            previousImage?.mobileStyle?.cropZoom ??
+              previousImage?.style.cropZoom ??
+              previousFill?.zoom,
+          ),
+        },
+      };
+    }),
+  };
+}
+
+export function sceneFromCollectionFeature(props: CollectionFeatureProps): BannerScene {
+  const imageOnly = props.contentMode === "image-only";
+  const light = props.textTone === "light";
+  const color = props.textColor || (light ? "#ffffff" : "#000000");
+  const image = presetBannerImage(props.image, props.imageAlt);
   const overlay: BannerLayer = {
     id: "banner-overlay",
     name: "Text overlay",
@@ -482,8 +560,9 @@ export function sceneFromCollectionFeature(props: CollectionFeatureProps): Banne
   const eyebrow = textLayer("eyebrow", "Eyebrow", props.eyebrow, {
     x: 6,
     y: 60,
-    width: 58,
+    width: 88,
     height: 5,
+    locked: true,
     fontSize: 12,
     fontWeight: 600,
     textTransform: "uppercase",
@@ -491,7 +570,7 @@ export function sceneFromCollectionFeature(props: CollectionFeatureProps): Banne
     color,
     visible: !imageOnly,
   });
-  eyebrow.mobileStyle = { x: 6, y: 59, width: 88, height: 5 };
+  eyebrow.mobileStyle = { x: 6, y: 59, width: 88, height: 5, locked: true };
   const title = textLayer(
     "title",
     "Title",
@@ -499,8 +578,9 @@ export function sceneFromCollectionFeature(props: CollectionFeatureProps): Banne
     {
       x: 6,
       y: 66,
-      width: 74,
+      width: 88,
       height: 15,
+      locked: true,
       fontFamily: "schibsted",
       fontSize: props.titleSize,
       fontWeight: 400,
@@ -516,31 +596,40 @@ export function sceneFromCollectionFeature(props: CollectionFeatureProps): Banne
     y: 65,
     width: 88,
     height: 16,
+    locked: true,
     fontSize: props.mobileTitleSize,
   };
   const body = textLayer("body", "Description", props.body, {
-    x: 6,
+    x: alignedX(58, props.textAlign),
     y: 82,
-    width: 54,
+    width: 58,
     height: 7,
+    locked: true,
     fontSize: 14,
     lineHeight: 1.4,
     textAlign: props.textAlign,
     color,
     visible: !imageOnly,
   });
-  body.mobileStyle = { x: 6, y: 82, width: 88, height: 7 };
+  body.mobileStyle = { x: 6, y: 82, width: 88, height: 7, locked: true };
   const button = buttonLayer("button", props.buttonLabel, props.buttonUrl, {
-    x: 6,
+    x: alignedX(22, props.textAlign),
     y: 91,
     width: 22,
     height: 7,
+    locked: true,
     textAlign: "center",
     color: props.buttonTextColor || (light ? "#000000" : "#ffffff"),
     backgroundColor: props.buttonBackgroundColor || (light ? "#ffffff" : "#000000"),
     visible: !imageOnly,
   });
-  button.mobileStyle = { x: 6, y: 90, width: 36, height: 8 };
+  button.mobileStyle = {
+    x: alignedX(36, props.textAlign),
+    y: 90,
+    width: 36,
+    height: 8,
+    locked: true,
+  };
   return {
     version: 1,
     name: props.title || "Collection with products",
@@ -549,7 +638,7 @@ export function sceneFromCollectionFeature(props: CollectionFeatureProps): Banne
     fills: [
       { id: "fill-solid", type: "solid", enabled: true, opacity: 100, color: props.bannerColor },
     ],
-    layers: [image, overlay, eyebrow, title, body, button],
+    layers: imageOnly ? [image] : [image, overlay, eyebrow, title, body, button],
   };
 }
 
@@ -557,16 +646,7 @@ export function sceneFromPromo(props: PromoBannerProps): BannerScene {
   const imageOnly = props.contentMode === "image-only";
   const light = props.textTone === "light";
   const color = props.textColor || (light ? "#ffffff" : "#000000");
-  const image = imageLayer("banner-image", "Banner image", props.backgroundImage, {
-    x: 0,
-    y: 0,
-    width: 100,
-    height: 100,
-    objectFit: "cover",
-    objectPosition: props.imageFocus || "center",
-    lockAspectRatio: false,
-  });
-  image.mobileStyle = { x: 0, y: 0, width: 100, height: 100 };
+  const image = presetBannerImage(props.backgroundImage, props.imageAlt);
   const overlay: BannerLayer = {
     id: "banner-overlay",
     name: "Text overlay",
@@ -584,15 +664,16 @@ export function sceneFromPromo(props: PromoBannerProps): BannerScene {
   const eyebrow = textLayer("eyebrow", "Eyebrow", props.eyebrow, {
     x: 6,
     y: 55,
-    width: 40,
+    width: 88,
     height: 5,
+    locked: true,
     fontSize: 12,
     textTransform: "uppercase",
     textAlign: props.textAlign,
     color,
     visible: !imageOnly,
   });
-  eyebrow.mobileStyle = { x: 6, y: 57, width: 88, height: 5 };
+  eyebrow.mobileStyle = { x: 6, y: 57, width: 88, height: 5, locked: true };
   const title = textLayer(
     "title",
     "Title",
@@ -600,8 +681,9 @@ export function sceneFromPromo(props: PromoBannerProps): BannerScene {
     {
       x: 6,
       y: 62,
-      width: 58,
+      width: 88,
       height: 14,
+      locked: true,
       fontFamily: props.titleFont === "display" ? "instrument" : "schibsted",
       fontSize: props.titleSize,
       fontWeight: 400,
@@ -617,30 +699,39 @@ export function sceneFromPromo(props: PromoBannerProps): BannerScene {
     y: 63,
     width: 88,
     height: 16,
+    locked: true,
     fontSize: props.mobileTitleSize,
   };
   const body = textLayer("body", "Description", props.body, {
-    x: 6,
+    x: alignedX(58, props.textAlign),
     y: 78,
-    width: 50,
+    width: 58,
     height: 7,
+    locked: true,
     fontSize: 14,
     lineHeight: 1.4,
     textAlign: props.textAlign,
     color,
     visible: !imageOnly,
   });
-  body.mobileStyle = { x: 6, y: 80, width: 88, height: 7 };
+  body.mobileStyle = { x: 6, y: 80, width: 88, height: 7, locked: true };
   const button = buttonLayer("button", props.buttonLabel, props.buttonUrl, {
-    x: 6,
+    x: alignedX(22, props.textAlign),
     y: 87,
-    width: 20,
+    width: 22,
     height: 7,
+    locked: true,
     color: props.buttonTextColor || (light ? "#000000" : "#ffffff"),
     backgroundColor: props.buttonBackgroundColor || (light ? "#ffffff" : "#000000"),
     visible: !imageOnly,
   });
-  button.mobileStyle = { x: 6, y: 89, width: 36, height: 8 };
+  button.mobileStyle = {
+    x: alignedX(36, props.textAlign),
+    y: 89,
+    width: 36,
+    height: 8,
+    locked: true,
+  };
   return {
     version: 1,
     name: props.title || "Standalone banner",
@@ -655,24 +746,7 @@ export function sceneFromPromo(props: PromoBannerProps): BannerScene {
         color: props.backgroundColor,
       },
     ],
-    layers: [
-      image,
-      overlay,
-      ...(!imageOnly && props.foregroundImage
-        ? [
-            imageLayer("foreground", "Product image", props.foregroundImage, {
-              x: 52,
-              y: 4,
-              width: 45,
-              height: 96,
-            }),
-          ]
-        : []),
-      eyebrow,
-      title,
-      body,
-      button,
-    ],
+    layers: imageOnly ? [image] : [image, overlay, eyebrow, title, body, button],
   };
 }
 
@@ -688,9 +762,20 @@ export function ensureHomepageScenes(data: HomepageData): HomepageData {
             : (slide.scene ?? sceneFromHero(slide, index)),
       }));
     } else if (item.type === "CollectionFeature") {
-      item.props.scene = item.props.scene ?? sceneFromCollectionFeature(item.props);
+      item.props.contentMode =
+        item.props.contentMode === "image-only" ? "image-only" : "text-overlay";
+      item.props.imageAlt = String(item.props.imageAlt ?? "");
+      item.props.imageLink = String(item.props.imageLink ?? "");
+      item.props.scene = migratePresetBannerScene(
+        sceneFromCollectionFeature(item.props),
+        item.props.scene,
+      );
     } else if (item.type === "PromoBanner") {
-      item.props.scene = item.props.scene ?? sceneFromPromo(item.props);
+      item.props.contentMode =
+        item.props.contentMode === "image-only" ? "image-only" : "text-overlay";
+      item.props.imageAlt = String(item.props.imageAlt ?? "");
+      item.props.imageLink = String(item.props.imageLink ?? "");
+      item.props.scene = migratePresetBannerScene(sceneFromPromo(item.props), item.props.scene);
     }
     return item;
   });
@@ -866,6 +951,8 @@ export function createStandaloneBanner(): HomepageContentItem {
   const props: PromoBannerProps & { id: string } = {
     id,
     contentMode: "text-overlay",
+    imageAlt: "",
+    imageLink: "",
     eyebrow: "Collection",
     title: "NEW BANNER",
     body: "",
@@ -899,6 +986,8 @@ export function createCollectionWithProducts(
   const props: CollectionFeatureProps & { id: string } = {
     id,
     contentMode: "text-overlay",
+    imageAlt: "",
+    imageLink: "",
     eyebrow: "Collection",
     title: "NEW COLLECTION",
     body: "",

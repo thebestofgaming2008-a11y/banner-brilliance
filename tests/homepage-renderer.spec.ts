@@ -314,6 +314,8 @@ test("published banner scenes preserve responsive layers, fills, and links", asy
               props: {
                 id: "image-only-poster",
                 contentMode: "image-only",
+                imageAlt: "Kashmir honey poster",
+                imageLink: "/shop?collection=honey",
                 eyebrow: "Hidden label",
                 title: "HIDDEN POSTER TITLE",
                 body: "Hidden description",
@@ -351,14 +353,16 @@ test("published banner scenes preserve responsive layers, fills, and links", asy
                       name: "Banner image",
                       type: "image",
                       src: "/homepage/honey.jpg",
+                      alt: "Kashmir honey poster",
                       style: {
-                        x: 4,
-                        y: 5,
-                        width: 92,
-                        height: 90,
+                        x: 0,
+                        y: 0,
+                        width: 100,
+                        height: 100,
                         rotation: 0,
                         opacity: 100,
                         visible: true,
+                        locked: true,
                         objectFit: "cover",
                         objectPosition: "center",
                         cropX: 12,
@@ -373,28 +377,6 @@ test("published banner scenes preserve responsive layers, fills, and links", asy
                         cropX: 4,
                         cropY: 2,
                         cropZoom: 115,
-                      },
-                    },
-                    {
-                      id: "title",
-                      name: "Title",
-                      type: "text",
-                      semantic: "h2",
-                      text: "HIDDEN POSTER TITLE",
-                      style: {
-                        x: 6,
-                        y: 60,
-                        width: 60,
-                        height: 15,
-                        rotation: 0,
-                        opacity: 100,
-                        visible: false,
-                        fontFamily: "schibsted",
-                        fontSize: 60,
-                        fontWeight: 400,
-                        lineHeight: 0.95,
-                        textAlign: "left",
-                        color: "#ffffff",
                       },
                     },
                   ],
@@ -437,7 +419,11 @@ test("published banner scenes preserve responsive layers, fills, and links", asy
   const posterScene = poster.locator(".homepage-banner-scene");
   const posterImage = poster.locator('[data-banner-layer="banner-image"]');
   await expect(posterImage.locator("img")).toBeVisible();
-  await expect(poster.getByRole("heading", { name: "HIDDEN POSTER TITLE" })).toBeHidden();
+  await expect(poster.getByRole("heading", { name: "HIDDEN POSTER TITLE" })).toHaveCount(0);
+  await expect(poster.getByRole("link", { name: "Kashmir honey poster" })).toHaveAttribute(
+    "href",
+    "/shop?collection=honey",
+  );
   const posterIsMobile = (page.viewportSize()?.width ?? 1280) <= 639;
   await expect(posterScene).toHaveAttribute(
     "data-scene-viewport",
@@ -447,5 +433,15 @@ test("published banner scenes preserve responsive layers, fills, and links", asy
     "transform",
     posterIsMobile ? /matrix\(1\.15/ : /matrix\(1\.3/,
   );
+  const posterSceneBox = await posterScene.boundingBox();
+  const posterImageBox = await posterImage.boundingBox();
+  expect(posterSceneBox).not.toBeNull();
+  expect(posterImageBox).not.toBeNull();
+  if (posterSceneBox && posterImageBox) {
+    expect(Math.abs(posterSceneBox.x - posterImageBox.x)).toBeLessThan(1);
+    expect(Math.abs(posterSceneBox.y - posterImageBox.y)).toBeLessThan(1);
+    expect(Math.abs(posterSceneBox.width - posterImageBox.width)).toBeLessThan(1);
+    expect(Math.abs(posterSceneBox.height - posterImageBox.height)).toBeLessThan(1);
+  }
   expect(errors).toEqual([]);
 });

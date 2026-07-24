@@ -170,7 +170,7 @@ export function BannerSceneView({
   cropLayerId?: string | null;
   interactive?: boolean;
   onSelectLayer?: (id: string, event: MouseEvent<HTMLElement>) => void;
-  onEditLayer?: (id: string) => void;
+  onEditLayer?: (id: string | null) => void;
   onTextChange?: (id: string, text: string) => void;
   onCropChange?: (
     id: string,
@@ -428,6 +428,7 @@ export function BannerSceneView({
           const commonProps = {
             "data-banner-layer": layer.id,
             "data-layer-type": layer.type,
+            "data-layer-locked": style.locked || undefined,
             "data-selected": selected || undefined,
             className: `homepage-banner-layer absolute z-10 box-border m-0 overflow-visible ${selected ? "is-selected" : ""}`,
             style: {
@@ -473,11 +474,17 @@ export function BannerSceneView({
                   const ownerWindow = event.currentTarget.ownerDocument.defaultView ?? window;
                   const move = (moveEvent: PointerEvent) => {
                     cropChange(layer.id, {
-                      cropX:
+                      cropX: clamp(
                         startCropX + ((moveEvent.clientX - startX) / Math.max(1, rect.width)) * 100,
-                      cropY:
+                        -50,
+                        50,
+                      ),
+                      cropY: clamp(
                         startCropY +
-                        ((moveEvent.clientY - startY) / Math.max(1, rect.height)) * 100,
+                          ((moveEvent.clientY - startY) / Math.max(1, rect.height)) * 100,
+                        -50,
+                        50,
+                      ),
                       cropZoom: style.cropZoom ?? 100,
                     });
                   };
@@ -502,14 +509,21 @@ export function BannerSceneView({
               >
                 <img
                   src={layer.src}
-                  alt=""
+                  alt={layer.alt || ""}
                   draggable={false}
                   loading={interactive ? "lazy" : "eager"}
                   className="pointer-events-none absolute inset-0 h-full w-full max-w-none"
                   style={{
                     objectFit: style.objectFit || "contain",
-                    objectPosition: style.objectPosition || "center",
-                    transform: `translate(${style.cropX ?? 0}%, ${style.cropY ?? 0}%) scale(${clamp(style.cropZoom ?? 100, 10, 500) / 100})`,
+                    objectPosition:
+                      style.cropX !== undefined || style.cropY !== undefined
+                        ? `${clamp(50 + (style.cropX ?? 0), 0, 100)}% ${clamp(
+                            50 + (style.cropY ?? 0),
+                            0,
+                            100,
+                          )}%`
+                        : style.objectPosition || "center",
+                    transform: `scale(${clamp(style.cropZoom ?? 100, 10, 500) / 100})`,
                     transformOrigin: "center",
                   }}
                 />
@@ -533,7 +547,10 @@ export function BannerSceneView({
               className="block h-full w-full"
               contentEditable={editing}
               suppressContentEditableWarning
-              onBlur={(event) => textChange?.(layer.id, event.currentTarget.textContent ?? "")}
+              onBlur={(event) => {
+                textChange?.(layer.id, event.currentTarget.textContent ?? "");
+                editLayer?.(null);
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Escape") event.currentTarget.blur();
               }}

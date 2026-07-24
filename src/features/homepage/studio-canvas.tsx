@@ -121,7 +121,7 @@ export function StudioCanvas({
         .filter((layer) =>
           selectedRef.kind === "hero"
             ? layer.type === "text" || layer.type === "button" || layer.type === "image"
-            : layer.type === "image",
+            : layer.type === "text" || layer.type === "button" || layer.type === "image",
         )
         .map((layer) => layer.id),
     [scene.layers, selectedRef.kind],
@@ -147,8 +147,31 @@ export function StudioCanvas({
     if (!sceneRoot) return;
     const scrollingElement = sceneRoot.ownerDocument.scrollingElement as HTMLElement | null;
     if (!scrollingElement) return;
-    const sceneRect = sceneRoot.getBoundingClientRect();
-    scrollingElement.scrollTop = Math.max(0, scrollingElement.scrollTop + sceneRect.top - 24);
+    let frame = 0;
+    let active = true;
+    const focusSelectedBanner = () => {
+      if (!active) return;
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        if (!active) return;
+        const sceneRect = sceneRoot.getBoundingClientRect();
+        if (Math.abs(sceneRect.top - 24) < 1) return;
+        scrollingElement.scrollTop = Math.max(0, scrollingElement.scrollTop + sceneRect.top - 24);
+      });
+    };
+    focusSelectedBanner();
+    const images = [...sceneRoot.querySelectorAll("img")];
+    images.forEach((image) => image.addEventListener("load", focusSelectedBanner));
+    const timers = [80, 240, 700, 1400].map((delay) =>
+      window.setTimeout(focusSelectedBanner, delay),
+    );
+    void sceneRoot.ownerDocument.fonts?.ready.then(focusSelectedBanner);
+    return () => {
+      active = false;
+      window.cancelAnimationFrame(frame);
+      timers.forEach((timer) => window.clearTimeout(timer));
+      images.forEach((image) => image.removeEventListener("load", focusSelectedBanner));
+    };
   }, [sceneRoot, selectedRef.key, viewport]);
 
   const studioSession = useMemo<StudioBannerSession>(
@@ -195,6 +218,10 @@ export function StudioCanvas({
       },
       onSnapGuides: setSnapGuides,
       onEditLayer: (id) => {
+        if (!id) {
+          onEditLayer(null);
+          return;
+        }
         const layer = scene.layers.find((item) => item.id === id);
         onSelectLayers([id]);
         onCropFill(null);
@@ -354,7 +381,11 @@ export function StudioCanvas({
                     layers={
                       cropLayerId || cropFillId
                         ? []
-                        : selectedLayers.filter((layer) => editableLayerIds.includes(layer.id))
+                        : selectedLayers.filter(
+                            (layer) =>
+                              editableLayerIds.includes(layer.id) &&
+                              (selectedRef.kind === "hero" || layer.type !== "image"),
+                          )
                     }
                     viewport={viewport}
                     onPatchLayer={onPatchLayer}

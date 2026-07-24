@@ -38,7 +38,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { toast } from "sonner";
 import "./homepage-studio.css";
 
-import { useStoreProducts } from "@/data/store";
+import { useStoreProducts, type StoreProduct } from "@/data/store";
 import type { AdminCategory } from "@/services/adminService";
 import { refreshPublicCatalog } from "@/services/adminService";
 import {
@@ -66,6 +66,7 @@ import {
   ensureHomepageScenes,
   getScene,
   listStudioBanners,
+  migratePresetBannerScene,
   sceneFromCollectionFeature,
   sceneFromHero,
   sceneFromPromo,
@@ -183,6 +184,72 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function safeHomepageLink(value: string | undefined) {
+  const link = String(value ?? "").trim();
+  return (
+    !link ||
+    (link.startsWith("/") && !link.startsWith("//")) ||
+    link.startsWith("#") ||
+    /^https:\/\//i.test(link)
+  );
+}
+
+function homepagePublishIssues(data: HomepageData, products: StoreProduct[]) {
+  const issues: string[] = [];
+  data.content.forEach((item, index) => {
+    if (item.type === "Hero") return;
+    if (item.type !== "CollectionFeature" && item.type !== "PromoBanner") return;
+    const label = item.props.title.trim() || `Banner ${index}`;
+    const image = item.type === "CollectionFeature" ? item.props.image : item.props.backgroundImage;
+    if (!image.trim()) issues.push(`${label} needs a banner image.`);
+    if (!safeHomepageLink(item.props.buttonUrl)) {
+      issues.push(`${label} has an invalid shop button link.`);
+    }
+    if (item.props.contentMode === "image-only" && !safeHomepageLink(item.props.imageLink)) {
+      issues.push(`${label} has an invalid poster link.`);
+    }
+    const imageLayer = item.props.scene?.layers.find((layer) => layer.id === "banner-image");
+    if (!imageLayer) {
+      issues.push(`${label} needs its banner image frame restored.`);
+    } else {
+      [imageLayer.style, { ...imageLayer.style, ...(imageLayer.mobileStyle ?? {}) }].forEach(
+        (style, viewportIndex) => {
+          const viewportLabel = viewportIndex === 0 ? "desktop" : "mobile";
+          const zoom = Number(style.cropZoom ?? 100);
+          const cropX = Number(style.cropX ?? 0);
+          const cropY = Number(style.cropY ?? 0);
+          if (
+            !Number.isFinite(zoom) ||
+            zoom < 100 ||
+            zoom > 300 ||
+            !Number.isFinite(cropX) ||
+            Math.abs(cropX) > 50 ||
+            !Number.isFinite(cropY) ||
+            Math.abs(cropY) > 50
+          ) {
+            issues.push(`${label} has an invalid ${viewportLabel} crop.`);
+          }
+        },
+      );
+    }
+    if (item.type === "CollectionFeature") {
+      const available =
+        item.props.productSelection === "manual"
+          ? (item.props.productSlugs ?? []).filter((slug) =>
+              products.some((product) => product.slug === slug),
+            )
+          : products.filter(
+              (product) =>
+                item.props.collection.toLowerCase() === "all" ||
+                product.collectionSlug?.toLowerCase() === item.props.collection.toLowerCase() ||
+                product.collection.toLowerCase() === item.props.collection.toLowerCase(),
+            );
+      if (!available.length) issues.push(`${label} needs at least one available product.`);
+    }
+  });
+  return [...new Set(issues)];
+}
+
 function patchLayerForViewport(
   layer: BannerLayer,
   patch: Partial<BannerLayerStyle>,
@@ -295,39 +362,7 @@ function refreshBannerPresentation(
   previous?: BannerScene,
   preserveFillTransforms = true,
 ): BannerScene {
-  const preserved = preserveSceneTransforms(generated, previous, preserveFillTransforms);
-  const generatedLayers = new Map(generated.layers.map((layer) => [layer.id, layer]));
-  return {
-    ...preserved,
-    layers: preserved.layers.map((layer) => {
-      if (layer.type === "image") return layer;
-      const current = generatedLayers.get(layer.id);
-      return current
-        ? {
-            ...layer,
-            style: {
-              ...layer.style,
-              visible: current.style.visible,
-              textAlign: current.style.textAlign,
-              color: current.style.color,
-              backgroundColor: current.style.backgroundColor,
-              fontFamily: current.style.fontFamily,
-              fontSize: current.style.fontSize,
-            },
-            mobileStyle: {
-              ...(layer.mobileStyle ?? {}),
-              visible: current.mobileStyle?.visible ?? current.style.visible,
-              textAlign: current.mobileStyle?.textAlign ?? current.style.textAlign,
-              color: current.mobileStyle?.color ?? current.style.color,
-              backgroundColor:
-                current.mobileStyle?.backgroundColor ?? current.style.backgroundColor,
-              fontFamily: current.mobileStyle?.fontFamily ?? current.style.fontFamily,
-              fontSize: current.mobileStyle?.fontSize ?? current.style.fontSize,
-            },
-          }
-        : layer;
-    }),
-  };
+  return migratePresetBannerScene(generated, previous, preserveFillTransforms);
 }
 
 function refreshCollectionScene(
@@ -437,6 +472,10 @@ export function HomepageVisualEditor({
   const selectedLayers = scene
     ? scene.layers.filter((layer) => selectedLayerIds.includes(layer.id))
     : [];
+  const publishIssues = useMemo(
+    () => (data ? homepagePublishIssues(data, catalogProducts) : []),
+    [catalogProducts, data],
+  );
 
   const applyLoadedData = useCallback((incoming: HomepageData, nextRevision: number) => {
     const source = isHomepageEditorData(incoming) ? incoming : cloneDefaultHomepageData();
@@ -607,6 +646,13 @@ export function HomepageVisualEditor({
   const publish = async () => {
     const current = dataRef.current;
     if (!current || conflict) return;
+    const issues = homepagePublishIssues(current, catalogProducts);
+    if (issues.length) {
+      const message = `Fix before publishing: ${issues[0]}`;
+      setEditorError(message);
+      toast.error(message);
+      return;
+    }
     setPublishing(true);
     try {
       await operation.current;
@@ -787,6 +833,16 @@ export function HomepageVisualEditor({
         if (id === "title") slide.title = patch.text;
         if (id === "body") slide.body = patch.text;
         if (id === "button") slide.buttonLabel = patch.text;
+      }
+    } else if (
+      (selectedRef.kind === "collection-feature" && item?.type === "CollectionFeature") ||
+      (selectedRef.kind === "standalone" && item?.type === "PromoBanner")
+    ) {
+      if (typeof patch.text === "string") {
+        if (id === "eyebrow") item.props.eyebrow = patch.text;
+        if (id === "title") item.props.title = patch.text;
+        if (id === "body") item.props.body = patch.text;
+        if (id === "button") item.props.buttonLabel = patch.text;
       }
     }
     commit(next, true);
@@ -1418,7 +1474,15 @@ export function HomepageVisualEditor({
             type="button"
             className="studio-publish-button"
             disabled={publishing || Boolean(conflict) || (!dirty && !unpublished)}
-            onClick={() => setPublishConfirmOpen(true)}
+            onClick={() => {
+              if (publishIssues.length) {
+                const message = `Fix before publishing: ${publishIssues[0]}`;
+                setEditorError(message);
+                toast.error(message);
+                return;
+              }
+              setPublishConfirmOpen(true);
+            }}
           >
             {publishing ? <Loader2 className="animate-spin" size={15} /> : null} Publish
           </button>
