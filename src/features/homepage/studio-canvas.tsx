@@ -115,6 +115,15 @@ export function StudioCanvas({
     () => scene.layers.filter((layer) => selectedLayerIds.includes(layer.id)),
     [scene.layers, selectedLayerIds],
   );
+  const editableLayerIds = useMemo(
+    () =>
+      selectedRef.kind === "hero"
+        ? scene.layers
+            .filter((layer) => layer.type === "text" || layer.type === "button")
+            .map((layer) => layer.id)
+        : [],
+    [scene.layers, selectedRef.kind],
+  );
 
   useEffect(() => {
     frameDocumentRef.current?.style.setProperty("--studio-canvas-ui-scale", String(100 / zoom));
@@ -130,7 +139,7 @@ export function StudioCanvas({
     setCoordinateRoot(
       nextSceneRoot?.querySelector<HTMLElement>("[data-banner-coordinate-root]") ?? null,
     );
-  }, [previewData, selectedRef.key, viewport]);
+  }, [frameRoot, previewData, selectedRef.key, viewport]);
 
   useEffect(() => {
     if (!sceneRoot) return;
@@ -149,7 +158,8 @@ export function StudioCanvas({
       cropLayerId,
       cropFillId,
       snapGuides,
-      interactionDisabled: structuredMode || activeTool !== "select",
+      interactionDisabled: selectedRef.kind !== "hero" || activeTool !== "select",
+      editableLayerIds,
       onSelectLayer: (id, additive) => {
         onEditLayer(null);
         onCropFill(null);
@@ -215,6 +225,7 @@ export function StudioCanvas({
       cropFillId,
       cropLayerId,
       editingLayerId,
+      editableLayerIds,
       onBackgroundCropChange,
       onCropChange,
       onCropFill,
@@ -227,8 +238,8 @@ export function StudioCanvas({
       sceneRoot,
       snapGuides,
       selectedLayerIds,
+      selectedRef.kind,
       selectedRef.key,
-      structuredMode,
       viewport,
     ],
   );
@@ -317,6 +328,15 @@ export function StudioCanvas({
                     const bannerKey = banner?.dataset.editorBannerKey;
                     event.preventDefault();
                     event.stopPropagation();
+                    const layerId =
+                      target.closest<HTMLElement>("[data-banner-layer]")?.dataset.bannerLayer;
+                    if (
+                      bannerKey === selectedRef.key &&
+                      layerId &&
+                      editableLayerIds.includes(layerId)
+                    ) {
+                      return;
+                    }
                     if (bannerKey) {
                       onSelectBanner(bannerKey);
                       onSelectLayers([]);
@@ -329,7 +349,11 @@ export function StudioCanvas({
                   <StorefrontFramePreview data={previewData} editMode onAddSection={onAddSection} />
                   <StudioSelection
                     host={coordinateRoot}
-                    layers={structuredMode || cropLayerId || cropFillId ? [] : selectedLayers}
+                    layers={
+                      selectedRef.kind !== "hero" || cropLayerId || cropFillId
+                        ? []
+                        : selectedLayers.filter((layer) => editableLayerIds.includes(layer.id))
+                    }
                     viewport={viewport}
                     onPatchLayer={onPatchLayer}
                   />

@@ -162,6 +162,16 @@ export function sceneFromHero(slide: HeroSlide, index = 0): BannerScene {
   const light = (slide.textTone ?? "light") === "light";
   const color = light ? "#ffffff" : "#000000";
   if (original) {
+    const desktopWidth = 1440;
+    const desktopHeight = 820;
+    const mobileWidth = 390;
+    const mobileHeight = 649;
+    const originalFrameWidth = (desktopHeight * mobileWidth) / mobileHeight;
+    const originalFrameLeft = (desktopWidth - originalFrameWidth) / 2;
+    const desktopX = (value: number) =>
+      ((originalFrameLeft + (value / mobileWidth) * originalFrameWidth) / desktopWidth) * 100;
+    const desktopWidthPercent = (value: number) =>
+      (((value / mobileWidth) * originalFrameWidth) / desktopWidth) * 100;
     const titleFrame =
       index === 0
         ? { left: 37, top: 121, width: 316 }
@@ -172,9 +182,9 @@ export function sceneFromHero(slide: HeroSlide, index = 0): BannerScene {
     return {
       version: 1,
       name: slide.title || `Hero ${index + 1}`,
-      height: 820,
-      mobileHeight: 649,
-      coordinateMode: "original-hero",
+      height: desktopHeight,
+      mobileHeight,
+      coordinateMode: "full",
       fills: [
         {
           id: "fill-solid",
@@ -218,9 +228,9 @@ export function sceneFromHero(slide: HeroSlide, index = 0): BannerScene {
       ],
       layers: [
         imageLayer("foreground", "Product image", slide.foregroundImage, {
-          x: 0,
+          x: desktopX(0),
           y: 0,
-          width: 100,
+          width: desktopWidthPercent(mobileWidth),
           height: 100,
           objectFit: "contain",
           objectPosition: "center bottom",
@@ -230,12 +240,12 @@ export function sceneFromHero(slide: HeroSlide, index = 0): BannerScene {
           "Title",
           slide.title,
           {
-            x: (titleFrame.left / 390) * 100,
-            y: (titleFrame.top / 649) * 100,
-            width: (titleFrame.width / 390) * 100,
+            x: desktopX(titleFrame.left),
+            y: (titleFrame.top / mobileHeight) * 100,
+            width: desktopWidthPercent(titleFrame.width),
             height: 8.1,
             fontFamily: "instrument",
-            fontSize: (52 / 649) * 820,
+            fontSize: (52 / mobileHeight) * desktopHeight,
             fontWeight: 400,
             lineHeight: 1,
             textAlign: "center",
@@ -245,21 +255,21 @@ export function sceneFromHero(slide: HeroSlide, index = 0): BannerScene {
           "h1",
         ),
         textLayer("body", "Subtitle", slide.body, {
-          x: (titleFrame.left / 390) * 100,
-          y: ((titleFrame.top + 58) / 649) * 100,
-          width: (titleFrame.width / 390) * 100,
+          x: desktopX(titleFrame.left),
+          y: ((titleFrame.top + 58) / mobileHeight) * 100,
+          width: desktopWidthPercent(titleFrame.width),
           height: 5,
           fontFamily: "schibsted",
-          fontSize: (14 / 649) * 820,
+          fontSize: (14 / mobileHeight) * desktopHeight,
           fontWeight: 500,
           lineHeight: 1.2,
           textAlign: "center",
           color,
         }),
         buttonLayer("button", slide.buttonLabel || "Shop the collection", slide.buttonUrl, {
-          x: (25 / 390) * 100,
-          y: (614 / 649) * 100,
-          width: 42,
+          x: desktopX(25),
+          y: (614 / mobileHeight) * 100,
+          width: desktopWidthPercent((42 / 100) * mobileWidth),
           height: 2.6,
           color,
           backgroundColor: "#00000000",
@@ -269,14 +279,35 @@ export function sceneFromHero(slide: HeroSlide, index = 0): BannerScene {
           paddingX: 0,
           paddingY: 0,
         }),
-      ].map((layer) =>
-        layer.id === "title" || layer.id === "body"
-          ? {
-              ...layer,
-              mobileStyle: { fontSize: layer.id === "title" ? 52 : 14 },
-            }
-          : layer,
-      ),
+      ].map((layer) => {
+        if (layer.id === "foreground") {
+          return {
+            ...layer,
+            mobileStyle: { x: 0, y: 0, width: 100, height: 100 },
+          };
+        }
+        if (layer.id === "title" || layer.id === "body") {
+          return {
+            ...layer,
+            mobileStyle: {
+              x: (titleFrame.left / mobileWidth) * 100,
+              y: ((titleFrame.top + (layer.id === "body" ? 58 : 0)) / mobileHeight) * 100,
+              width: (titleFrame.width / mobileWidth) * 100,
+              height: layer.style.height,
+              fontSize: layer.id === "title" ? 52 : 14,
+            },
+          };
+        }
+        return {
+          ...layer,
+          mobileStyle: {
+            x: (25 / mobileWidth) * 100,
+            y: (614 / mobileHeight) * 100,
+            width: 42,
+            height: 2.6,
+          },
+        };
+      }),
     };
   }
   const align = slide.textAlign ?? "left";
@@ -527,7 +558,10 @@ export function ensureHomepageScenes(data: HomepageData): HomepageData {
     if (item.type === "Hero") {
       item.props.slides = item.props.slides.map((slide, index) => ({
         ...slide,
-        scene: slide.scene ?? sceneFromHero(slide, index),
+        scene:
+          slide.scene?.coordinateMode === "original-hero"
+            ? migrateOriginalHeroScene(slide.scene)
+            : (slide.scene ?? sceneFromHero(slide, index)),
       }));
     } else if (item.type === "CollectionFeature") {
       item.props.scene = item.props.scene ?? sceneFromCollectionFeature(item.props);
@@ -537,6 +571,32 @@ export function ensureHomepageScenes(data: HomepageData): HomepageData {
     return item;
   });
   return next;
+}
+
+function migrateOriginalHeroScene(scene: BannerScene): BannerScene {
+  const desktopWidth = 1440;
+  const frameWidth = (scene.height * 390) / 649;
+  const frameWidthPercent = (frameWidth / desktopWidth) * 100;
+  const frameLeftPercent = (100 - frameWidthPercent) / 2;
+  return {
+    ...scene,
+    coordinateMode: "full",
+    layers: scene.layers.map((layer) => ({
+      ...layer,
+      style: {
+        ...layer.style,
+        x: frameLeftPercent + (layer.style.x * frameWidthPercent) / 100,
+        width: (layer.style.width * frameWidthPercent) / 100,
+      },
+      mobileStyle: {
+        x: layer.style.x,
+        y: layer.style.y,
+        width: layer.style.width,
+        height: layer.style.height,
+        ...(layer.mobileStyle ?? {}),
+      },
+    })),
+  };
 }
 
 export function listStudioBanners(data: HomepageData): StudioBannerRef[] {
@@ -725,6 +785,7 @@ export function createCollectionWithProducts(
     titleSize: 68,
     mobileTitleSize: 42,
     productLimit: 4,
+    productSelection: "collection",
     layout,
   };
   props.scene = sceneFromCollectionFeature(props);

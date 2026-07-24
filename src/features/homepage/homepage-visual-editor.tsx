@@ -38,6 +38,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { toast } from "sonner";
 import "./homepage-studio.css";
 
+import { useStoreProducts } from "@/data/store";
 import type { AdminCategory } from "@/services/adminService";
 import { refreshPublicCatalog } from "@/services/adminService";
 import {
@@ -47,7 +48,6 @@ import {
   restoreHomepageVersion,
   saveHomepageDraft,
 } from "@/services/homepageService";
-import { BannerSceneView } from "./banner-scene";
 import {
   cloneDefaultHomepageData,
   isHomepageEditorData,
@@ -75,6 +75,7 @@ import type {
   BannerLayer,
   BannerLayerStyle,
   BannerScene,
+  HeroSlide,
   HomepageData,
   HomepageEditorState,
   HomepageVersion,
@@ -194,6 +195,25 @@ function uniqueScene(scene: BannerScene): BannerScene {
   };
 }
 
+function refreshHeroScene(slide: HeroSlide, index: number, previous?: BannerScene): BannerScene {
+  const generated = sceneFromHero(slide, index);
+  if (!previous) return generated;
+  const previousLayers = new Map(previous.layers.map((layer) => [layer.id, layer]));
+  return {
+    ...generated,
+    layers: generated.layers.map((layer) => {
+      const existing = previousLayers.get(layer.id);
+      return existing
+        ? {
+            ...layer,
+            style: { ...existing.style },
+            mobileStyle: existing.mobileStyle ? { ...existing.mobileStyle } : layer.mobileStyle,
+          }
+        : layer;
+    }),
+  };
+}
+
 function IconButton({
   label,
   active,
@@ -230,6 +250,7 @@ export function HomepageVisualEditor({
   onClose?: () => void;
   initialData?: HomepageData;
 }) {
+  const { products: catalogProducts } = useStoreProducts();
   const [data, setData] = useState<HomepageData | null>(null);
   const dataRef = useRef<HomepageData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -579,15 +600,24 @@ export function HomepageVisualEditor({
   }, [finishCrop]);
 
   const patchLayerContent = (id: string, patch: Partial<BannerLayer>) => {
-    mutateScene(
-      (current) => ({
-        ...current,
-        layers: current.layers.map((layer) =>
-          layer.id === id ? { ...layer, ...patch, id } : layer,
-        ),
-      }),
-      true,
-    );
+    const current = dataRef.current;
+    if (!current || !selectedRef) return;
+    const next = updateScene(current, selectedRef, (currentScene) => ({
+      ...currentScene,
+      layers: currentScene.layers.map((layer) =>
+        layer.id === id ? { ...layer, ...patch, id } : layer,
+      ),
+    }));
+    const item = next.content.find((entry) => entry.props.id === selectedRef.itemId);
+    if (selectedRef.kind === "hero" && item?.type === "Hero" && typeof patch.text === "string") {
+      const slide = item.props.slides[selectedRef.index ?? 0];
+      if (slide) {
+        if (id === "title") slide.title = patch.text;
+        if (id === "body") slide.body = patch.text;
+        if (id === "button") slide.buttonLabel = patch.text;
+      }
+    }
+    commit(next, true);
   };
 
   const deleteLayers = useCallback(
@@ -836,13 +866,24 @@ export function HomepageVisualEditor({
       const index = selectedRef.index ?? 0;
       const slide = item.props.slides[index];
       if (!slide) return;
+      const previousScene = slide.scene;
       Object.assign(slide, patch);
       slide.layout = "original";
-      slide.textAlign = "center";
       slide.textTone = "light";
       slide.titleFont = "display";
       slide.buttonLabel = "Shop the collection";
-      slide.scene = sceneFromHero(slide, index);
+      slide.scene = refreshHeroScene(slide, index, previousScene);
+      if (patch.textAlign) {
+        slide.scene.layers = slide.scene.layers.map((layer) =>
+          layer.type === "text" || layer.type === "button"
+            ? {
+                ...layer,
+                style: { ...layer.style, textAlign: patch.textAlign },
+                mobileStyle: { ...(layer.mobileStyle ?? {}), textAlign: patch.textAlign },
+              }
+            : layer,
+        );
+      }
     } else if (selectedRef.kind === "collection-feature" && item.type === "CollectionFeature") {
       Object.assign(item.props, patch);
       item.props.layout = "banner-top";
@@ -850,7 +891,6 @@ export function HomepageVisualEditor({
       item.props.textTone = "light";
       item.props.titleFont = "sans";
       item.props.buttonLabel = "Shop collection";
-      item.props.productLimit = 4;
       item.props.scene = sceneFromCollectionFeature(item.props);
     } else if (selectedRef.kind === "standalone" && item.type === "PromoBanner") {
       Object.assign(item.props, patch);
@@ -1615,6 +1655,9 @@ export function HomepageVisualEditor({
             data={data}
             selectedRef={selectedRef}
             categories={categories}
+            products={catalogProducts}
+            viewport={viewport}
+            selectedLayer={selectedLayers.length === 1 ? selectedLayers[0]! : null}
             heroPosition={
               selectedRef.kind === "hero"
                 ? { index: selectedGroupIndex, total: heroBanners.length }
@@ -1633,6 +1676,7 @@ export function HomepageVisualEditor({
             onMoveUp={() => moveBanner(-1)}
             onMoveDown={() => moveBanner(1)}
             onPatch={patchSelectedTemplate}
+            onPatchLayer={patchLayer}
             onDuplicate={duplicateBanner}
             onDelete={deleteBanner}
           />

@@ -22,14 +22,20 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
 }
 
-function snapPosition(value: number, size: number) {
-  const targets = [0, 50 - size / 2, 100 - size];
-  const closest = targets.reduce((best, target) =>
-    Math.abs(target - value) < Math.abs(best - value) ? target : best,
+function snapPosition(value: number, size: number, targets: number[]) {
+  const anchors = [0, size / 2, size];
+  const candidates = targets.flatMap((guide) =>
+    anchors.map((anchor) => {
+      const candidate = guide - anchor;
+      return { value: candidate, guide, distance: Math.abs(candidate - value) };
+    }),
   );
-  return Math.abs(closest - value) <= 1
-    ? { value: closest, guide: closest === 0 ? 0 : closest === 100 - size ? 100 : 50 }
-    : { value };
+  const best = candidates.reduce<(typeof candidates)[number] | null>(
+    (closest, candidate) =>
+      !closest || candidate.distance < closest.distance ? candidate : closest,
+    null,
+  );
+  return best && best.distance <= 1 ? { value: best.value, guide: best.guide } : { value };
 }
 
 function safeHref(value: string | undefined) {
@@ -318,6 +324,8 @@ export function BannerSceneView({
       >
         {scene.layers.map((layer, index) => {
           const style = resolveLayerStyle(layer, resolvedViewport);
+          const layerEditable =
+            !studio?.editableLayerIds || studio.editableLayerIds.includes(layer.id);
           const selected = activeSelectedLayerId === layer.id;
           const editing = activeEditingLayerId === layer.id;
           const cropping = activeCropLayerId === layer.id;
@@ -325,6 +333,7 @@ export function BannerSceneView({
             if (
               !studio ||
               studio.interactionDisabled ||
+              !layerEditable ||
               editing ||
               cropping ||
               style.locked ||
@@ -356,12 +365,43 @@ export function BannerSceneView({
             const startY = event.clientY;
             const rect = coordinateRoot.getBoundingClientRect();
             const ownerWindow = event.currentTarget.ownerDocument.defaultView ?? window;
+            const alignmentLayers = scene.layers.filter(
+              (item) =>
+                !movingIds.includes(item.id) &&
+                (!studio.editableLayerIds || studio.editableLayerIds.includes(item.id)),
+            );
+            const xTargets = [
+              0,
+              50,
+              100,
+              ...alignmentLayers.flatMap((item) => {
+                const itemStyle = resolveLayerStyle(item, resolvedViewport);
+                return [
+                  itemStyle.x,
+                  itemStyle.x + itemStyle.width / 2,
+                  itemStyle.x + itemStyle.width,
+                ];
+              }),
+            ];
+            const yTargets = [
+              0,
+              50,
+              100,
+              ...alignmentLayers.flatMap((item) => {
+                const itemStyle = resolveLayerStyle(item, resolvedViewport);
+                return [
+                  itemStyle.y,
+                  itemStyle.y + itemStyle.height / 2,
+                  itemStyle.y + itemStyle.height,
+                ];
+              }),
+            ];
             const move = (moveEvent: PointerEvent) => {
               const deltaX = ((moveEvent.clientX - startX) / Math.max(1, rect.width)) * 100;
               const deltaY = ((moveEvent.clientY - startY) / Math.max(1, rect.height)) * 100;
               origins.forEach((item, itemIndex) => {
-                const snappedX = snapPosition(item.style.x + deltaX, item.style.width);
-                const snappedY = snapPosition(item.style.y + deltaY, item.style.height);
+                const snappedX = snapPosition(item.style.x + deltaX, item.style.width, xTargets);
+                const snappedY = snapPosition(item.style.y + deltaY, item.style.height, yTargets);
                 if (itemIndex === 0) {
                   studio.onSnapGuides(
                     snappedX.guide === undefined && snappedY.guide === undefined
@@ -393,7 +433,7 @@ export function BannerSceneView({
             style: { ...layerCss(style), zIndex: index + 1, pointerEvents: "auto" as const },
             onMouseDown: (event: MouseEvent<HTMLElement>) => {
               event.stopPropagation();
-              if (studio?.interactionDisabled) return;
+              if (studio?.interactionDisabled || !layerEditable) return;
               if (studio && (event.ctrlKey || event.metaKey)) {
                 studio.onSelectDeep(event.clientX, event.clientY);
               } else {
@@ -404,7 +444,7 @@ export function BannerSceneView({
             onDoubleClick: (event: MouseEvent<HTMLElement>) => {
               event.preventDefault();
               event.stopPropagation();
-              if (studio?.interactionDisabled) return;
+              if (studio?.interactionDisabled || !layerEditable) return;
               editLayer?.(layer.id);
             },
           };

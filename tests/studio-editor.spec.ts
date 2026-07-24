@@ -18,7 +18,7 @@ test.describe("fixed-template homepage studio", () => {
     await expect(page.locator('iframe[title="desktop storefront preview"]')).toBeVisible();
   });
 
-  test("shows the exact scrollable homepage without a left panel or free-form tools", async ({
+  test("shows the exact scrollable homepage with targeted hero text selection", async ({
     page,
   }) => {
     await expect(page.locator(".studio-left-panel")).toHaveCount(0);
@@ -43,7 +43,44 @@ test.describe("fixed-template homepage studio", () => {
 
     const title = frame.locator('[data-editor-active="true"] [data-banner-layer="title"]');
     await title.click({ force: true });
-    await expect(frame.locator(".studio-selection-box")).toHaveCount(0);
+    await expect(frame.locator(".studio-selection-box")).toHaveCount(1);
+    await expect(
+      page
+        .getByRole("complementary", { name: "Banner settings" })
+        .getByRole("heading", { name: "Title", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Align text left" })).toBeVisible();
+  });
+
+  test("drags hero text with center guides and changes its own alignment", async ({ page }) => {
+    const frame = storefront(page);
+    const title = frame.locator('[data-editor-active="true"] [data-banner-layer="title"]');
+    const scene = frame.locator('[data-editor-active="true"]');
+    await title.click({ force: true });
+
+    const titleBox = await title.boundingBox();
+    const sceneBox = await scene.boundingBox();
+    expect(titleBox).not.toBeNull();
+    expect(sceneBox).not.toBeNull();
+
+    const startX = titleBox!.x + titleBox!.width / 2;
+    const startY = titleBox!.y + titleBox!.height / 2;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(sceneBox!.x + sceneBox!.width / 2, startY, { steps: 8 });
+    await expect(frame.locator(".studio-smart-guide.is-vertical")).toBeVisible();
+    await page.mouse.up();
+
+    await page.getByRole("button", { name: "Align text right" }).click();
+    await expect(title).toHaveCSS("text-align", "right");
+
+    await page.getByRole("button", { name: "Mobile viewport", exact: true }).click();
+    const mobileTitle = storefront(page, "mobile").locator(
+      '[data-editor-active="true"] [data-banner-layer="title"]',
+    );
+    await mobileTitle.click({ force: true });
+    await page.getByRole("button", { name: "Align text left" }).click();
+    await expect(mobileTitle).toHaveCSS("text-align", "left");
   });
 
   test("edits the fixed hero and renders true mobile responsive styles", async ({ page }) => {
@@ -157,6 +194,19 @@ test.describe("fixed-template homepage studio", () => {
     await expect(inspector.locator("select").first()).toHaveValue("all");
     await expect(frame.locator('[data-editor-active="true"]')).toBeVisible();
     await expect(page.getByRole("button", { name: "Move banner up" })).toBeEnabled();
+
+    await inspector.getByRole("button", { name: "Choose products", exact: true }).click();
+    await expect(inspector.getByText("4/8", { exact: true })).toBeVisible();
+    await expect(inspector.locator(".studio-product-picker__selected > div")).toHaveCount(4);
+    await inspector
+      .locator(".studio-product-picker__selected > div")
+      .first()
+      .getByRole("button", { name: /Remove/ })
+      .click();
+    await expect(inspector.getByText("3/8", { exact: true })).toBeVisible();
+    await expect(
+      frame.locator('[data-editor-active="true"]').locator("xpath=..").locator("article"),
+    ).toHaveCount(3);
   });
 
   test("keeps Preview separate from publishing", async ({ page }) => {

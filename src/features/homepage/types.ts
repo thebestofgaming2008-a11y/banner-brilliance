@@ -209,6 +209,8 @@ export type CollectionFeatureProps = {
   titleSize: number;
   mobileTitleSize: number;
   productLimit: number;
+  productSelection?: "collection" | "manual";
+  productSlugs?: string[];
   layout: "banner-top" | "banner-left" | "banner-right";
   scene?: BannerScene;
 };

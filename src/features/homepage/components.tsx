@@ -12,6 +12,7 @@ import { StoreProductCard } from "@/components/store/product-card";
 import { merchandiseProducts, useStoreProducts } from "@/data/store";
 import { useCatalogPresentation } from "@/services/catalogPresentation";
 import { BannerSceneView } from "./banner-scene";
+import { useStudioBannerSession } from "./studio-session-context";
 import { normalizeHomepageData } from "./default-data";
 import type {
   CollectionBannersProps,
@@ -684,24 +685,36 @@ export function HomepageCollectionFeature({
   titleSize,
   mobileTitleSize,
   productLimit,
+  productSelection,
+  productSlugs,
   layout,
-  scene,
   editMode,
 }: CollectionFeatureProps & EditorAware) {
   const { products } = useStoreProducts();
-  const selected = merchandiseProducts(
-    products.filter(
-      (product) =>
-        normalized(collection) === "all" ||
-        normalized(product.collectionSlug) === normalized(collection) ||
-        normalized(product.collection) === normalized(collection),
-    ),
-  ).slice(0, Math.min(8, Math.max(1, productLimit)));
+  const editorKey = id ? `${id}:feature` : undefined;
+  const editorSession = useStudioBannerSession(editorKey);
+  const available = merchandiseProducts(products);
+  const selected =
+    productSelection === "manual"
+      ? (productSlugs ?? [])
+          .map((slug) => available.find((product) => product.slug === slug))
+          .filter((product): product is (typeof available)[number] => Boolean(product))
+          .slice(0, 8)
+      : available
+          .filter(
+            (product) =>
+              normalized(collection) === "all" ||
+              normalized(product.collectionSlug) === normalized(collection) ||
+              normalized(product.collection) === normalized(collection),
+          )
+          .slice(0, Math.min(8, Math.max(1, productLimit)));
   if (!selected.length && !editMode) return null;
   const lightText = textTone === "light";
   const banner = (
     <a
       data-homepage-banner-id={id}
+      data-editor-banner-key={editMode ? editorKey : undefined}
+      data-editor-active={editMode && editorSession ? "true" : undefined}
       href={safeLink(buttonUrl)}
       onClick={(event) => {
         if (editMode) event.preventDefault();
@@ -709,13 +722,7 @@ export function HomepageCollectionFeature({
       className={`group relative block min-h-[460px] overflow-hidden md:min-h-[620px] ${lightText ? "text-white" : "text-black"}`}
       style={{ backgroundColor: bannerColor }}
     >
-      {scene ? (
-        <BannerSceneView
-          scene={scene}
-          interactive={false}
-          editorKey={id ? `${id}:feature` : undefined}
-        />
-      ) : image ? (
+      {image ? (
         <img
           src={image}
           alt=""
@@ -723,42 +730,38 @@ export function HomepageCollectionFeature({
           className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.015]"
         />
       ) : null}
-      {scene ? null : (
-        <div
-          className={`absolute inset-0 bg-gradient-to-t ${lightText ? "from-black/80 via-black/15" : "from-white/85 via-white/15"} to-transparent`}
-        />
-      )}
-      {scene ? null : (
-        <div
-          className={`absolute inset-x-0 bottom-0 flex flex-col p-6 md:p-9 ${textAlignClass(textAlign)}`}
+      <div
+        className={`absolute inset-0 bg-gradient-to-t ${lightText ? "from-black/80 via-black/15" : "from-white/85 via-white/15"} to-transparent`}
+      />
+      <div
+        className={`absolute inset-x-0 bottom-0 flex flex-col p-6 md:p-9 ${textAlignClass(textAlign)}`}
+      >
+        {eyebrow ? (
+          <p className={`section-kicker ${lightText ? "text-white/72" : "text-black/60"}`}>
+            {eyebrow}
+          </p>
+        ) : null}
+        <h2
+          className={`mt-2 leading-none ${fontClass(titleFont)}`}
+          style={{ fontSize: `clamp(${mobileTitleSize}px, 6vw, ${titleSize}px)` }}
         >
-          {eyebrow ? (
-            <p className={`section-kicker ${lightText ? "text-white/72" : "text-black/60"}`}>
-              {eyebrow}
-            </p>
-          ) : null}
-          <h2
-            className={`mt-2 leading-none ${fontClass(titleFont)}`}
-            style={{ fontSize: `clamp(${mobileTitleSize}px, 6vw, ${titleSize}px)` }}
+          {title}
+        </h2>
+        {body ? (
+          <p
+            className={`mt-4 max-w-sm text-sm leading-6 ${lightText ? "text-white/75" : "text-black/70"}`}
           >
-            {title}
-          </h2>
-          {body ? (
-            <p
-              className={`mt-4 max-w-sm text-sm leading-6 ${lightText ? "text-white/75" : "text-black/70"}`}
-            >
-              {body}
-            </p>
-          ) : null}
-          {buttonLabel ? (
-            <span
-              className={`mt-7 inline-flex h-11 items-center px-5 text-[10px] font-bold uppercase ${lightText ? "bg-white text-black" : "bg-black text-white"}`}
-            >
-              {buttonLabel}
-            </span>
-          ) : null}
-        </div>
-      )}
+            {body}
+          </p>
+        ) : null}
+        {buttonLabel ? (
+          <span
+            className={`mt-7 inline-flex h-11 items-center px-5 text-[10px] font-bold uppercase ${lightText ? "bg-white text-black" : "bg-black text-white"}`}
+          >
+            {buttonLabel}
+          </span>
+        ) : null}
+      </div>
     </a>
   );
   const grid = selected.length ? (
@@ -788,22 +791,21 @@ export function HomepageCollectionFeature({
 
 export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
   const lightText = props.textTone === "light";
+  const editorKey = props.id ? `${props.id}:standalone` : undefined;
+  const editorSession = useStudioBannerSession(editorKey);
   return (
     <section className="bg-white px-[18px] py-10 md:px-8 md:py-16">
       <div
         data-homepage-banner-id={props.id}
+        data-editor-banner-key={props.editMode ? editorKey : undefined}
+        data-editor-active={props.editMode && editorSession ? "true" : undefined}
         className={`relative mx-auto max-w-[1180px] overflow-hidden ${lightText ? "text-white" : "text-black"}`}
         style={{
           minHeight: `${Math.max(300, props.minHeight)}px`,
           backgroundColor: props.backgroundColor,
         }}
       >
-        {props.scene ? (
-          <BannerSceneView
-            scene={props.scene}
-            editorKey={props.id ? `${props.id}:standalone` : undefined}
-          />
-        ) : props.backgroundImage ? (
+        {props.backgroundImage ? (
           <img
             src={props.backgroundImage}
             alt=""
@@ -812,7 +814,7 @@ export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
             style={{ objectPosition: props.imageFocus }}
           />
         ) : null}
-        {!props.scene && props.foregroundImage ? (
+        {props.foregroundImage ? (
           <img
             src={props.foregroundImage}
             alt=""
@@ -821,37 +823,33 @@ export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
             style={{ width: `${Math.min(100, Math.max(20, props.foregroundScale))}%` }}
           />
         ) : null}
-        {!props.scene ? (
-          <div
-            className={`absolute inset-0 z-[11] ${lightText ? "bg-black" : "bg-white"}`}
-            style={{ opacity: props.overlayOpacity / 100 }}
-          />
-        ) : null}
-        {!props.scene ? (
-          <div
-            className={`relative z-20 flex min-h-[inherit] flex-col justify-end p-7 md:p-12 ${textAlignClass(props.textAlign)}`}
-            style={{ minHeight: `${Math.max(300, props.minHeight)}px` }}
+        <div
+          className={`absolute inset-0 z-[11] ${lightText ? "bg-black" : "bg-white"}`}
+          style={{ opacity: props.overlayOpacity / 100 }}
+        />
+        <div
+          className={`relative z-20 flex min-h-[inherit] flex-col justify-end p-7 md:p-12 ${textAlignClass(props.textAlign)}`}
+          style={{ minHeight: `${Math.max(300, props.minHeight)}px` }}
+        >
+          {props.eyebrow ? <p className="section-kicker opacity-65">{props.eyebrow}</p> : null}
+          <h2
+            className={`mt-3 leading-none ${fontClass(props.titleFont)}`}
+            style={{ fontSize: `clamp(${props.mobileTitleSize}px, 6vw, ${props.titleSize}px)` }}
           >
-            {props.eyebrow ? <p className="section-kicker opacity-65">{props.eyebrow}</p> : null}
-            <h2
-              className={`mt-3 leading-none ${fontClass(props.titleFont)}`}
-              style={{ fontSize: `clamp(${props.mobileTitleSize}px, 6vw, ${props.titleSize}px)` }}
+            {props.title}
+          </h2>
+          {props.body ? (
+            <p className="mt-4 max-w-lg text-sm leading-6 opacity-75">{props.body}</p>
+          ) : null}
+          {props.buttonLabel ? (
+            <a
+              href={safeLink(props.buttonUrl)}
+              className={`mt-7 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase ${lightText ? "bg-white text-black" : "bg-black text-white"}`}
             >
-              {props.title}
-            </h2>
-            {props.body ? (
-              <p className="mt-4 max-w-lg text-sm leading-6 opacity-75">{props.body}</p>
-            ) : null}
-            {props.buttonLabel ? (
-              <a
-                href={safeLink(props.buttonUrl)}
-                className={`mt-7 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase ${lightText ? "bg-white text-black" : "bg-black text-white"}`}
-              >
-                {props.buttonLabel}
-              </a>
-            ) : null}
-          </div>
-        ) : null}
+              {props.buttonLabel}
+            </a>
+          ) : null}
+        </div>
       </div>
     </section>
   );
