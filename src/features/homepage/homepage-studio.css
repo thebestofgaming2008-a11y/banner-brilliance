@@ -2429,6 +2429,14 @@
   grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
+.studio-template-responsive-values {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.studio-template-responsive-values--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
 .studio-template-position label {
   display: grid;
   height: 30px;
@@ -2478,6 +2486,26 @@
 .studio-template-align button:hover,
 .studio-template-align button.is-active {
   background: #4a4a4a;
+  color: #fff;
+}
+.studio-template-action {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  background: #383838;
+  color: #ddd;
+  font:
+    500 10px/1 Inter,
+    sans-serif;
+}
+.studio-template-action:hover,
+.studio-template-action.is-active {
+  border-color: var(--studio-accent);
+  background: #0d99ff1f;
   color: #fff;
 }
 .studio-product-picker {
@@ -2724,13 +2752,21 @@
 }
 .studio-canvas-stage.is-structured
   [data-editor-active="true"]
-  .homepage-banner-layer:is([data-layer-type="text"], [data-layer-type="button"]) {
+  .homepage-banner-layer:is(
+    [data-layer-type="text"],
+    [data-layer-type="button"],
+    [data-layer-type="image"]
+  ) {
   cursor: move;
   user-select: none;
 }
 .studio-canvas-stage.is-structured
   [data-editor-active="true"]
-  .homepage-banner-layer:is([data-layer-type="text"], [data-layer-type="button"]):hover {
+  .homepage-banner-layer:is(
+    [data-layer-type="text"],
+    [data-layer-type="button"],
+    [data-layer-type="image"]
+  ):hover {
   outline: 1px solid rgb(13 153 255/0.7);
   outline-offset: 1px;
 }

@@ -89,6 +89,7 @@ test.describe("fixed-template homepage studio", () => {
 
     await inspector.getByLabel("Title", { exact: true }).fill("SUMMER COLLECTION");
     await inspector.getByLabel("Subtitle", { exact: true }).fill("A limited seasonal release");
+    await inspector.getByLabel("Shop button text", { exact: true }).fill("Explore summer");
     await inspector.getByLabel("Shop button link", { exact: true }).fill("/shop?collection=summer");
     await expect(activeScene.locator('[data-banner-layer="title"]')).toHaveText(
       "SUMMER COLLECTION",
@@ -96,9 +97,14 @@ test.describe("fixed-template homepage studio", () => {
     await expect(activeScene.locator('[data-banner-layer="body"]')).toHaveText(
       "A limited seasonal release",
     );
-    await expect(activeScene.locator('[data-banner-layer="button"]')).toHaveText(
-      "Shop the collection",
-    );
+    await expect(activeScene.locator('[data-banner-layer="button"]')).toHaveText("Explore summer");
+    const heroButton = activeScene.locator('[data-banner-layer="button"]');
+    await heroButton.click({ force: true });
+    await inspector.getByLabel("Text colour", { exact: true }).fill("#112233");
+    await expect(heroButton).toHaveCSS("color", "rgb(17, 34, 51)");
+    await inspector.getByRole("button", { name: "Filled", exact: true }).click();
+    await inspector.getByLabel("Button colour", { exact: true }).fill("#fedcba");
+    await expect(heroButton).toHaveCSS("background-color", "rgb(254, 220, 186)");
 
     await inspector.getByLabel("Product image URL").fill("/homepage/hero-niqab.webp");
     await expect(activeScene.locator('[data-banner-layer="foreground"] img')).toHaveAttribute(
@@ -145,6 +151,34 @@ test.describe("fixed-template homepage studio", () => {
     expect(titleBox!.x + titleBox!.width).toBeLessThanOrEqual(sceneBox!.x + sceneBox!.width + 1);
   });
 
+  test("selects, resizes and crops the hero product image", async ({ page }) => {
+    const frame = storefront(page);
+    const image = frame.locator('[data-editor-active="true"] [data-banner-layer="foreground"]');
+    const inspector = page.getByRole("complementary", { name: "Banner settings" });
+
+    await image.click({ force: true });
+    await expect(frame.locator(".studio-selection-box")).toHaveCount(1);
+    await expect(
+      inspector.getByRole("heading", { name: "Product image", exact: true }).first(),
+    ).toBeVisible();
+
+    const width = inspector.getByLabel("W", { exact: true });
+    const originalWidth = Number(await width.inputValue());
+    const nextWidth = (originalWidth - 3).toFixed(1);
+    await width.fill(nextWidth);
+    await expect(width).toHaveValue(nextWidth);
+
+    await inspector.getByLabel("Zoom %", { exact: true }).fill("135");
+    await expect
+      .poll(() => image.locator("img").evaluate((element) => element.style.transform))
+      .toContain("scale(1.35)");
+    await expect(inspector.getByRole("button", { name: "Crop product image" })).toBeVisible();
+    await image.dblclick({ force: true });
+    await expect(page.getByText("Crop image", { exact: true })).toBeVisible();
+    await expect(image).toHaveClass(/is-cropping/);
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+  });
+
   test("navigates, reorders and adds heroes from the right panel", async ({ page }) => {
     await expect(page.getByText("Slide 1 of 2", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Next hero" }).click();
@@ -181,8 +215,43 @@ test.describe("fixed-template homepage studio", () => {
     await dialog.getByRole("button", { name: /Banner only/ }).click();
     let inspector = page.getByRole("complementary", { name: "Banner settings" });
     await expect(inspector.getByText("Banner only", { exact: true })).toBeVisible();
+    await inspector.getByLabel("Small label", { exact: true }).fill("LIMITED RELEASE");
     await inspector.getByLabel("Title", { exact: true }).fill("RAMADAN OFFER");
-    await expect(frame.locator('[data-editor-active="true"]')).toContainText("RAMADAN OFFER");
+    await inspector.getByLabel("Shop button text", { exact: true }).fill("View the offer");
+    await inspector.getByRole("button", { name: "Align text right" }).click();
+    const standalone = frame.locator('[data-homepage-banner-id][data-editor-active="true"]');
+    await expect(standalone).toContainText("LIMITED RELEASE");
+    await expect(standalone).toContainText("RAMADAN OFFER");
+    await expect(standalone).toContainText("View the offer");
+    await expect(standalone.locator(".items-end")).toBeVisible();
+    await inspector.getByLabel("Text colour", { exact: true }).fill("#123456");
+    await inspector.getByLabel("Button colour", { exact: true }).fill("#fedcba");
+    await inspector.getByLabel("Button text", { exact: true }).fill("#102030");
+    await expect(standalone.getByRole("heading", { name: "RAMADAN OFFER" })).toHaveCSS(
+      "color",
+      "rgb(18, 52, 86)",
+    );
+    await expect(standalone.getByRole("link", { name: "View the offer" })).toHaveCSS(
+      "background-color",
+      "rgb(254, 220, 186)",
+    );
+
+    await inspector.getByLabel("Banner image URL").fill("/homepage/hero-shemagh.webp");
+    await expect(inspector.getByRole("button", { name: "Crop banner image" })).toBeVisible();
+    await inspector.getByLabel("Zoom %", { exact: true }).fill("125");
+    await expect
+      .poll(() =>
+        standalone
+          .locator('[data-fill-id="fill-image"] img')
+          .evaluate((element) => element.style.transform),
+      )
+      .toContain("scale(1.25)");
+    await standalone.locator(".homepage-banner-scene").dblclick({
+      force: true,
+      position: { x: 500, y: 200 },
+    });
+    await expect(page.getByText("Crop background", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Done", exact: true }).click();
 
     await frame.getByRole("button", { name: "Add homepage section" }).click();
     await page
@@ -192,7 +261,9 @@ test.describe("fixed-template homepage studio", () => {
     inspector = page.getByRole("complementary", { name: "Banner settings" });
     await expect(inspector.getByText("Banner + products", { exact: true })).toBeVisible();
     await expect(inspector.locator("select").first()).toHaveValue("all");
-    await expect(frame.locator('[data-editor-active="true"]')).toBeVisible();
+    await expect(
+      frame.locator('[data-homepage-banner-id][data-editor-active="true"]'),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "Move banner up" })).toBeEnabled();
 
     await inspector.getByRole("button", { name: "Choose products", exact: true }).click();
@@ -205,7 +276,10 @@ test.describe("fixed-template homepage studio", () => {
       .click();
     await expect(inspector.getByText("3/8", { exact: true })).toBeVisible();
     await expect(
-      frame.locator('[data-editor-active="true"]').locator("xpath=..").locator("article"),
+      frame
+        .locator('[data-homepage-banner-id][data-editor-active="true"]')
+        .locator("xpath=..")
+        .locator("article"),
     ).toHaveCount(3);
   });
 

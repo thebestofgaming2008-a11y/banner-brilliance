@@ -72,14 +72,17 @@ import {
   type StudioBannerRef,
 } from "./studio-model";
 import type {
+  BannerFill,
   BannerLayer,
   BannerLayerStyle,
   BannerScene,
+  CollectionFeatureProps,
   HeroSlide,
   HomepageData,
   HomepageEditorState,
   HomepageVersion,
   HomepageViewport,
+  PromoBannerProps,
 } from "./types";
 
 const LOCAL_BACKUP_KEY = "fawzaan.homepage-studio.local-v4";
@@ -195,12 +198,27 @@ function uniqueScene(scene: BannerScene): BannerScene {
   };
 }
 
-function refreshHeroScene(slide: HeroSlide, index: number, previous?: BannerScene): BannerScene {
-  const generated = sceneFromHero(slide, index);
+function preserveSceneTransforms(
+  generated: BannerScene,
+  previous?: BannerScene,
+  preserveFillTransforms = true,
+): BannerScene {
   if (!previous) return generated;
   const previousLayers = new Map(previous.layers.map((layer) => [layer.id, layer]));
+  const previousFills = new Map(previous.fills.map((fill) => [fill.id, fill]));
   return {
     ...generated,
+    fills: generated.fills.map((fill) => {
+      const existing = previousFills.get(fill.id);
+      if (!existing || !preserveFillTransforms) return fill;
+      return {
+        ...fill,
+        offsetX: existing.offsetX,
+        offsetY: existing.offsetY,
+        zoom: existing.zoom,
+        position: existing.position ?? fill.position,
+      };
+    }),
     layers: generated.layers.map((layer) => {
       const existing = previousLayers.get(layer.id);
       return existing
@@ -212,6 +230,35 @@ function refreshHeroScene(slide: HeroSlide, index: number, previous?: BannerScen
         : layer;
     }),
   };
+}
+
+function refreshHeroScene(
+  slide: HeroSlide,
+  index: number,
+  previous?: BannerScene,
+  preserveFillTransforms = true,
+): BannerScene {
+  return preserveSceneTransforms(sceneFromHero(slide, index), previous, preserveFillTransforms);
+}
+
+function refreshCollectionScene(
+  props: CollectionFeatureProps,
+  previous?: BannerScene,
+  preserveFillTransforms = true,
+) {
+  return preserveSceneTransforms(
+    sceneFromCollectionFeature(props),
+    previous,
+    preserveFillTransforms,
+  );
+}
+
+function refreshPromoScene(
+  props: PromoBannerProps,
+  previous?: BannerScene,
+  preserveFillTransforms = true,
+) {
+  return preserveSceneTransforms(sceneFromPromo(props), previous, preserveFillTransforms);
 }
 
 function IconButton({
@@ -527,6 +574,19 @@ export function HomepageVisualEditor({
       );
     },
     [mutateScene, viewport],
+  );
+
+  const patchFill = useCallback(
+    (id: string, patch: Partial<BannerFill>) => {
+      mutateScene(
+        (current) => ({
+          ...current,
+          fills: current.fills.map((fill) => (fill.id === id ? { ...fill, ...patch } : fill)),
+        }),
+        true,
+      );
+    },
+    [mutateScene],
   );
 
   const finishCrop = useCallback(() => {
@@ -867,12 +927,17 @@ export function HomepageVisualEditor({
       const slide = item.props.slides[index];
       if (!slide) return;
       const previousScene = slide.scene;
+      const previousBackgroundImage = slide.backgroundImage;
       Object.assign(slide, patch);
       slide.layout = "original";
       slide.textTone = "light";
       slide.titleFont = "display";
-      slide.buttonLabel = "Shop the collection";
-      slide.scene = refreshHeroScene(slide, index, previousScene);
+      slide.scene = refreshHeroScene(
+        slide,
+        index,
+        previousScene,
+        previousBackgroundImage === slide.backgroundImage,
+      );
       if (patch.textAlign) {
         slide.scene.layers = slide.scene.layers.map((layer) =>
           layer.type === "text" || layer.type === "button"
@@ -885,20 +950,26 @@ export function HomepageVisualEditor({
         );
       }
     } else if (selectedRef.kind === "collection-feature" && item.type === "CollectionFeature") {
+      const previousScene = item.props.scene;
+      const previousImage = item.props.image;
       Object.assign(item.props, patch);
       item.props.layout = "banner-top";
-      item.props.textAlign = "left";
-      item.props.textTone = "light";
       item.props.titleFont = "sans";
-      item.props.buttonLabel = "Shop collection";
-      item.props.scene = sceneFromCollectionFeature(item.props);
+      item.props.scene = refreshCollectionScene(
+        item.props,
+        previousScene,
+        previousImage === item.props.image,
+      );
     } else if (selectedRef.kind === "standalone" && item.type === "PromoBanner") {
+      const previousScene = item.props.scene;
+      const previousImage = item.props.backgroundImage;
       Object.assign(item.props, patch);
-      item.props.textAlign = "left";
-      item.props.textTone = "light";
       item.props.titleFont = "sans";
-      item.props.buttonLabel = "Shop collection";
-      item.props.scene = sceneFromPromo(item.props);
+      item.props.scene = refreshPromoScene(
+        item.props,
+        previousScene,
+        previousImage === item.props.backgroundImage,
+      );
     }
     commit(next, true);
   };
@@ -922,7 +993,7 @@ export function HomepageVisualEditor({
         return;
       }
       if (typing) return;
-      if (event.key === "Delete" || event.key === "Backspace") {
+      if (ADVANCED_LAYOUT_TOOLS && (event.key === "Delete" || event.key === "Backspace")) {
         event.preventDefault();
         deleteLayers();
       } else if (event.key === "Escape") {
@@ -933,7 +1004,12 @@ export function HomepageVisualEditor({
         setAddOpen(false);
         setEditingLayerId(null);
         setSelectedLayerIds([]);
-      } else if (command && event.key.toLowerCase() === "d" && selectedLayerIds.length === 1) {
+      } else if (
+        ADVANCED_LAYOUT_TOOLS &&
+        command &&
+        event.key.toLowerCase() === "d" &&
+        selectedLayerIds.length === 1
+      ) {
         event.preventDefault();
         duplicateLayer(selectedLayerIds[0]!);
       } else if (command && event.key === "[" && selectedLayerIds.length === 1) {
@@ -1537,13 +1613,13 @@ export function HomepageVisualEditor({
                 </>
               ) : null}
             </div>
-            {ADVANCED_LAYOUT_TOOLS && (cropLayerId || cropFillId) ? (
+            {cropLayerId || cropFillId ? (
               <div className="studio-modebar" aria-label="Crop controls">
                 <button type="button" onClick={cancelCrop}>
                   <X size={14} /> Cancel
                 </button>
                 <span>
-                  <Crop size={14} /> Crop
+                  <Crop size={14} /> {cropLayerId ? "Crop image" : "Crop background"}
                 </span>
                 <button type="button" className="is-primary" onClick={finishCrop}>
                   <Check size={14} /> Done
@@ -1658,6 +1734,8 @@ export function HomepageVisualEditor({
             products={catalogProducts}
             viewport={viewport}
             selectedLayer={selectedLayers.length === 1 ? selectedLayers[0]! : null}
+            cropLayerId={cropLayerId}
+            cropFillId={cropFillId}
             heroPosition={
               selectedRef.kind === "hero"
                 ? { index: selectedGroupIndex, total: heroBanners.length }
@@ -1677,6 +1755,9 @@ export function HomepageVisualEditor({
             onMoveDown={() => moveBanner(1)}
             onPatch={patchSelectedTemplate}
             onPatchLayer={patchLayer}
+            onPatchFill={patchFill}
+            onCropLayer={(id) => (id ? beginLayerCrop(id) : finishCrop())}
+            onCropFill={(id) => (id ? beginFillCrop(id) : finishCrop())}
             onDuplicate={duplicateBanner}
             onDelete={deleteBanner}
           />

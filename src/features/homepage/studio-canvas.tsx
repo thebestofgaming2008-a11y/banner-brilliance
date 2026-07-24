@@ -119,7 +119,9 @@ export function StudioCanvas({
     () =>
       selectedRef.kind === "hero"
         ? scene.layers
-            .filter((layer) => layer.type === "text" || layer.type === "button")
+            .filter(
+              (layer) => layer.type === "text" || layer.type === "button" || layer.type === "image",
+            )
             .map((layer) => layer.id)
         : [],
     [scene.layers, selectedRef.kind],
@@ -158,7 +160,7 @@ export function StudioCanvas({
       cropLayerId,
       cropFillId,
       snapGuides,
-      interactionDisabled: selectedRef.kind !== "hero" || activeTool !== "select",
+      interactionDisabled: activeTool !== "select",
       editableLayerIds,
       onSelectLayer: (id, additive) => {
         onEditLayer(null);
@@ -238,7 +240,6 @@ export function StudioCanvas({
       sceneRoot,
       snapGuides,
       selectedLayerIds,
-      selectedRef.kind,
       selectedRef.key,
       viewport,
     ],
@@ -337,6 +338,7 @@ export function StudioCanvas({
                     ) {
                       return;
                     }
+                    if (bannerKey === selectedRef.key && cropFillId) return;
                     if (bannerKey) {
                       onSelectBanner(bannerKey);
                       onSelectLayers([]);

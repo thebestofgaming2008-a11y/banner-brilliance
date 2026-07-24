@@ -7,6 +7,7 @@ import {
   ChevronRight,
   ChevronUp,
   Copy,
+  Crop,
   Image as ImageIcon,
   Layers3,
   Plus,
@@ -20,6 +21,7 @@ import type { AdminCategory } from "@/services/adminService";
 import { HomepageImageInput } from "./homepage-image-field";
 import type { StudioBannerRef } from "./studio-model";
 import type {
+  BannerFill,
   BannerLayer,
   BannerLayerStyle,
   CollectionFeatureProps,
@@ -76,6 +78,91 @@ function ColourField({
         />
         <code>{value.toUpperCase()}</code>
       </span>
+    </label>
+  );
+}
+
+function colourInputValue(value: string | undefined, fallback: string) {
+  const normalized = String(value || "").slice(0, 7);
+  return /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : fallback;
+}
+
+function darkTextForColour(value: string) {
+  const color = colourInputValue(value, "#ffffff");
+  const red = Number.parseInt(color.slice(1, 3), 16);
+  const green = Number.parseInt(color.slice(3, 5), 16);
+  const blue = Number.parseInt(color.slice(5, 7), 16);
+  return red * 0.299 + green * 0.587 + blue * 0.114 > 160;
+}
+
+function AlignmentButtons({
+  value,
+  label,
+  onChange,
+}: {
+  value: "left" | "center" | "right";
+  label: string;
+  onChange: (value: "left" | "center" | "right") => void;
+}) {
+  return (
+    <div className="studio-template-align" role="group" aria-label={label}>
+      <button
+        type="button"
+        title="Align text left"
+        aria-label="Align text left"
+        className={value === "left" ? "is-active" : ""}
+        onClick={() => onChange("left")}
+      >
+        <AlignLeft size={15} />
+      </button>
+      <button
+        type="button"
+        title="Align text center"
+        aria-label="Align text center"
+        className={value === "center" ? "is-active" : ""}
+        onClick={() => onChange("center")}
+      >
+        <AlignCenter size={15} />
+      </button>
+      <button
+        type="button"
+        title="Align text right"
+        aria-label="Align text right"
+        className={value === "right" ? "is-active" : ""}
+        onClick={() => onChange("right")}
+      >
+        <AlignRight size={15} />
+      </button>
+    </div>
+  );
+}
+
+function NumberField({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="studio-template-field">
+      <span>{label}</span>
+      <input
+        type="number"
+        value={Number(value.toFixed(step < 1 ? 1 : 0))}
+        min={min}
+        max={max}
+        step={step}
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
     </label>
   );
 }
@@ -139,14 +226,24 @@ function HeroTemplate({
   slide,
   selectedLayer,
   viewport,
+  cropLayerId,
+  cropFillId,
   onPatch,
   onPatchLayer,
+  onPatchFill,
+  onCropLayer,
+  onCropFill,
 }: {
   slide: HeroSlide;
   selectedLayer: BannerLayer | null;
   viewport: HomepageViewport;
+  cropLayerId: string | null;
+  cropFillId: string | null;
   onPatch: (patch: HomepageTemplatePatch) => void;
   onPatchLayer: (id: string, patch: Partial<BannerLayerStyle>) => void;
+  onPatchFill: (id: string, patch: Partial<BannerFill>) => void;
+  onCropLayer: (id: string | null) => void;
+  onCropFill: (id: string | null) => void;
 }) {
   const gradient = slide.gradient;
   const backgroundMode = gradient.enabled === "off" ? "image" : "gradient";
@@ -156,8 +253,12 @@ function HeroTemplate({
       : selectedLayer.style
     : null;
   const textAlign = selectedStyle?.textAlign ?? slide.textAlign ?? "center";
+  const selectedText =
+    selectedLayer?.type === "text" || selectedLayer?.type === "button" ? selectedLayer : null;
+  const selectedImage = selectedLayer?.type === "image" ? selectedLayer : null;
+  const backgroundImageFill = slide.scene?.fills.find((fill) => fill.type === "image");
   const setTextAlign = (next: "left" | "center" | "right") => {
-    if (selectedLayer) onPatchLayer(selectedLayer.id, { textAlign: next });
+    if (selectedText) onPatchLayer(selectedText.id, { textAlign: next });
     else onPatch({ textAlign: next });
   };
 
@@ -171,6 +272,11 @@ function HeroTemplate({
           value={slide.body}
           multiline
           onChange={(body) => onPatch({ body })}
+        />
+        <TextField
+          label="Shop button text"
+          value={slide.buttonLabel}
+          onChange={(buttonLabel) => onPatch({ buttonLabel })}
         />
         <TextField
           label="Shop button link"
@@ -205,37 +311,149 @@ function HeroTemplate({
                 }
               />
             </label>
+            <label>
+              <span>W</span>
+              <input
+                type="number"
+                min="0.5"
+                step="0.1"
+                value={Number(selectedStyle.width.toFixed(1))}
+                onChange={(event) =>
+                  onPatchLayer(selectedLayer.id, { width: Number(event.target.value) })
+                }
+              />
+            </label>
+            <label>
+              <span>H</span>
+              <input
+                type="number"
+                min="0.5"
+                step="0.1"
+                value={Number(selectedStyle.height.toFixed(1))}
+                onChange={(event) =>
+                  onPatchLayer(selectedLayer.id, { height: Number(event.target.value) })
+                }
+              />
+            </label>
           </div>
         ) : null}
-        <div className="studio-template-align" role="group" aria-label="Text alignment">
-          <button
-            type="button"
-            title="Align text left"
-            aria-label="Align text left"
-            className={textAlign === "left" ? "is-active" : ""}
-            onClick={() => setTextAlign("left")}
-          >
-            <AlignLeft size={15} />
-          </button>
-          <button
-            type="button"
-            title="Align text center"
-            aria-label="Align text center"
-            className={textAlign === "center" ? "is-active" : ""}
-            onClick={() => setTextAlign("center")}
-          >
-            <AlignCenter size={15} />
-          </button>
-          <button
-            type="button"
-            title="Align text right"
-            aria-label="Align text right"
-            className={textAlign === "right" ? "is-active" : ""}
-            onClick={() => setTextAlign("right")}
-          >
-            <AlignRight size={15} />
-          </button>
-        </div>
+        {selectedImage ? (
+          <>
+            <div className="studio-template-segment" role="group" aria-label="Product image fit">
+              {(["contain", "cover", "fill"] as const).map((fit) => (
+                <button
+                  key={fit}
+                  type="button"
+                  className={(selectedStyle?.objectFit ?? "contain") === fit ? "is-active" : ""}
+                  onClick={() => onPatchLayer(selectedImage.id, { objectFit: fit })}
+                >
+                  {fit[0]!.toUpperCase() + fit.slice(1)}
+                </button>
+              ))}
+            </div>
+            <div className="studio-template-responsive-values studio-template-responsive-values--three">
+              <NumberField
+                label="Crop X"
+                value={selectedStyle?.cropX ?? 0}
+                min={-100}
+                max={100}
+                onChange={(cropX) => onPatchLayer(selectedImage.id, { cropX })}
+              />
+              <NumberField
+                label="Crop Y"
+                value={selectedStyle?.cropY ?? 0}
+                min={-100}
+                max={100}
+                onChange={(cropY) => onPatchLayer(selectedImage.id, { cropY })}
+              />
+              <NumberField
+                label="Zoom %"
+                value={selectedStyle?.cropZoom ?? 100}
+                min={10}
+                max={500}
+                onChange={(cropZoom) => onPatchLayer(selectedImage.id, { cropZoom })}
+              />
+            </div>
+            <button
+              type="button"
+              className={`studio-template-action ${cropLayerId === selectedImage.id ? "is-active" : ""}`}
+              onClick={() =>
+                onCropLayer(cropLayerId === selectedImage.id ? null : selectedImage.id)
+              }
+            >
+              <Crop size={14} />
+              <span>{cropLayerId === selectedImage.id ? "Finish crop" : "Crop product image"}</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <AlignmentButtons value={textAlign} label="Text alignment" onChange={setTextAlign} />
+            {selectedText && selectedStyle ? (
+              <>
+                <NumberField
+                  label="Font size"
+                  value={selectedStyle.fontSize ?? 16}
+                  min={6}
+                  max={240}
+                  onChange={(fontSize) => onPatchLayer(selectedText.id, { fontSize })}
+                />
+                <ColourField
+                  label="Text colour"
+                  value={colourInputValue(selectedStyle.color, "#ffffff")}
+                  onChange={(color) => onPatchLayer(selectedText.id, { color })}
+                />
+                {selectedText.type === "button" ? (
+                  <>
+                    <div
+                      className="studio-template-segment"
+                      role="group"
+                      aria-label="Button background"
+                    >
+                      <button
+                        type="button"
+                        className={
+                          !selectedStyle.backgroundColor ||
+                          selectedStyle.backgroundColor.endsWith("00")
+                            ? "is-active"
+                            : ""
+                        }
+                        onClick={() =>
+                          onPatchLayer(selectedText.id, { backgroundColor: "#00000000" })
+                        }
+                      >
+                        Transparent
+                      </button>
+                      <button
+                        type="button"
+                        className={
+                          selectedStyle.backgroundColor &&
+                          !selectedStyle.backgroundColor.endsWith("00")
+                            ? "is-active"
+                            : ""
+                        }
+                        onClick={() =>
+                          onPatchLayer(selectedText.id, { backgroundColor: "#ffffff" })
+                        }
+                      >
+                        Filled
+                      </button>
+                    </div>
+                    {selectedStyle.backgroundColor &&
+                    !selectedStyle.backgroundColor.endsWith("00") ? (
+                      <ColourField
+                        label="Button colour"
+                        value={colourInputValue(selectedStyle.backgroundColor, "#ffffff")}
+                        onChange={(backgroundColor) =>
+                          onPatchLayer(selectedText.id, { backgroundColor })
+                        }
+                      />
+                    ) : null}
+                  </>
+                ) : null}
+              </>
+            ) : null}
+          </>
+        )}
       </section>
 
       <section className="studio-template-section">
@@ -287,13 +505,75 @@ function HeroTemplate({
             />
           </div>
         ) : (
-          <div className="studio-template-image">
-            <HomepageImageInput
-              value={slide.backgroundImage}
-              inputLabel="Background image URL"
-              onChange={(backgroundImage) => onPatch({ backgroundImage })}
-            />
-          </div>
+          <>
+            <div className="studio-template-image">
+              <HomepageImageInput
+                value={slide.backgroundImage}
+                inputLabel="Background image URL"
+                allowDestructiveCrop={false}
+                onChange={(backgroundImage) => onPatch({ backgroundImage })}
+              />
+            </div>
+            {backgroundImageFill && slide.backgroundImage ? (
+              <>
+                <div
+                  className="studio-template-segment"
+                  role="group"
+                  aria-label="Background image fit"
+                >
+                  {(["cover", "contain", "fill"] as const).map((fit) => (
+                    <button
+                      key={fit}
+                      type="button"
+                      className={(backgroundImageFill.fit ?? "cover") === fit ? "is-active" : ""}
+                      onClick={() => onPatchFill(backgroundImageFill.id, { fit })}
+                    >
+                      {fit[0]!.toUpperCase() + fit.slice(1)}
+                    </button>
+                  ))}
+                </div>
+                <div className="studio-template-responsive-values studio-template-responsive-values--three">
+                  <NumberField
+                    label="Image X"
+                    value={backgroundImageFill.offsetX ?? 0}
+                    min={-100}
+                    max={100}
+                    onChange={(offsetX) => onPatchFill(backgroundImageFill.id, { offsetX })}
+                  />
+                  <NumberField
+                    label="Image Y"
+                    value={backgroundImageFill.offsetY ?? 0}
+                    min={-100}
+                    max={100}
+                    onChange={(offsetY) => onPatchFill(backgroundImageFill.id, { offsetY })}
+                  />
+                  <NumberField
+                    label="Zoom %"
+                    value={backgroundImageFill.zoom ?? 100}
+                    min={10}
+                    max={500}
+                    onChange={(zoom) => onPatchFill(backgroundImageFill.id, { zoom })}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className={`studio-template-action ${cropFillId === backgroundImageFill.id ? "is-active" : ""}`}
+                  onClick={() =>
+                    onCropFill(
+                      cropFillId === backgroundImageFill.id ? null : backgroundImageFill.id,
+                    )
+                  }
+                >
+                  <Crop size={14} />
+                  <span>
+                    {cropFillId === backgroundImageFill.id
+                      ? "Finish background crop"
+                      : "Crop background image"}
+                  </span>
+                </button>
+              </>
+            ) : null}
+          </>
         )}
       </section>
     </>
@@ -459,23 +739,41 @@ function BannerTemplate({
   item,
   categories,
   products,
+  cropFillId,
   onPatch,
+  onPatchFill,
+  onCropFill,
 }: {
   item:
     | { type: "CollectionFeature"; props: CollectionFeatureProps & { id: string } }
     | { type: "PromoBanner"; props: PromoBannerProps & { id: string } };
   categories: AdminCategory[];
   products: StoreProduct[];
+  cropFillId: string | null;
   onPatch: (patch: HomepageTemplatePatch) => void;
+  onPatchFill: (id: string, patch: Partial<BannerFill>) => void;
+  onCropFill: (id: string | null) => void;
 }) {
   const withProducts = item.type === "CollectionFeature";
   const image = withProducts ? item.props.image : item.props.backgroundImage;
   const colour = withProducts ? item.props.bannerColor : item.props.backgroundColor;
+  const imageFill = item.props.scene?.fills.find((fill) => fill.type === "image");
+  const textColour =
+    item.props.textColor || (item.props.textTone === "light" ? "#ffffff" : "#000000");
+  const buttonBackground =
+    item.props.buttonBackgroundColor || (item.props.textTone === "light" ? "#ffffff" : "#000000");
+  const buttonText =
+    item.props.buttonTextColor || (item.props.textTone === "light" ? "#000000" : "#ffffff");
 
   return (
     <>
       <section className="studio-template-section">
         <h3>Content</h3>
+        <TextField
+          label="Small label"
+          value={item.props.eyebrow}
+          onChange={(eyebrow) => onPatch({ eyebrow })}
+        />
         <TextField
           label="Title"
           value={item.props.title}
@@ -488,9 +786,59 @@ function BannerTemplate({
           onChange={(body) => onPatch({ body })}
         />
         <TextField
+          label="Shop button text"
+          value={item.props.buttonLabel}
+          onChange={(buttonLabel) => onPatch({ buttonLabel })}
+        />
+        <TextField
           label="Shop button link"
           value={item.props.buttonUrl}
           onChange={(buttonUrl) => onPatch({ buttonUrl })}
+        />
+      </section>
+
+      <section className="studio-template-section">
+        <h3>Typography</h3>
+        <AlignmentButtons
+          value={item.props.textAlign}
+          label="Banner text alignment"
+          onChange={(textAlign) => onPatch({ textAlign })}
+        />
+        <div className="studio-template-responsive-values">
+          <NumberField
+            label="Desktop title"
+            value={item.props.titleSize}
+            min={24}
+            max={140}
+            onChange={(titleSize) => onPatch({ titleSize })}
+          />
+          <NumberField
+            label="Mobile title"
+            value={item.props.mobileTitleSize}
+            min={20}
+            max={84}
+            onChange={(mobileTitleSize) => onPatch({ mobileTitleSize })}
+          />
+        </div>
+        <ColourField
+          label="Text colour"
+          value={colourInputValue(textColour, "#ffffff")}
+          onChange={(textColor) =>
+            onPatch({
+              textColor,
+              textTone: darkTextForColour(textColor) ? "dark" : "light",
+            })
+          }
+        />
+        <ColourField
+          label="Button colour"
+          value={colourInputValue(buttonBackground, "#ffffff")}
+          onChange={(buttonBackgroundColor) => onPatch({ buttonBackgroundColor })}
+        />
+        <ColourField
+          label="Button text"
+          value={colourInputValue(buttonText, "#000000")}
+          onChange={(buttonTextColor) => onPatch({ buttonTextColor })}
         />
       </section>
 
@@ -500,11 +848,59 @@ function BannerTemplate({
           <HomepageImageInput
             value={image}
             inputLabel="Banner image URL"
+            allowDestructiveCrop={false}
             onChange={(nextImage) =>
               onPatch(withProducts ? { image: nextImage } : { backgroundImage: nextImage })
             }
           />
         </div>
+        {imageFill && image ? (
+          <>
+            <div className="studio-template-segment" role="group" aria-label="Banner image fit">
+              {(["cover", "contain", "fill"] as const).map((fit) => (
+                <button
+                  key={fit}
+                  type="button"
+                  className={(imageFill.fit ?? "cover") === fit ? "is-active" : ""}
+                  onClick={() => onPatchFill(imageFill.id, { fit })}
+                >
+                  {fit[0]!.toUpperCase() + fit.slice(1)}
+                </button>
+              ))}
+            </div>
+            <div className="studio-template-responsive-values studio-template-responsive-values--three">
+              <NumberField
+                label="Image X"
+                value={imageFill.offsetX ?? 0}
+                min={-100}
+                max={100}
+                onChange={(offsetX) => onPatchFill(imageFill.id, { offsetX })}
+              />
+              <NumberField
+                label="Image Y"
+                value={imageFill.offsetY ?? 0}
+                min={-100}
+                max={100}
+                onChange={(offsetY) => onPatchFill(imageFill.id, { offsetY })}
+              />
+              <NumberField
+                label="Zoom %"
+                value={imageFill.zoom ?? 100}
+                min={10}
+                max={500}
+                onChange={(zoom) => onPatchFill(imageFill.id, { zoom })}
+              />
+            </div>
+            <button
+              type="button"
+              className={`studio-template-action ${cropFillId === imageFill.id ? "is-active" : ""}`}
+              onClick={() => onCropFill(cropFillId === imageFill.id ? null : imageFill.id)}
+            >
+              <Crop size={14} />
+              <span>{cropFillId === imageFill.id ? "Finish image crop" : "Crop banner image"}</span>
+            </button>
+          </>
+        ) : null}
         <ColourField
           label="Background colour"
           value={colour}
@@ -567,6 +963,8 @@ export function StudioTemplateInspector({
   products,
   viewport,
   selectedLayer,
+  cropLayerId,
+  cropFillId,
   heroPosition,
   onSelectHero,
   onAddHero,
@@ -576,6 +974,9 @@ export function StudioTemplateInspector({
   onMoveDown,
   onPatch,
   onPatchLayer,
+  onPatchFill,
+  onCropLayer,
+  onCropFill,
   onDuplicate,
   onDelete,
 }: {
@@ -585,6 +986,8 @@ export function StudioTemplateInspector({
   products: StoreProduct[];
   viewport: HomepageViewport;
   selectedLayer: BannerLayer | null;
+  cropLayerId: string | null;
+  cropFillId: string | null;
   heroPosition: { index: number; total: number } | null;
   onSelectHero: (index: number) => void;
   onAddHero: () => void;
@@ -594,6 +997,9 @@ export function StudioTemplateInspector({
   onMoveDown: () => void;
   onPatch: (patch: HomepageTemplatePatch) => void;
   onPatchLayer: (id: string, patch: Partial<BannerLayerStyle>) => void;
+  onPatchFill: (id: string, patch: Partial<BannerFill>) => void;
+  onCropLayer: (id: string | null) => void;
+  onCropFill: (id: string | null) => void;
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
@@ -655,8 +1061,13 @@ export function StudioTemplateInspector({
             slide={slide}
             selectedLayer={selectedLayer}
             viewport={viewport}
+            cropLayerId={cropLayerId}
+            cropFillId={cropFillId}
             onPatch={onPatch}
             onPatchLayer={onPatchLayer}
+            onPatchFill={onPatchFill}
+            onCropLayer={onCropLayer}
+            onCropFill={onCropFill}
           />
         </div>
       </aside>
@@ -689,7 +1100,10 @@ export function StudioTemplateInspector({
             item={item}
             categories={categories}
             products={products}
+            cropFillId={cropFillId}
             onPatch={onPatch}
+            onPatchFill={onPatchFill}
+            onCropFill={onCropFill}
           />
         </div>
       </aside>

@@ -204,10 +204,13 @@ export type CollectionFeatureProps = {
   backgroundColor: string;
   bannerColor: string;
   textTone: HomepageTextTone;
+  textColor?: string;
   textAlign: HomepageTextAlign;
   titleFont: HomepageFont;
   titleSize: number;
   mobileTitleSize: number;
+  buttonBackgroundColor?: string;
+  buttonTextColor?: string;
   productLimit: number;
   productSelection?: "collection" | "manual";
   productSlugs?: string[];
@@ -225,10 +228,13 @@ export type PromoBannerProps = {
   foregroundImage: string;
   backgroundColor: string;
   textTone: HomepageTextTone;
+  textColor?: string;
   textAlign: HomepageTextAlign;
   titleFont: HomepageFont;
   titleSize: number;
   mobileTitleSize: number;
+  buttonBackgroundColor?: string;
+  buttonTextColor?: string;
   imageFocus: string;
   foregroundScale: number;
   overlayOpacity: number;
