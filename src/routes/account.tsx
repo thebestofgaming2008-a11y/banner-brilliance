@@ -124,7 +124,7 @@ function AccountPage() {
               </div>
             ) : (
               <p className="mt-5 border border-black/10 p-6 text-sm text-black/55">
-                No orders yet. Paid orders placed with this email will appear here.
+                No account orders yet. Guest orders remain available through order tracking.
               </p>
             )}
           </section>

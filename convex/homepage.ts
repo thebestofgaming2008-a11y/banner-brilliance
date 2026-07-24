@@ -7,6 +7,11 @@ const MAX_DOCUMENT_BYTES = 750_000;
 const MAX_COMPONENTS = 40;
 const MAX_VERSIONS = 15;
 const ALLOWED_COMPONENTS = new Set(["Hero", "CollectionFeature", "PromoBanner"]);
+const LEGACY_HOMEPAGE_PLACEMENTS = [
+  "homepage_hero",
+  "homepage_collection",
+  "homepage_promo",
+] as const;
 
 function isVersion2Homepage(data: unknown): data is {
   schemaVersion: 2;
@@ -92,7 +97,7 @@ async function trimVersions(ctx: MutationCtx) {
     .query("homepage_versions")
     .withIndex("by_page_key", (q) => q.eq("page_key", PAGE_KEY))
     .order("desc")
-    .collect();
+    .take(MAX_VERSIONS + 20);
   await Promise.all(versions.slice(MAX_VERSIONS).map((version) => ctx.db.delete(version._id)));
 }
 
@@ -319,6 +324,11 @@ export const discardDraft = mutation({
 
 export const resetToOriginalHomepage = mutation({
   args: { token: v.optional(v.string()) },
+  returns: v.object({
+    documentsDeleted: v.number(),
+    versionsDeleted: v.number(),
+    legacyBannersDeleted: v.number(),
+  }),
   handler: async (ctx, args) => {
     const setupToken = process.env.ADMIN_UPLOAD_TOKEN;
     if (!setupToken || args.token !== setupToken) await requireAdmin(ctx);
@@ -326,24 +336,42 @@ export const resetToOriginalHomepage = mutation({
     const documents = await ctx.db
       .query("homepage_documents")
       .withIndex("by_page_key", (q) => q.eq("page_key", PAGE_KEY))
-      .collect();
+      .take(10);
     const versions = await ctx.db
       .query("homepage_versions")
       .withIndex("by_page_key", (q) => q.eq("page_key", PAGE_KEY))
-      .collect();
+      .take(100);
+    const legacyBannerGroups = await Promise.all(
+      LEGACY_HOMEPAGE_PLACEMENTS.map((placement) =>
+        ctx.db
+          .query("storefront_banners")
+          .withIndex("by_placement", (q) => q.eq("placement", placement))
+          .take(200),
+      ),
+    );
+    const legacyBanners = legacyBannerGroups.flat();
 
     await Promise.all([
       ...documents.map((document) => ctx.db.delete(document._id)),
       ...versions.map((version) => ctx.db.delete(version._id)),
+      ...legacyBanners.map((banner) => ctx.db.delete(banner._id)),
     ]);
     await writeAuditLog(ctx, {
       action: "homepage.reset_original",
       entityType: "homepage",
       entityId: PAGE_KEY,
-      summary: "Removed visual editor drafts and restored the original coded homepage",
-      metadata: { documentsDeleted: documents.length, versionsDeleted: versions.length },
+      summary: "Restored the canonical coded homepage and removed all editor overrides",
+      metadata: {
+        documentsDeleted: documents.length,
+        versionsDeleted: versions.length,
+        legacyBannersDeleted: legacyBanners.length,
+      },
     });
 
-    return { documentsDeleted: documents.length, versionsDeleted: versions.length };
+    return {
+      documentsDeleted: documents.length,
+      versionsDeleted: versions.length,
+      legacyBannersDeleted: legacyBanners.length,
+    };
   },
 });

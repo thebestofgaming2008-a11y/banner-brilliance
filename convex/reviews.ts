@@ -23,7 +23,10 @@ async function recalculateProductRating(ctx: any, productId: string) {
   const rows = await ctx.db
     .query("reviews")
     .withIndex("by_product_id", (q: any) => q.eq("product_id", productId))
-    .collect();
+    .take(1_001);
+  if (rows.length > 1_000) {
+    throw new Error("This product has too many reviews to recalculate in one operation.");
+  }
   const published = rows.filter((row: any) => row.status === "published");
   const count = published.length;
   const rating = count
@@ -36,30 +39,18 @@ async function recalculateProductRating(ctx: any, productId: string) {
   });
 }
 
-async function hasVerifiedPurchase(
-  ctx: any,
-  userId: string,
-  email: string | null | undefined,
-  productId: string,
-) {
-  const byUser = await ctx.db
+async function hasVerifiedPurchase(ctx: any, userId: string, productId: string) {
+  const orders = await ctx.db
     .query("orders")
     .withIndex("by_user_id", (q: any) => q.eq("user_id", userId))
-    .collect();
-  const byEmail = email
-    ? await ctx.db
-        .query("orders")
-        .withIndex("by_customer_email", (q: any) =>
-          q.eq("customer_email", email.trim().toLowerCase()),
-        )
-        .collect()
-    : [];
-  const orders = [...byUser, ...byEmail].filter((order: any) => order.payment_status === "paid");
-  for (const order of orders) {
+    .order("desc")
+    .take(200);
+  const paidOrders = orders.filter((order: any) => order.payment_status === "paid");
+  for (const order of paidOrders) {
     const items = await ctx.db
       .query("order_items")
       .withIndex("by_order_id", (q: any) => q.eq("order_id", order._id))
-      .collect();
+      .take(100);
     if (items.some((item: any) => String(item.product_id) === productId)) return true;
   }
   return false;
@@ -83,7 +74,10 @@ async function hasReviewedByEmail(ctx: any, email: string, productId: string) {
   const rows = await ctx.db
     .query("reviews")
     .withIndex("by_product_id", (q: any) => q.eq("product_id", productId))
-    .collect();
+    .take(1_001);
+  if (rows.length > 1_000) {
+    throw new Error("This product has too many reviews to check in one operation.");
+  }
   return rows.some((row: any) => cleanEmail(row.customer_email) === email);
 }
 
@@ -93,7 +87,7 @@ export const listPublishedForProduct = query({
     const rows = await ctx.db
       .query("reviews")
       .withIndex("by_product_id", (q) => q.eq("product_id", args.productId))
-      .collect();
+      .take(200);
     return rows
       .filter((row) => row.status === "published")
       .map(publicReview)
@@ -105,7 +99,8 @@ export const listAll = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const rows = await ctx.db.query("reviews").take(args.limit ?? 200);
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 200), 1), 500);
+    const rows = await ctx.db.query("reviews").take(limit);
     return rows
       .map(publicReview)
       .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
@@ -132,7 +127,7 @@ export const submit = mutation({
       )
       .first();
     if (existing) throw new Error("You already reviewed this product.");
-    if (!(await hasVerifiedPurchase(ctx, auth.userId, user.email, args.productId))) {
+    if (!(await hasVerifiedPurchase(ctx, auth.userId, args.productId))) {
       throw new Error("Only verified customers can review this product.");
     }
     const timestamp = nowIso();
@@ -180,7 +175,7 @@ export const submitForOrder = mutation({
     const items = await ctx.db
       .query("order_items")
       .withIndex("by_order_id", (q: any) => q.eq("order_id", order._id))
-      .collect();
+      .take(100);
     if (!items.some((item: any) => String(item.product_id) === args.productId))
       throw new Error("This product was not in that order.");
     if (await hasReviewedByEmail(ctx, email, args.productId))
@@ -210,7 +205,6 @@ export const canReviewProduct = query({
   handler: async (ctx, args) => {
     const auth = await requireIdentity(ctx).catch(() => null);
     if (!auth) return { canReview: false };
-    const user = auth.user as any;
     const existing = await ctx.db
       .query("reviews")
       .withIndex("by_user_product", (q) =>
@@ -218,8 +212,7 @@ export const canReviewProduct = query({
       )
       .first();
     return {
-      canReview:
-        !existing && (await hasVerifiedPurchase(ctx, auth.userId, user.email, args.productId)),
+      canReview: !existing && (await hasVerifiedPurchase(ctx, auth.userId, args.productId)),
     };
   },
 });
@@ -276,7 +269,10 @@ export const recalculateAllProductRatings = mutation({
   args: {},
   handler: async (ctx) => {
     await requireAdmin(ctx);
-    const products = await ctx.db.query("products").collect();
+    const products = await ctx.db.query("products").take(2_001);
+    if (products.length > 2_000) {
+      throw new Error("Too many products to recalculate safely in one operation.");
+    }
     for (const product of products) {
       await recalculateProductRating(ctx, String(product._id));
     }

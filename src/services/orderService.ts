@@ -2,6 +2,7 @@ import type { CartItem } from "@/lib/cart";
 import type { Product } from "@/lib/products";
 import { listActiveProducts } from "@/services/productService";
 import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 import { convex } from "@/integrations/convex/client";
 import { whatsappUrl } from "@/lib/store-config";
 
@@ -304,6 +305,12 @@ export async function verifyRazorpayPayment(args: {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body?.error ?? "Could not verify Razorpay payment.");
   return body.order;
+}
+
+export async function attachPaidOrderToAccount(orderId: string) {
+  return await convex.mutation(api.orders.attachPaidOrderToCurrentUser, {
+    id: orderId as Id<"orders">,
+  });
 }
 
 export async function getRazorpayCheckoutStatus(razorpayOrderId: string, email: string) {

@@ -6,7 +6,7 @@ function storefront(page: Page, viewport: "desktop" | "mobile" = "desktop") {
 
 test.describe("fixed-template homepage studio", () => {
   test.skip(
-    !process.env.PLAYWRIGHT_BASE_URL,
+    !process.env.PLAYWRIGHT_BASE_URL && process.env.PLAYWRIGHT_STUDIO !== "1",
     "The studio harness runs against the Vite dev server.",
   );
   test.skip(({ isMobile }) => isMobile, "The admin studio requires a desktop-sized workspace.");
@@ -330,5 +330,22 @@ test.describe("fixed-template homepage studio", () => {
     await expect(page.getByRole("dialog", { name: "Confirm homepage publish" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Publish live", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  });
+
+  test("makes the canonical OG restore explicit and difficult to trigger accidentally", async ({
+    page,
+  }) => {
+    await page.getByRole("button", { name: "Restore OG", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Restore OG homepage" });
+    await expect(dialog).toBeVisible();
+    await expect(
+      dialog.getByRole("heading", { name: "Restore the current OG homepage?" }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByText(/removes all editor drafts, published versions, browser backups/i),
+    ).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Restore OG live" })).toBeVisible();
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
   });
 });

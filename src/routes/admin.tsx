@@ -86,12 +86,6 @@ import {
   deleteReview,
   upsertCategory,
   removeCategory,
-  listStorefrontBanners,
-  upsertStorefrontBanner,
-  archiveStorefrontBanner,
-  deleteStorefrontBanner,
-  reorderStorefrontBanners,
-  restoreDefaultHomepageHero,
   listPaymentRecoveries,
   retryPaymentRecovery,
   listMarketingCampaigns,
@@ -337,7 +331,6 @@ const Admin = () => {
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [reviews, setReviews] = useState<AdminReview[]>([]);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
-  const [storefrontBanners, setStorefrontBanners] = useState<StorefrontBanner[]>([]);
   const [paymentRecoveries, setPaymentRecoveries] = useState<PaymentRecovery[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([]);
@@ -378,18 +371,16 @@ const Admin = () => {
       listAllCustomers(200),
       listAllReviews(200),
       listCategories(),
-      listStorefrontBanners(),
       listPaymentRecoveries(),
       listPromotions(),
     ])
-      .then(([p, o, c, r, cats, banners, recoveries, promotionRows]) => {
+      .then(([p, o, c, r, cats, recoveries, promotionRows]) => {
         if (cancelled) return;
         setProducts(p);
         setOrders(o);
         setCustomers(c);
         setReviews(r);
         setCategories(cats);
-        setStorefrontBanners(banners);
         setPaymentRecoveries(recoveries);
         setPromotions(promotionRows);
         setLoading(false);
@@ -411,7 +402,6 @@ const Admin = () => {
   const refreshProducts = async () => setProducts(await listAllProducts());
   const refreshOrders = async () => setOrders(await listAllOrders(200));
   const refreshReviews = async () => setReviews(await listAllReviews(200));
-  const refreshStorefrontBanners = async () => setStorefrontBanners(await listStorefrontBanners());
   const refreshPaymentRecoveries = async () => setPaymentRecoveries(await listPaymentRecoveries());
   const refreshPromotions = async () => setPromotions(await listPromotions());
   const refreshCampaigns = async () => setCampaigns(await listMarketingCampaigns());

@@ -141,7 +141,7 @@ export const configuration = query({
     const optedIn = await ctx.db
       .query("profiles")
       .withIndex("by_marketing_consent", (q) => q.eq("marketing_consent", true))
-      .collect();
+      .take(5_001);
     return {
       ready: Boolean(
         process.env.RESEND_API_KEY &&
@@ -152,8 +152,12 @@ export const configuration = query({
       hasApiKey: Boolean(process.env.RESEND_API_KEY),
       hasSender: Boolean(process.env.MARKETING_FROM_EMAIL || process.env.AUTH_EMAIL_FROM),
       hasPublicSiteUrl: Boolean(process.env.PUBLIC_SITE_URL || process.env.SITE_URL),
-      recipientCount: new Set(optedIn.map((profile) => validEmail(profile.email)).filter(Boolean))
-        .size,
+      recipientCount: new Set(
+        optedIn
+          .slice(0, 5_000)
+          .map((profile) => validEmail(profile.email))
+          .filter(Boolean),
+      ).size,
     };
   },
 });
@@ -229,7 +233,10 @@ export const listOptedInRecipients = internalQuery({
     const rows = await ctx.db
       .query("profiles")
       .withIndex("by_marketing_consent", (q) => q.eq("marketing_consent", true))
-      .collect();
+      .take(5_001);
+    if (rows.length > 5_000) {
+      throw new Error("Campaigns currently support up to 5,000 opted-in recipients per send.");
+    }
     const recipients = new Map<string, { email: string; name: string }>();
     for (const row of rows) {
       const email = validEmail(row.email);
@@ -290,7 +297,7 @@ export const unsubscribeEmail = internalMutation({
     const rows = await ctx.db
       .query("profiles")
       .withIndex("by_email", (q) => q.eq("email", args.email))
-      .collect();
+      .take(10);
     for (const row of rows) {
       await ctx.db.patch(row._id, { marketing_consent: false, updated_at: nowIso() });
     }

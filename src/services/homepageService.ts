@@ -31,3 +31,7 @@ export async function restoreHomepageVersion(id: string) {
 export async function discardHomepageDraft() {
   return await convex.mutation(api.homepage.discardDraft, {});
 }
+
+export async function resetHomepageToOriginal() {
+  return await convex.mutation(api.homepage.resetToOriginalHomepage, {});
+}

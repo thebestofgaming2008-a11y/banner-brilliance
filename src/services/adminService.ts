@@ -145,7 +145,12 @@ export async function uploadProductImage(file: File): Promise<string | null> {
       : new URL("/api/media/upload", window.location.origin).toString();
   const result = await fetch(uploadUrl, {
     method: media.method ?? "POST",
-    headers: media.headers,
+    headers: {
+      "Content-Type": media.headers.contentType,
+      "x-file-name": media.headers.fileName,
+      "x-file-size": media.headers.fileSize,
+      "x-admin-upload-token": media.headers.adminUploadToken,
+    },
     body: uploadFile,
   });
   if (!result.ok) {

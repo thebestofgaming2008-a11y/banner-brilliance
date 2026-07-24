@@ -125,6 +125,7 @@ export default defineSchema({
     discount: optionalNumber,
     promotion_id: v.optional(v.union(v.id("discounts"), v.null())),
     promotion_code: optionalString,
+    promotion_reserved: optionalBoolean,
     total: v.number(),
     total_inr: optionalNumber,
     currency: optionalString,

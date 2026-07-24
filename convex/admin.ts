@@ -54,7 +54,7 @@ export const listDiscounts = query({
   args: {},
   handler: async (ctx) => {
     await requireAdmin(ctx);
-    const rows = await ctx.db.query("discounts").collect();
+    const rows = await ctx.db.query("discounts").take(500);
     return rows
       .map(publicDoc)
       .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
@@ -160,7 +160,7 @@ export const listShippingRates = query({
   args: {},
   handler: async (ctx) => {
     await requireAdmin(ctx);
-    const rows = await ctx.db.query("shipping_rates").collect();
+    const rows = await ctx.db.query("shipping_rates").take(200);
     return rows
       .map(publicDoc)
       .sort((a, b) =>
@@ -200,7 +200,7 @@ export const getStoreSettings = query({
   args: {},
   handler: async (ctx) => {
     await requireAdmin(ctx);
-    const rows = await ctx.db.query("store_settings").collect();
+    const rows = await ctx.db.query("store_settings").take(200);
     return Object.fromEntries(rows.map((row) => [row.key, row.value]));
   },
 });
@@ -238,8 +238,8 @@ export const listCategories = query({
       ? await ctx.db
           .query("categories")
           .withIndex("by_type", (q) => q.eq("type", cleanText(args.type, 40)))
-          .collect()
-      : await ctx.db.query("categories").collect();
+          .take(500)
+      : await ctx.db.query("categories").take(500);
     const retiredDefaultFilters = new Set([
       "men",
       "women",
@@ -316,7 +316,10 @@ export const removeCategory = mutation({
       throw new Error("The Other collection is required and cannot be removed.");
 
     const timestamp = nowIso();
-    const products = await ctx.db.query("products").collect();
+    const products = await ctx.db.query("products").take(2_001);
+    if (products.length > 2_000) {
+      throw new Error("Too many products to update safely in one category operation.");
+    }
     let updatedProducts = 0;
 
     if (category.type === "filter") {
@@ -383,7 +386,7 @@ export const seedDefaultCategories = mutation({
       { slug: "other", name: "Other", type: "collection", sort_order: 9999 },
     ];
     const timestamp = nowIso();
-    const existingRows = await ctx.db.query("categories").collect();
+    const existingRows = await ctx.db.query("categories").take(500);
     for (const row of existingRows) {
       await ctx.db.patch(row._id, { is_active: false, updated_at: timestamp });
     }
@@ -416,7 +419,7 @@ export const listStorefrontBanners = query({
   args: {},
   handler: async (ctx) => {
     await requireAdmin(ctx);
-    const rows = await ctx.db.query("storefront_banners").collect();
+    const rows = await ctx.db.query("storefront_banners").take(500);
     return rows
       .map(publicDoc)
       .sort(
@@ -593,7 +596,7 @@ export const restoreDefaultHomepageHero = mutation({
     const rows = await ctx.db
       .query("storefront_banners")
       .withIndex("by_placement", (q) => q.eq("placement", "homepage_hero"))
-      .collect();
+      .take(200);
     let hidden = 0;
     for (const row of rows) {
       if (row.is_active === false) continue;
@@ -614,11 +617,12 @@ export const listAuditLogs = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 100), 1), 500);
     const rows = await ctx.db
       .query("audit_logs")
       .withIndex("by_created_at")
       .order("desc")
-      .take(Math.min(args.limit ?? 100, 500));
+      .take(limit);
     return rows.map(publicDoc);
   },
 });
@@ -629,18 +633,18 @@ export const launchReadiness = query({
     await requireAdmin(ctx);
     const [products, orders, recoveries, pendingReviews, categories, settingsRows] =
       await Promise.all([
-        ctx.db.query("products").collect(),
-        ctx.db.query("orders").collect(),
+        ctx.db.query("products").take(2_000),
+        ctx.db.query("orders").take(5_000),
         ctx.db
           .query("checkout_intents")
           .withIndex("by_status", (q) => q.eq("status", "recovery_required"))
-          .collect(),
+          .take(500),
         ctx.db
           .query("reviews")
           .withIndex("by_status", (q) => q.eq("status", "pending"))
-          .collect(),
-        ctx.db.query("categories").collect(),
-        ctx.db.query("store_settings").collect(),
+          .take(1_000),
+        ctx.db.query("categories").take(500),
+        ctx.db.query("store_settings").take(200),
       ]);
     const settings = Object.fromEntries(settingsRows.map((row) => [row.key, row.value]));
     const checkoutMode = String(settings.checkout_mode ?? "whatsapp").toLowerCase();
@@ -661,9 +665,14 @@ export const launchReadiness = query({
     const env = {
       adminEmail: Boolean(process.env.ADMIN_EMAIL || process.env.ADMIN_EMAILS),
       razorpayKeyId: Boolean(process.env.RAZORPAY_KEY_ID),
+      razorpayLive: Boolean(process.env.RAZORPAY_KEY_ID?.startsWith("rzp_live_")),
       razorpaySecret: Boolean(process.env.RAZORPAY_KEY_SECRET),
       razorpayWebhookSecret: Boolean(process.env.RAZORPAY_WEBHOOK_SECRET),
+      checkoutApiSecret: Boolean(process.env.CHECKOUT_API_SECRET || process.env.ADMIN_UPLOAD_TOKEN),
       authKeys: Boolean(process.env.JWT_PRIVATE_KEY && process.env.JWKS),
+      passwordResetEmail: Boolean(
+        (process.env.RESEND_API_KEY || process.env.AUTH_RESEND_KEY) && process.env.AUTH_EMAIL_FROM,
+      ),
       adminUploadToken: Boolean(process.env.ADMIN_UPLOAD_TOKEN),
     };
     const blockers = [
@@ -672,8 +681,14 @@ export const launchReadiness = query({
       ...(usesRazorpay && (!env.razorpayKeyId || !env.razorpaySecret)
         ? ["Razorpay live keys are not configured."]
         : []),
+      ...(usesRazorpay && env.razorpayKeyId && !env.razorpayLive
+        ? ["Razorpay is configured with test credentials instead of live credentials."]
+        : []),
       ...(usesRazorpay && !env.razorpayWebhookSecret
         ? ["Razorpay webhook secret is not configured."]
+        : []),
+      ...(usesRazorpay && !env.checkoutApiSecret
+        ? ["The server-to-server checkout secret is not configured."]
         : []),
       ...(!env.adminUploadToken ? ["ADMIN_UPLOAD_TOKEN is not configured for product media."] : []),
       ...(recoveries.length
@@ -693,6 +708,9 @@ export const launchReadiness = query({
       ready: blockers.length === 0,
       blockers,
       warnings: [
+        ...(!env.passwordResetEmail
+          ? ["Password reset email is not configured with Resend and AUTH_EMAIL_FROM."]
+          : []),
         ...(outOfStockActive.length
           ? [`${outOfStockActive.length} active product(s) are out of stock.`]
           : []),
@@ -725,14 +743,14 @@ export const notifications = query({
   handler: async (ctx) => {
     await requireAdmin(ctx);
     const [orders, products, reviews, rates, recoveries, lowStockSetting] = await Promise.all([
-      ctx.db.query("orders").collect(),
-      ctx.db.query("products").collect(),
-      ctx.db.query("reviews").collect(),
-      ctx.db.query("shipping_rates").collect(),
+      ctx.db.query("orders").take(1_000),
+      ctx.db.query("products").take(2_000),
+      ctx.db.query("reviews").take(1_000),
+      ctx.db.query("shipping_rates").take(200),
       ctx.db
         .query("checkout_intents")
         .withIndex("by_status", (q) => q.eq("status", "recovery_required"))
-        .collect(),
+        .take(500),
       ctx.db
         .query("store_settings")
         .withIndex("by_key", (q) => q.eq("key", "lowStock"))

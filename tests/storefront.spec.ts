@@ -269,4 +269,41 @@ test("payment endpoints reject client-trusted legacy requests", async ({ request
     },
   });
   expect(verifyResponse.status()).toBe(400);
+
+  const crossOriginResponse = await request.post("/api/create-order", {
+    headers: { origin: "https://example.invalid" },
+    data: { cart: [], customer: {} },
+  });
+  expect(crossOriginResponse.status()).toBe(403);
+});
+
+test("guest cart storage rejects malformed values and clamps quantities", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.setItem(
+      "fawzaan-cart-v2",
+      JSON.stringify([
+        {
+          id: "valid-line",
+          slug: "yemeni-shemagh",
+          name: "Stored product",
+          price: 100,
+          img: "/fawzaan-logo.png",
+          qty: 500,
+        },
+        {
+          id: "invalid-line",
+          name: "Invalid product",
+          price: -500,
+          img: "",
+          qty: -3,
+        },
+      ]),
+    );
+  });
+  await page.goto("/cart");
+  await expect(page.getByRole("heading", { name: "SHOPPING CART" })).toBeVisible();
+  await expect(page.getByRole("article")).toHaveCount(1);
+  await expect(page.getByRole("article").getByText("99", { exact: true })).toBeVisible();
+  await expect(page.getByText("Invalid product")).toHaveCount(0);
 });

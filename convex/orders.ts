@@ -200,7 +200,7 @@ async function getCheckoutProduct(ctx: any, productId: string) {
   return id ? await ctx.db.get(id) : null;
 }
 
-async function nextOrderNumber(ctx: any) {
+async function nextOrderNumber(ctx: any, entropy: string) {
   const timestamp = nowIso();
   const existing = await ctx.db
     .query("store_settings")
@@ -214,14 +214,19 @@ async function nextOrderNumber(ctx: any) {
       value: next,
       updated_at: timestamp,
     });
-  return `#${next}`;
+  const suffix =
+    cleanText(entropy, 160)
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .slice(-6)
+      .toUpperCase() || String(Date.parse(timestamp)).slice(-6);
+  return `#FZ-${next}-${suffix}`;
 }
 
 async function orderWithItems(ctx: any, order: any): Promise<Record<string, any>> {
   const items = await ctx.db
     .query("order_items")
     .withIndex("by_order_id", (q: any) => q.eq("order_id", order._id))
-    .collect();
+    .take(100);
   const legacyMessage = Array.isArray(order.items)
     ? order.items.find((item: any) => item?.type === "whatsapp_message")?.whatsapp_message
     : null;
@@ -237,6 +242,7 @@ async function orderWithItems(ctx: any, order: any): Promise<Record<string, any>
 
 async function checkoutQuote(ctx: any, cart: Array<any>, promotionCode?: string | null) {
   if (!cart.length) throw new Error("Cart is empty.");
+  if (cart.length > 100) throw new Error("A checkout can contain up to 100 product lines.");
   let subtotal = 0;
   let itemCount = 0;
   const validatedCart = [];
@@ -319,7 +325,7 @@ async function releaseExpiredReservations(ctx: any) {
   const expired = await ctx.db
     .query("checkout_intents")
     .withIndex("by_status_expires_at", (q: any) => q.eq("status", "pending").lt("expires_at", now))
-    .collect();
+    .take(100);
   for (const intent of expired) {
     if (intent.stock_reserved !== false) await restoreReservedStock(ctx, intent.cart);
     if (intent.promotion_reserved)
@@ -399,6 +405,7 @@ async function savePaidOrder(
     return publicOrder(existingByRazorpayOrder);
   }
   if (!args.cart.length) throw new Error("Cart is empty.");
+  if (args.cart.length > 100) throw new Error("A checkout can contain up to 100 product lines.");
   const customer = {
     email: cleanEmail(args.customer.email),
     phone: cleanPhone(args.customer.phone),
@@ -489,7 +496,7 @@ async function savePaidOrder(
     throw new Error("Reserved checkout total does not match the captured Razorpay amount.");
   }
   const timestamp = nowIso();
-  const orderNumber = await nextOrderNumber(ctx);
+  const orderNumber = await nextOrderNumber(ctx, args.razorpay_payment_id);
   const orderId = await ctx.db.insert("orders", {
     order_number: orderNumber,
     user_id: args.user_id ?? null,
@@ -694,13 +701,27 @@ export const createWhatsAppOrder = mutation({
     if (shipping.countryType === "india") {
       throw new Error("India orders must use the secure Razorpay checkout.");
     }
+    const recentCutoff = Date.now() - 60 * 60 * 1_000;
+    const recentRequests = await ctx.db
+      .query("orders")
+      .withIndex("by_customer_email", (q) => q.eq("customer_email", customer.email))
+      .order("desc")
+      .take(6);
+    if (
+      recentRequests.filter(
+        (order) =>
+          order.payment_provider === "WHATSAPP" &&
+          Date.parse(order.created_at ?? "") >= recentCutoff,
+      ).length >= 5
+    ) {
+      throw new Error("Too many WhatsApp order requests. Please try again later.");
+    }
 
     const quote = await checkoutQuote(ctx, args.cart, args.promotion_code);
-    if (quote.promotion) await reservePromotionUse(ctx, quote.promotion.promotionId);
     const identity = await ctx.auth.getUserIdentity();
     const userId = identity ? await getAuthUserId(ctx) : null;
     const timestamp = nowIso();
-    const orderNumber = await nextOrderNumber(ctx);
+    const orderNumber = await nextOrderNumber(ctx, requestId);
     const whatsappMessage = buildWhatsAppOrderMessage(
       orderNumber,
       customer,
@@ -729,6 +750,7 @@ export const createWhatsAppOrder = mutation({
       discount: quote.discount,
       promotion_id: quote.promotion?.promotionId ?? null,
       promotion_code: quote.promotion?.code ?? null,
+      promotion_reserved: false,
       total: quote.total,
       total_inr: quote.total,
       currency: "INR",
@@ -803,6 +825,14 @@ function timingSafeEqual(left: string, right: string) {
   return mismatch === 0;
 }
 
+function requireCheckoutServerToken(value: string) {
+  const expected =
+    process.env.CHECKOUT_API_SECRET?.trim() || process.env.ADMIN_UPLOAD_TOKEN?.trim() || "";
+  if (!expected || !timingSafeEqual(expected, value)) {
+    throw new Error("Checkout API authorization failed.");
+  }
+}
+
 export const findSavedPayment = internalQuery({
   args: {
     razorpay_order_id: v.string(),
@@ -832,8 +862,9 @@ export const findSavedPayment = internalQuery({
 });
 
 export const createRazorpayCheckoutOrder = action({
-  args: checkoutPayload,
+  args: { ...checkoutPayload, server_token: v.string() },
   handler: async (ctx, args) => {
+    requireCheckoutServerToken(args.server_token);
     validateCheckoutCustomer(args.customer);
     const quote = await ctx.runQuery(api.orders.quoteCheckout, {
       cart: args.cart,
@@ -1064,11 +1095,13 @@ export const saveVerifiedGuestOrder = internalMutation({
 export const verifyRazorpayPayment = action({
   args: {
     ...checkoutPayload,
+    server_token: v.string(),
     razorpay_order_id: v.string(),
     razorpay_payment_id: v.string(),
     razorpay_signature: v.string(),
   },
   handler: async (ctx, args): Promise<any> => {
+    requireCheckoutServerToken(args.server_token);
     const { keySecret } = razorpayKeys();
     const expectedSignature = await hmacSha256Hex(
       keySecret,
@@ -1201,6 +1234,7 @@ export const getCheckoutStatus = query({
         : null;
     return {
       status: intent.status,
+      order_id: order?._id ?? null,
       order_number: order?.order_number ?? null,
       payment_received: Boolean(intent.payment_id) || intent.status === "completed",
       message:
@@ -1212,6 +1246,49 @@ export const getCheckoutStatus = query({
               ? "Payment received and under confirmation."
               : "Waiting for payment confirmation.",
     };
+  },
+});
+
+export const attachPaidOrderToCurrentUser = mutation({
+  args: { id: v.id("orders") },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const auth = await requireIdentity(ctx);
+    const order = await ctx.db.get(args.id);
+    if (!order) throw new Error("Order not found.");
+    if (order.payment_status !== "paid" || order.payment_provider !== "RAZORPAY") {
+      throw new Error("Only confirmed Razorpay orders can be linked to an account.");
+    }
+
+    const accountEmail = cleanText(
+      (auth.user as { email?: string | null }).email,
+      254,
+    ).toLowerCase();
+    const orderEmail = cleanText(order.customer_email, 254).toLowerCase();
+    if (!accountEmail || accountEmail !== orderEmail) {
+      throw new Error("The checkout email does not match this account.");
+    }
+
+    const userId = String(auth.userId);
+    if (order.user_id) {
+      if (order.user_id !== userId) throw new Error("This order belongs to another account.");
+      return true;
+    }
+
+    const timestamp = nowIso();
+    await ctx.db.patch(args.id, { user_id: userId, updated_at: timestamp });
+    const profile = await ctx.db
+      .query("profiles")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .unique();
+    if (profile) {
+      await ctx.db.patch(profile._id, {
+        total_orders: (profile.total_orders ?? 0) + 1,
+        total_spent: (profile.total_spent ?? 0) + order.total,
+        updated_at: timestamp,
+      });
+    }
+    return true;
   },
 });
 
@@ -1406,7 +1483,7 @@ export const listPaymentRecoveries = query({
     const rows = await ctx.db
       .query("checkout_intents")
       .withIndex("by_status", (q) => q.eq("status", "recovery_required"))
-      .collect();
+      .take(500);
     return rows
       .map(({ _id, _creationTime, ...row }) => ({ id: _id, ...row }))
       .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
@@ -1566,24 +1643,14 @@ export const razorpayWebhook = httpAction(async (ctx, request) => {
 
 export const listMine = query({
   args: {},
+  returns: v.any(),
   handler: async (ctx) => {
     const auth = await requireIdentity(ctx);
-    const byUser = await ctx.db
+    const rows = await ctx.db
       .query("orders")
       .withIndex("by_user_id", (q) => q.eq("user_id", auth.userId))
-      .collect();
-    const email = String((auth.user as any).email ?? "")
-      .trim()
-      .toLowerCase();
-    const byEmail = email
-      ? await ctx.db
-          .query("orders")
-          .withIndex("by_customer_email", (q) => q.eq("customer_email", email))
-          .collect()
-      : [];
-    const rows = Array.from(
-      new Map([...byUser, ...byEmail].map((row) => [String(row._id), row])).values(),
-    );
+      .order("desc")
+      .take(200);
     const enriched = await Promise.all(rows.map((row) => orderWithItems(ctx, row)));
     return enriched.sort((a, b) =>
       String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")),
@@ -1595,7 +1662,8 @@ export const listAll = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const rows = await ctx.db.query("orders").take(args.limit ?? 100);
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 100), 1), 500);
+    const rows = await ctx.db.query("orders").take(limit);
     const enriched = await Promise.all(rows.map((row) => orderWithItems(ctx, row)));
     return enriched.sort((a, b) =>
       String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")),
@@ -1605,6 +1673,7 @@ export const listAll = query({
 
 export const updateStatus = mutation({
   args: { id: v.string(), status: v.string() },
+  returns: v.boolean(),
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     const status = cleanText(args.status, 24).toLowerCase();
@@ -1614,6 +1683,12 @@ export const updateStatus = mutation({
     const timestamp = nowIso();
     const patch: Record<string, any> = { status, updated_at: timestamp };
     if (order.payment_provider === "WHATSAPP") {
+      const activatesOrder = WHATSAPP_STOCK_STATUSES.has(status);
+      const closesOrder = status === "cancelled" || status === "returned";
+      if (activatesOrder && order.promotion_id && !order.promotion_reserved) {
+        await reservePromotionUse(ctx, order.promotion_id);
+        patch.promotion_reserved = true;
+      }
       if (WHATSAPP_STOCK_STATUSES.has(status) && !order.stock_adjusted_at) {
         await adjustWhatsAppOrderStock(ctx, order._id, -1);
         patch.stock_adjusted_at = timestamp;
@@ -1626,6 +1701,10 @@ export const updateStatus = mutation({
         patch.stock_restored_at = timestamp;
         patch.payment_status =
           status === "cancelled" ? "cancelled" : (order.payment_status ?? "unconfirmed");
+      }
+      if (closesOrder && order.promotion_id && order.promotion_reserved) {
+        await releasePromotionUse(ctx, order.promotion_id);
+        patch.promotion_reserved = false;
       }
     }
     await ctx.db.patch(args.id as any, patch);
@@ -1643,13 +1722,19 @@ async function adjustWhatsAppOrderStock(ctx: any, orderId: any, direction: -1 | 
   const items = await ctx.db
     .query("order_items")
     .withIndex("by_order_id", (q: any) => q.eq("order_id", orderId))
-    .collect();
+    .take(100);
   const timestamp = nowIso();
   for (const item of items) {
     if (!item.product_id) continue;
     const product = (await ctx.db.get(item.product_id as any)) as any;
     if (!product) continue;
     const quantity = Math.max(1, Math.floor(Number(item.quantity ?? 1)));
+    if (
+      direction === -1 &&
+      (Number(product.stock_quantity ?? 0) < quantity || product.in_stock === false)
+    ) {
+      throw new Error(`Not enough stock for ${product.name}.`);
+    }
     const nextStock = Math.max(0, Number(product.stock_quantity ?? 0) + direction * quantity);
     await ctx.db.patch(product._id, {
       stock_quantity: nextStock,

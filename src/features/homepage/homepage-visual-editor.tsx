@@ -45,6 +45,7 @@ import {
   discardHomepageDraft,
   getHomepageEditorState,
   publishHomepage,
+  resetHomepageToOriginal,
   restoreHomepageVersion,
   saveHomepageDraft,
 } from "@/services/homepageService";
@@ -86,7 +87,12 @@ import type {
 } from "./types";
 
 const LOCAL_BACKUP_KEY = "fawzaan.homepage-studio.local-v4";
-const LEGACY_BACKUP_KEYS = ["fawzaan.homepage-studio.local-v3"];
+const LEGACY_BACKUP_KEYS = [
+  "fawzaan.homepage-studio.local-v1",
+  "fawzaan.homepage-studio.local-v2",
+  "fawzaan.homepage-studio.local-v3",
+];
+const ALL_BACKUP_KEYS = [LOCAL_BACKUP_KEY, ...LEGACY_BACKUP_KEYS];
 const HISTORY_LIMIT = 80;
 const ADVANCED_LAYOUT_TOOLS = false;
 const RESPONSIVE_GEOMETRY_KEYS = ["x", "y", "width", "height", "rotation"] as const;
@@ -149,15 +155,28 @@ async function writeLocalBackup(backup: LocalBackup | null) {
 }
 
 async function clearLocalBackups() {
-  if (!("indexedDB" in window)) return;
-  const db = await openBackupStore();
-  await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction("drafts", "readwrite");
-    const store = transaction.objectStore("drafts");
-    [LOCAL_BACKUP_KEY, ...LEGACY_BACKUP_KEYS].forEach((key) => store.delete(key));
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-  }).finally(() => db.close());
+  for (const key of ALL_BACKUP_KEYS) {
+    try {
+      window.localStorage.removeItem(key);
+      window.sessionStorage.removeItem(key);
+    } catch {
+      // Browser privacy settings can disable storage; the server reset must still complete.
+    }
+  }
+  if ("indexedDB" in window) {
+    try {
+      const db = await openBackupStore();
+      await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction("drafts", "readwrite");
+        const store = transaction.objectStore("drafts");
+        ALL_BACKUP_KEYS.forEach((key) => store.delete(key));
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+      }).finally(() => db.close());
+    } catch {
+      // IndexedDB cleanup is best effort after the authoritative server reset.
+    }
+  }
 }
 
 function clone<T>(value: T): T {
@@ -345,6 +364,7 @@ export function HomepageVisualEditor({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
+  const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
   const [leftTab, setLeftTab] = useState<"file" | "assets">("file");
   const [addOpen, setAddOpen] = useState(false);
   const [viewport, setViewport] = useState<HomepageViewport>("desktop");
@@ -573,6 +593,32 @@ export function HomepageVisualEditor({
         setEditorError(message);
         toast.error(message);
       }
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const restoreOriginalHomepage = async () => {
+    setPublishing(true);
+    setEditorError("");
+    try {
+      await operation.current;
+      await queueOperation(resetHomepageToOriginal);
+      await clearLocalBackups();
+      applyLoadedData(cloneDefaultHomepageData(), 0);
+      setVersions([]);
+      setPublishedVersion(0);
+      setLastSavedAt(null);
+      setUnpublished(false);
+      setSelectedLayerIds([]);
+      setEditingLayerId(null);
+      setRestoreConfirmOpen(false);
+      await refreshPublicCatalog();
+      toast.success("The current OG homepage is live");
+    } catch (error) {
+      const message = errorMessage(error, "Could not restore the OG homepage.");
+      setEditorError(message);
+      toast.error(message);
     } finally {
       setPublishing(false);
     }
@@ -1297,6 +1343,15 @@ export function HomepageVisualEditor({
           <button
             type="button"
             className="studio-secondary-button"
+            disabled={publishing}
+            onClick={() => setRestoreConfirmOpen(true)}
+          >
+            <RotateCcw size={15} />
+            <span>Restore OG</span>
+          </button>
+          <button
+            type="button"
+            className="studio-secondary-button"
             onClick={() => setHistoryOpen(true)}
           >
             <History size={15} />
@@ -1949,13 +2004,11 @@ export function HomepageVisualEditor({
               <button
                 type="button"
                 onClick={() => {
-                  const original = ensureHomepageScenes(cloneDefaultHomepageData());
-                  commit(original);
                   setHistoryOpen(false);
-                  toast.success("Original design loaded locally");
+                  setRestoreConfirmOpen(true);
                 }}
               >
-                <RotateCcw size={15} /> Load original locally
+                <RotateCcw size={15} /> Restore OG site
               </button>
               <button
                 type="button"
@@ -1974,6 +2027,37 @@ export function HomepageVisualEditor({
               </button>
             </footer>
           </aside>
+        </div>
+      ) : null}
+
+      {restoreConfirmOpen ? (
+        <div
+          className="studio-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Restore OG homepage"
+          onMouseDown={() => setRestoreConfirmOpen(false)}
+        >
+          <div className="studio-publish-confirm" onMouseDown={(event) => event.stopPropagation()}>
+            <h2>Restore the current OG homepage?</h2>
+            <p>
+              This immediately restores the coded production homepage and permanently removes all
+              editor drafts, published versions, browser backups, and legacy homepage banners.
+            </p>
+            <div>
+              <button type="button" onClick={() => setRestoreConfirmOpen(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="is-primary"
+                disabled={publishing}
+                onClick={() => void restoreOriginalHomepage()}
+              >
+                Restore OG live
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
 

@@ -36,6 +36,16 @@ const CATALOG_CACHE_HEADERS = {
 const CURRENCY_CACHE_HEADERS = {
   "cache-control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
 };
+const MAX_PRODUCT_MEDIA_BYTES = 25 * 1024 * 1024;
+const ALLOWED_PRODUCT_MEDIA_TYPES = new Set([
+  "image/avif",
+  "image/gif",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "video/mp4",
+  "video/webm",
+]);
 const FALLBACK_TAXONOMY = [
   { slug: "shemaghs", name: "Shemaghs", type: "collection", sort_order: 10 },
   { slug: "niqabs", name: "Niqabs", type: "collection", sort_order: 20 },
@@ -161,10 +171,18 @@ function trustedCorsHeaders(request: Request, env: unknown) {
   return {
     "access-control-allow-origin": origin,
     "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-allow-headers": "content-type, x-admin-upload-token, x-file-name",
+    "access-control-allow-headers": "content-type, x-admin-upload-token, x-file-name, x-file-size",
     "access-control-max-age": "86400",
     vary: "origin",
   };
+}
+
+function hasTrustedRequestOrigin(request: Request, env: unknown) {
+  const origin = request.headers.get("origin");
+  if (!origin) return true;
+  const requestOrigin = new URL(request.url).origin;
+  const publicOrigin = envString(env, "VITE_PUBLIC_SITE_URL", request) || PUBLIC_SITE_URL;
+  return origin === requestOrigin || origin === publicOrigin;
 }
 
 function safeFileName(value: string | null) {
@@ -279,6 +297,9 @@ async function handleMediaRequest(request: Request, env: unknown): Promise<Respo
 
   if (url.pathname === "/api/media/upload") {
     const corsHeaders = trustedCorsHeaders(request, env);
+    if (!hasTrustedRequestOrigin(request, env)) {
+      return jsonResponse({ error: "Request origin is not allowed." }, 403);
+    }
     if (request.method === "OPTIONS")
       return new Response(null, { status: 204, headers: corsHeaders });
     if (request.method !== "POST")
@@ -295,10 +316,24 @@ async function handleMediaRequest(request: Request, env: unknown): Promise<Respo
       return jsonResponse({ error: "No upload body was received." }, 400, corsHeaders);
 
     const contentType = request.headers.get("content-type") || "application/octet-stream";
+    const declaredSize = Number(request.headers.get("x-file-size"));
+    const contentLength = Number(request.headers.get("content-length") || declaredSize);
+    if (!ALLOWED_PRODUCT_MEDIA_TYPES.has(contentType)) {
+      return jsonResponse({ error: "Unsupported product media type." }, 415, corsHeaders);
+    }
+    if (
+      !Number.isFinite(declaredSize) ||
+      declaredSize <= 0 ||
+      declaredSize > MAX_PRODUCT_MEDIA_BYTES ||
+      !Number.isFinite(contentLength) ||
+      contentLength <= 0 ||
+      contentLength > MAX_PRODUCT_MEDIA_BYTES ||
+      contentLength !== declaredSize
+    ) {
+      return jsonResponse({ error: "Product media must be 25 MB or smaller." }, 413, corsHeaders);
+    }
     const fileName = safeFileName(request.headers.get("x-file-name"));
-    const extension = fileName.includes(".")
-      ? fileName.split(".").pop()?.toLowerCase() || extensionForContentType(contentType)
-      : extensionForContentType(contentType);
+    const extension = extensionForContentType(contentType);
     const key = `products/${Date.now()}-${crypto.randomUUID()}.${extension}`;
 
     await bucket.put(key, request.body, {
@@ -496,6 +531,9 @@ async function handleRazorpayApiRequest(request: Request, env: unknown): Promise
     return null;
   }
   const corsHeaders = trustedCorsHeaders(request, env);
+  if (!hasTrustedRequestOrigin(request, env)) {
+    return jsonResponse({ error: "Request origin is not allowed." }, 403);
+  }
   if (request.method === "OPTIONS")
     return new Response(null, { status: 204, headers: corsHeaders });
   if (request.method !== "POST") {
@@ -521,10 +559,23 @@ async function handleRazorpayApiRequest(request: Request, env: unknown): Promise
           corsHeaders,
         );
       }
+      const checkoutServerToken =
+        envString(env, "CHECKOUT_API_SECRET", request) ||
+        envString(env, "ADMIN_UPLOAD_TOKEN", request);
+      if (!checkoutServerToken) {
+        return jsonResponse(
+          { error: "Secure checkout is not fully configured." },
+          503,
+          corsHeaders,
+        );
+      }
       const client = convexClient(env, request);
       if (!client)
         return jsonResponse({ error: "Convex backend is not configured." }, 500, corsHeaders);
-      const order = await client.action(api.orders.createRazorpayCheckoutOrder, body as never);
+      const order = await client.action(api.orders.createRazorpayCheckoutOrder, {
+        ...(body as Record<string, unknown>),
+        server_token: checkoutServerToken,
+      } as never);
       return jsonResponse(
         {
           order_id: order.orderId,
@@ -558,11 +609,18 @@ async function handleRazorpayApiRequest(request: Request, env: unknown): Promise
         { "cache-control": "no-store", ...corsHeaders },
       );
     }
+    const checkoutServerToken =
+      envString(env, "CHECKOUT_API_SECRET", request) ||
+      envString(env, "ADMIN_UPLOAD_TOKEN", request);
+    if (!checkoutServerToken) {
+      return jsonResponse({ error: "Secure checkout is not fully configured." }, 503, corsHeaders);
+    }
     const client = convexClient(env, request);
     if (!client)
       return jsonResponse({ error: "Convex backend is not configured." }, 500, corsHeaders);
     const order = await client.action(api.orders.verifyRazorpayPayment, {
       ...(verifyBody.payload as Record<string, unknown>),
+      server_token: checkoutServerToken,
       razorpay_payment_id: verifyBody.razorpay_payment_id,
       razorpay_order_id: verifyBody.razorpay_order_id,
       razorpay_signature: verifyBody.razorpay_signature,

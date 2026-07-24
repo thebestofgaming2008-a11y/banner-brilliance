@@ -19,6 +19,7 @@ import { useCurrency } from "@/lib/currency";
 import { COUNTRY_NAME_BY_CODE, countryUsesPostalCode } from "@/lib/countries";
 import { CountrySelector } from "@/components/store/country-selector";
 import {
+  attachPaidOrderToAccount,
   createBackendWhatsAppOrder,
   createRazorpayOrder,
   getRazorpayCheckoutStatus,
@@ -261,12 +262,31 @@ function CheckoutPage() {
     await addAddress(address);
   };
 
-  const finishConfirmedOrder = (orderNumber: string, customerEmail: string) => {
+  const accountMatchesCheckout =
+    isAuthenticated &&
+    Boolean(account?.email) &&
+    account?.email.trim().toLowerCase() === customer.email.toLowerCase();
+
+  const linkPaidOrderToAccount = async (orderId: unknown) => {
+    if (!accountMatchesCheckout || typeof orderId !== "string" || !orderId) return false;
+    try {
+      return await attachPaidOrderToAccount(orderId);
+    } catch {
+      toast.message("Your payment is confirmed. This order remains available through tracking.");
+      return false;
+    }
+  };
+
+  const finishConfirmedOrder = (
+    orderNumber: string,
+    customerEmail: string,
+    linkedToAccount = false,
+  ) => {
     window.localStorage.removeItem(PENDING_PAYMENT_KEY);
     setPendingPayment(null);
     clear();
     toast.success("Payment captured. Your order is confirmed.");
-    window.location.href = isAuthenticated
+    window.location.href = linkedToAccount
       ? "/account"
       : `/order/${encodeURIComponent(orderNumber)}?email=${encodeURIComponent(customerEmail)}`;
   };
@@ -278,7 +298,8 @@ function CheckoutPage() {
         if (attempt > 0) await wait(2000);
         const status = await getRazorpayCheckoutStatus(pending.orderId, pending.email);
         if (status?.status === "completed" && status.order_number) {
-          finishConfirmedOrder(status.order_number, pending.email);
+          const linkedToAccount = await linkPaidOrderToAccount(status.order_id);
+          finishConfirmedOrder(status.order_number, pending.email, linkedToAccount);
           return true;
         }
         if (status?.status === "failed") {
@@ -361,7 +382,8 @@ function CheckoutPage() {
           const orderNumber = String(
             savedOrder?.order_number ?? savedOrder?.id ?? response.razorpay_order_id,
           );
-          finishConfirmedOrder(orderNumber, customer.email);
+          const linkedToAccount = await linkPaidOrderToAccount(savedOrder?.id);
+          finishConfirmedOrder(orderNumber, customer.email, linkedToAccount);
         } catch (error) {
           setProcessing(false);
           const confirmed = await checkPendingPayment(pending, 5).catch(() => false);

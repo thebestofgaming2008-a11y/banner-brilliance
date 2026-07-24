@@ -38,6 +38,17 @@ export const createProductMediaUpload = action({
     size: v.number(),
     productId: v.optional(v.union(v.string(), v.null())),
   },
+  returns: v.object({
+    uploadUrl: v.string(),
+    method: v.literal("POST"),
+    publicUrl: v.null(),
+    headers: v.object({
+      contentType: v.string(),
+      fileName: v.string(),
+      fileSize: v.string(),
+      adminUploadToken: v.string(),
+    }),
+  }),
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Authentication required.");
@@ -55,12 +66,13 @@ export const createProductMediaUpload = action({
     );
     return {
       uploadUrl: `${siteUrl}/api/media/upload`,
-      method: "POST",
+      method: "POST" as const,
       publicUrl: null,
       headers: {
-        "Content-Type": args.contentType,
-        "x-file-name": args.fileName || "product-media",
-        "x-admin-upload-token": env("ADMIN_UPLOAD_TOKEN"),
+        contentType: args.contentType,
+        fileName: args.fileName || "product-media",
+        fileSize: String(args.size),
+        adminUploadToken: env("ADMIN_UPLOAD_TOKEN"),
       },
     };
   },

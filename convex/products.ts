@@ -714,7 +714,7 @@ export const listAllProducts = query({
   args: {},
   handler: async (ctx) => {
     await requireAdmin(ctx);
-    const rows = await ctx.db.query("products").collect();
+    const rows = await ctx.db.query("products").take(2_000);
     return rows
       .map(publicProduct)
       .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
@@ -826,7 +826,10 @@ export const assignBookSubjects = mutation({
   args: { dryRun: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const rows = await ctx.db.query("products").collect();
+    const rows = await ctx.db.query("products").take(2_001);
+    if (rows.length > 2_000) {
+      throw new Error("Too many products to assign subjects safely in one operation.");
+    }
     const updates = rows
       .map((product: any) => {
         const patch = subjectPatchForProduct(product);
@@ -910,12 +913,15 @@ export const deleteProduct = mutation({
     const wishlistItems = await ctx.db
       .query("wishlist_items")
       .withIndex("by_product_id", (q) => q.eq("product_id", productId))
-      .collect();
+      .take(2_001);
     const reviews = await ctx.db
       .query("reviews")
       .withIndex("by_product_id", (q) => q.eq("product_id", productId))
-      .collect();
-    const products = await ctx.db.query("products").collect();
+      .take(2_001);
+    const products = await ctx.db.query("products").take(2_001);
+    if (wishlistItems.length > 2_000 || reviews.length > 2_000 || products.length > 2_000) {
+      throw new Error("This product has too many related records for one safe delete operation.");
+    }
     let linkedProducts = 0;
     const timestamp = nowIso();
 
