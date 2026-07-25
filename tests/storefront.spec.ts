@@ -104,6 +104,7 @@ test("shop product cart and checkout path uses the live product", async ({ page 
   expect(inStockProduct, "The live catalog needs at least one in-stock product").toBeTruthy();
   await page.goto("/shop", { waitUntil: "domcontentloaded", timeout: 60_000 });
   await expect(page.getByText(/^\d+ products$/).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "THE FAWZAAN EDIT" })).toHaveCount(0);
   const productLink = page
     .locator(`article.store-product-card a[href="/products/${inStockProduct!.slug}"]`)
     .first();
@@ -167,6 +168,9 @@ test("product feature rows use readable Poppins typography", async ({ page }) =>
   await expect(featureCopy).toHaveCSS("font-family", /Poppins/);
   await expect(featureCopy).toHaveCSS("font-weight", "400");
   await expect(featureCopy).toHaveCSS("line-height", "21.7px");
+  const reviewsHeading = page.getByRole("heading", { name: "Reviews", exact: true });
+  await expect(reviewsHeading).toHaveCSS("font-family", /Poppins/);
+  await expect(reviewsHeading).toHaveCSS("font-weight", "700");
 });
 
 test("product choices remain attached to the cart line", async ({ page }) => {

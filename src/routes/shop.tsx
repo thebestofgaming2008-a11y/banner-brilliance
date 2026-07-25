@@ -2,10 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight, Search, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import honeyMulti from "@/assets/product-photos/honey-kashmir-multiflora.jpg";
-import niqabKhadijaFull from "@/assets/product-photos/niqab-khadija-full.jpg";
-import sabrWatchBlack from "@/assets/collection-banners/sabr-watch-black.jpg";
-import shemaghManBack from "@/assets/product-photos/shemagh-man-back.jpg";
 import { StoreProductCard } from "@/components/store/product-card";
 import { StorePage } from "@/components/store/store-chrome";
 import { merchandiseProducts, toStoreProduct } from "@/data/store";
@@ -65,46 +61,6 @@ function resolveTaxonomySlug(
   );
 }
 
-function DefaultShopHero() {
-  return (
-    <>
-      <div className="absolute inset-0 grid grid-cols-[1.15fr_0.85fr] md:grid-cols-[1.45fr_0.55fr]">
-        <div className="relative overflow-hidden">
-          <img
-            src={shemaghManBack}
-            alt="Ivory embroidered shemagh worn from the back"
-            className="h-full w-full object-cover object-center"
-          />
-        </div>
-        <div className="grid min-h-0 grid-rows-3">
-          <div className="min-h-0 overflow-hidden border-l border-white/10">
-            <img
-              src={niqabKhadijaFull}
-              alt="Khadija niqab"
-              className="h-full w-full object-cover object-[center_20%]"
-            />
-          </div>
-          <div className="min-h-0 overflow-hidden border-l border-t border-white/10">
-            <img
-              src={sabrWatchBlack}
-              alt="SABR black dial watch"
-              className="h-full w-full object-cover object-center"
-            />
-          </div>
-          <div className="min-h-0 overflow-hidden border-l border-t border-white/10">
-            <img
-              src={honeyMulti}
-              alt="Kashmir multi-flora honey"
-              className="h-full w-full object-cover object-center"
-            />
-          </div>
-        </div>
-      </div>
-      <div className="absolute inset-0 bg-gradient-to-r from-black/78 via-black/28 to-black/5" />
-    </>
-  );
-}
-
 function bannerImagePosition(position: string | null | undefined) {
   if (position === "top") return "object-top";
   if (position === "bottom") return "object-bottom";
@@ -143,51 +99,6 @@ function ShopBannerArtwork({ banner }: { banner: CatalogBanner }) {
         />
       ) : null}
     </>
-  );
-}
-
-function ShopHero({ banner }: { banner?: CatalogBanner }) {
-  const lightText = !banner || banner.text_theme !== "light";
-  return (
-    <section
-      className={`relative min-h-[470px] overflow-hidden md:min-h-[580px] ${lightText ? "bg-black text-white" : "bg-white text-black"}`}
-      style={{ backgroundColor: banner?.background_color || undefined }}
-    >
-      {banner ? (
-        <>
-          <ShopBannerArtwork banner={banner} />
-          <div className={`absolute inset-0 ${lightText ? "bg-black/45" : "bg-white/45"}`} />
-        </>
-      ) : (
-        <DefaultShopHero />
-      )}
-      <div
-        className={`relative z-20 mx-auto flex min-h-[470px] max-w-[1280px] items-end px-[22px] pb-12 md:min-h-[580px] md:px-8 md:pb-16 ${bannerAlignment(banner?.content_alignment)}`}
-        data-store-reveal
-      >
-        <div className="max-w-xl">
-          <p className={`section-kicker ${lightText ? "text-white/68" : "text-black/60"}`}>
-            {banner?.eyebrow || "The complete collection"}
-          </p>
-          <h1 className="banner-heading mt-3 text-[48px] leading-[0.9] md:text-[78px]">
-            {banner?.title || "THE FAWZAAN EDIT"}
-          </h1>
-          <p
-            className={`mt-5 max-w-md text-[14px] leading-6 ${lightText ? "text-white/72" : "text-black/70"}`}
-          >
-            {banner?.body || "Heritage pieces, modest essentials, SABR watches, and Kashmir honey."}
-          </p>
-          {banner?.button_label && banner.button_url ? (
-            <a
-              href={banner.button_url}
-              className={`mt-7 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase ${lightText ? "bg-white text-black" : "bg-black text-white"}`}
-            >
-              {banner.button_label}
-            </a>
-          ) : null}
-        </div>
-      </div>
-    </section>
   );
 }
 
@@ -291,16 +202,13 @@ function ShopPage() {
 
   const displayedProducts = sort === "featured" ? merchandiseProducts(products) : products;
   const selectedCollection = collectionRows.find((row) => row.slug === collection);
-  const heroBanner = presentation.banners.find((banner) => banner.placement === "shop_hero");
   const promoBanners = presentation.banners.filter((banner) => banner.placement === "shop_promo");
   const scrollTabs = (direction: number) =>
     tabsRef.current?.scrollBy({ left: direction * 220, behavior: "smooth" });
 
   return (
     <StorePage>
-      <ShopHero banner={heroBanner} />
-
-      <section className="px-[22px] py-10 md:px-8 md:py-16">
+      <section className="px-[22px] py-8 md:px-8 md:py-12">
         <div className="mx-auto max-w-[1180px]">
           <div className="grid gap-4 border-b border-black/10 pb-6">
             <div

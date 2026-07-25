@@ -473,8 +473,9 @@
   }
 
   .product-editorial-heading {
-    font-family: var(--font-serif-display);
-    font-weight: 400;
+    font-family: var(--font-menu);
+    font-weight: 700;
+    line-height: 1;
     letter-spacing: 0;
     text-transform: uppercase;
   }
