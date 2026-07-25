@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, Search, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Search, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { StoreProductCard } from "@/components/store/product-card";
@@ -310,10 +310,24 @@ function ShopPage() {
             ) : null}
           </div>
           <div className="mt-6 flex items-center justify-between text-[12px]">
-            <span className="flex items-center gap-2 font-bold">
+            <label className="relative flex h-9 cursor-pointer items-center gap-2 rounded-md pr-2 font-bold transition-colors hover:text-[#C85F22] focus-within:ring-2 focus-within:ring-[#E2713F]/30">
               <SlidersHorizontal size={15} className="text-[#D9643C]" />
-              {displayedProducts.length} products
-            </span>
+              <span>{displayedProducts.length} products</span>
+              <ChevronDown size={13} aria-hidden="true" />
+              <select
+                aria-label="Filter products by collection"
+                value={collection}
+                onChange={(event) => setCollection(event.target.value)}
+                className="absolute inset-0 cursor-pointer opacity-0"
+              >
+                <option value="all">All products</option>
+                {collectionRows.map((item) => (
+                  <option key={item.slug} value={item.slug}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <span className="flex items-center gap-1 font-bold text-[#C85F22]">
               {selectedCollection?.name || "All products"}
               <ChevronRight size={15} />

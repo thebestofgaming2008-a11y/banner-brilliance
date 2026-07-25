@@ -320,6 +320,21 @@ test("mobile shop controls scroll and menu search filters the live catalog", asy
   }
 
   await expect(page.getByLabel("Sort products")).toBeVisible();
+  const collectionFilter = page.getByLabel("Filter products by collection");
+  await expect(collectionFilter).toBeVisible();
+  const filterOptions = await collectionFilter.locator("option").allTextContents();
+  expect(filterOptions).toContain("All products");
+  const selectableCollection = collectionFilter.locator("option").nth(1);
+  if ((await selectableCollection.count()) > 0) {
+    const collectionSlug = (await selectableCollection.getAttribute("value"))!;
+    const collectionName = (await selectableCollection.textContent())!.trim();
+    await collectionFilter.selectOption(collectionSlug);
+    await expect(collectionFilter).toHaveValue(collectionSlug);
+    await expect(page.getByRole("tab", { name: collectionName, exact: true })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  }
   await expect(page.getByRole("button", { name: "Bestsellers" })).toHaveCount(0);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
