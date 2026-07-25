@@ -18,11 +18,13 @@ export function StudioSelection({
   layers,
   viewport,
   onPatchLayer,
+  constrainToHost = false,
 }: {
   host: HTMLElement | null;
   layers: BannerLayer[];
   viewport: HomepageViewport;
   onPatchLayer: (id: string, patch: Partial<BannerLayerStyle>) => void;
+  constrainToHost?: boolean;
 }) {
   const selection = useMemo(() => {
     if (!layers.length) return null;
@@ -79,11 +81,15 @@ export function StudioSelection({
       }
       const nextWidth = (nextWidthPx / Math.max(1, rect.width)) * 100;
       const nextHeight = (nextHeightPx / Math.max(1, rect.height)) * 100;
+      const rawX = start.x + (horizontal < 0 ? start.width - nextWidth : 0);
+      const rawY = start.y + (vertical < 0 ? start.height - nextHeight : 0);
+      const nextX = clamp(rawX, constrainToHost ? 0 : -100, constrainToHost ? 99.5 : 200);
+      const nextY = clamp(rawY, constrainToHost ? 0 : -100, constrainToHost ? 99.5 : 200);
       onPatchLayer(layer.id, {
-        x: clamp(start.x + (horizontal < 0 ? start.width - nextWidth : 0), -100, 200),
-        y: clamp(start.y + (vertical < 0 ? start.height - nextHeight : 0), -100, 200),
-        width: clamp(nextWidth, 0.5, 250),
-        height: clamp(nextHeight, 0.5, 250),
+        x: nextX,
+        y: nextY,
+        width: clamp(nextWidth, 0.5, constrainToHost ? 100 - nextX : 250),
+        height: clamp(nextHeight, 0.5, constrainToHost ? 100 - nextY : 250),
         horizontalSizing: "fixed",
       });
     };

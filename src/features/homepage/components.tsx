@@ -12,8 +12,9 @@ import { StoreProductCard } from "@/components/store/product-card";
 import { merchandiseProducts, useStoreProducts } from "@/data/store";
 import { useCatalogPresentation } from "@/services/catalogPresentation";
 import { BannerSceneView } from "./banner-scene";
-import { useStudioBannerSession } from "./studio-session-context";
 import { normalizeHomepageData } from "./default-data";
+import { ensureCustomBannerScenes } from "./studio-model";
+import { useStudioBannerSession } from "./studio-session-context";
 import type {
   CollectionBannersProps,
   CollectionFeatureProps,
@@ -729,7 +730,9 @@ export function HomepageCollectionFeature({
       data-homepage-banner-id={id}
       data-editor-banner-key={editMode ? editorKey : undefined}
       data-editor-active={editMode && editorSession ? "true" : undefined}
-      className="group relative block min-h-[500px] overflow-hidden md:min-h-[620px]"
+      className={`group relative block overflow-hidden ${
+        scene ? "" : "min-h-[500px] md:min-h-[620px]"
+      }`}
       style={{ backgroundColor: bannerColor, color: resolvedTextColor }}
     >
       {scene ? (
@@ -737,7 +740,7 @@ export function HomepageCollectionFeature({
           <a
             href={safeLink(imageLink)}
             aria-label={imageAlt || title || "View promotion"}
-            className="block"
+            className="block h-full w-full"
             onClick={(event) => {
               if (editMode) event.preventDefault();
             }}
@@ -822,14 +825,14 @@ export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
   const editorKey = props.id ? `${props.id}:standalone` : undefined;
   const editorSession = useStudioBannerSession(editorKey);
   return (
-    <section className="bg-white px-[18px] py-10 md:px-8 md:py-16">
+    <section className="bg-white px-[18px] py-14 md:px-8 md:py-20">
       <div
         data-homepage-banner-id={props.id}
         data-editor-banner-key={props.editMode ? editorKey : undefined}
         data-editor-active={props.editMode && editorSession ? "true" : undefined}
-        className="relative mx-auto max-w-[1180px] overflow-hidden"
+        className="relative mx-auto max-w-[1120px] overflow-hidden"
         style={{
-          minHeight: `${Math.max(300, props.minHeight)}px`,
+          minHeight: props.scene ? undefined : `${Math.max(300, props.minHeight)}px`,
           backgroundColor: props.backgroundColor,
           color: resolvedTextColor,
         }}
@@ -839,7 +842,7 @@ export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
             <a
               href={safeLink(props.imageLink)}
               aria-label={props.imageAlt || props.title || "View promotion"}
-              className="block"
+              className="block h-full w-full"
               onClick={(event) => {
                 if (props.editMode) event.preventDefault();
               }}
@@ -1089,7 +1092,10 @@ export function HomepageRenderer({
   data: HomepageData;
   editMode?: boolean;
 }) {
-  const normalizedData = useMemo(() => normalizeHomepageData(data), [data]);
+  const normalizedData = useMemo(
+    () => ensureCustomBannerScenes(normalizeHomepageData(data)),
+    [data],
+  );
   return (
     <div style={{ backgroundColor: normalizedData.root?.props?.backgroundColor || "#ffffff" }}>
       {(normalizedData.content ?? []).map((item) => {

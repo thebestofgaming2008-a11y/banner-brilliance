@@ -745,6 +745,7 @@ function BannerTemplate({
   item,
   categories,
   products,
+  selectedLayer,
   viewport,
   cropLayerId,
   onPatch,
@@ -756,6 +757,7 @@ function BannerTemplate({
     | { type: "PromoBanner"; props: PromoBannerProps & { id: string } };
   categories: AdminCategory[];
   products: StoreProduct[];
+  selectedLayer: BannerLayer | null;
   viewport: HomepageViewport;
   cropLayerId: string | null;
   onPatch: (patch: HomepageTemplatePatch) => void;
@@ -772,12 +774,15 @@ function BannerTemplate({
       ? { ...bannerImageLayer.style, ...(bannerImageLayer.mobileStyle ?? {}) }
       : bannerImageLayer.style
     : null;
+  const selectedText =
+    selectedLayer?.type === "text" && selectedLayer.id !== "banner-overlay" ? selectedLayer : null;
+  const selectedTextStyle = selectedText
+    ? viewport === "mobile"
+      ? { ...selectedText.style, ...(selectedText.mobileStyle ?? {}) }
+      : selectedText.style
+    : null;
   const textColour =
     item.props.textColor || (item.props.textTone === "light" ? "#ffffff" : "#000000");
-  const buttonBackground =
-    item.props.buttonBackgroundColor || (item.props.textTone === "light" ? "#ffffff" : "#000000");
-  const buttonText =
-    item.props.buttonTextColor || (item.props.textTone === "light" ? "#000000" : "#ffffff");
 
   return (
     <>
@@ -911,61 +916,99 @@ function BannerTemplate({
               multiline
               onChange={(body) => onPatch({ body })}
             />
-            <TextField
-              label="Shop button text"
-              value={item.props.buttonLabel}
-              onChange={(buttonLabel) => onPatch({ buttonLabel })}
-            />
-            <TextField
-              label="Shop button link"
-              value={item.props.buttonUrl}
-              onChange={(buttonUrl) => onPatch({ buttonUrl })}
-            />
           </section>
 
           <section className="studio-template-section">
-            <h3>Typography</h3>
-            <AlignmentButtons
-              value={item.props.textAlign}
-              label="Banner text alignment"
-              onChange={(textAlign) => onPatch({ textAlign })}
-            />
-            <div className="studio-template-responsive-values">
-              <NumberField
-                label="Desktop title"
-                value={item.props.titleSize}
-                min={24}
-                max={140}
-                onChange={(titleSize) => onPatch({ titleSize })}
-              />
-              <NumberField
-                label="Mobile title"
-                value={item.props.mobileTitleSize}
-                min={20}
-                max={84}
-                onChange={(mobileTitleSize) => onPatch({ mobileTitleSize })}
-              />
-            </div>
-            <ColourField
-              label="Text colour"
-              value={colourInputValue(textColour, "#ffffff")}
-              onChange={(textColor) =>
-                onPatch({
-                  textColor,
-                  textTone: darkTextForColour(textColor) ? "dark" : "light",
-                })
-              }
-            />
-            <ColourField
-              label="Button colour"
-              value={colourInputValue(buttonBackground, "#ffffff")}
-              onChange={(buttonBackgroundColor) => onPatch({ buttonBackgroundColor })}
-            />
-            <ColourField
-              label="Button text"
-              value={colourInputValue(buttonText, "#000000")}
-              onChange={(buttonTextColor) => onPatch({ buttonTextColor })}
-            />
+            <h3>{selectedText ? `${selectedText.name} properties` : "Text styling"}</h3>
+            {selectedText && selectedTextStyle ? (
+              <>
+                <div className="studio-template-position">
+                  <NumberField
+                    label="X"
+                    value={selectedTextStyle.x}
+                    min={0}
+                    max={100 - selectedTextStyle.width}
+                    step={0.1}
+                    onChange={(x) => onPatchLayer(selectedText.id, { x })}
+                  />
+                  <NumberField
+                    label="Y"
+                    value={selectedTextStyle.y}
+                    min={0}
+                    max={100 - selectedTextStyle.height}
+                    step={0.1}
+                    onChange={(y) => onPatchLayer(selectedText.id, { y })}
+                  />
+                  <NumberField
+                    label="W"
+                    value={selectedTextStyle.width}
+                    min={1}
+                    max={100 - selectedTextStyle.x}
+                    step={0.1}
+                    onChange={(width) => onPatchLayer(selectedText.id, { width })}
+                  />
+                  <NumberField
+                    label="H"
+                    value={selectedTextStyle.height}
+                    min={1}
+                    max={100 - selectedTextStyle.y}
+                    step={0.1}
+                    onChange={(height) => onPatchLayer(selectedText.id, { height })}
+                  />
+                </div>
+                <AlignmentButtons
+                  value={selectedTextStyle.textAlign ?? item.props.textAlign}
+                  label={`${selectedText.name} alignment`}
+                  onChange={(textAlign) => onPatchLayer(selectedText.id, { textAlign })}
+                />
+                <NumberField
+                  label="Font size"
+                  value={selectedTextStyle.fontSize ?? 16}
+                  min={8}
+                  max={160}
+                  onChange={(fontSize) => onPatchLayer(selectedText.id, { fontSize })}
+                />
+                <ColourField
+                  label="Text colour"
+                  value={colourInputValue(selectedTextStyle.color, textColour)}
+                  onChange={(color) => onPatchLayer(selectedText.id, { color })}
+                />
+              </>
+            ) : (
+              <>
+                <AlignmentButtons
+                  value={item.props.textAlign}
+                  label="Banner text alignment"
+                  onChange={(textAlign) => onPatch({ textAlign })}
+                />
+                <div className="studio-template-responsive-values">
+                  <NumberField
+                    label="Desktop title"
+                    value={item.props.titleSize}
+                    min={24}
+                    max={140}
+                    onChange={(titleSize) => onPatch({ titleSize })}
+                  />
+                  <NumberField
+                    label="Mobile title"
+                    value={item.props.mobileTitleSize}
+                    min={20}
+                    max={84}
+                    onChange={(mobileTitleSize) => onPatch({ mobileTitleSize })}
+                  />
+                </div>
+                <ColourField
+                  label="Text colour"
+                  value={colourInputValue(textColour, "#ffffff")}
+                  onChange={(textColor) =>
+                    onPatch({
+                      textColor,
+                      textTone: darkTextForColour(textColor) ? "dark" : "light",
+                    })
+                  }
+                />
+              </>
+            )}
           </section>
         </>
       ) : null}
@@ -1160,6 +1203,7 @@ export function StudioTemplateInspector({
             item={item}
             categories={categories}
             products={products}
+            selectedLayer={selectedLayer}
             viewport={viewport}
             cropLayerId={cropLayerId}
             onPatch={onPatch}

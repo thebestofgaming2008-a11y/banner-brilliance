@@ -184,6 +184,7 @@ export function StudioCanvas({
       cropFillId,
       snapGuides,
       interactionDisabled: activeTool !== "select",
+      constrainLayersToCanvas: selectedRef.kind !== "hero",
       editableLayerIds,
       onSelectLayer: (id, additive) => {
         onEditLayer(null);
@@ -267,6 +268,7 @@ export function StudioCanvas({
       sceneRoot,
       snapGuides,
       selectedLayerIds,
+      selectedRef.kind,
       selectedRef.key,
       viewport,
     ],
@@ -389,6 +391,7 @@ export function StudioCanvas({
                     }
                     viewport={viewport}
                     onPatchLayer={onPatchLayer}
+                    constrainToHost={selectedRef.kind !== "hero"}
                   />
                 </div>
               </StudioSessionProvider>,

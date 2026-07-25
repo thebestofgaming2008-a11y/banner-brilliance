@@ -99,6 +99,7 @@ function layerCss(style: BannerLayerStyle): CSSProperties {
     display: style.visible === false ? "none" : undefined,
     color: withAlpha(style.color, "#ffffff"),
     backgroundColor: style.backgroundColor || undefined,
+    backgroundImage: style.backgroundImage || undefined,
     borderColor: borderAlign === "inside" ? style.borderColor || "transparent" : undefined,
     borderWidth: borderAlign === "inside" ? `${borderWidth}px` : 0,
     borderStyle: borderAlign === "inside" ? "solid" : undefined,
@@ -258,7 +259,9 @@ export function BannerSceneView({
         });
       }}
     >
-      {backgroundSelected ? <span className="studio-background-label">Background</span> : null}
+      {backgroundSelected && activeCropFillId ? (
+        <span className="studio-background-label">Background</span>
+      ) : null}
       {fills.map((fill) =>
         fill.type === "image" ? (
           <div
@@ -410,8 +413,12 @@ export function BannerSceneView({
                   );
                 }
                 studio.onPatchLayer(item.id, {
-                  x: clamp(snappedX.value, -100, 200),
-                  y: clamp(snappedY.value, -100, 200),
+                  x: studio.constrainLayersToCanvas
+                    ? clamp(snappedX.value, 0, Math.max(0, 100 - item.style.width))
+                    : clamp(snappedX.value, -100, 200),
+                  y: studio.constrainLayersToCanvas
+                    ? clamp(snappedY.value, 0, Math.max(0, 100 - item.style.height))
+                    : clamp(snappedY.value, -100, 200),
                 });
               });
             };
@@ -503,7 +510,7 @@ export function BannerSceneView({
                   cropChange(layer.id, {
                     cropX: style.cropX ?? 0,
                     cropY: style.cropY ?? 0,
-                    cropZoom: clamp((style.cropZoom ?? 100) - event.deltaY * 0.15, 10, 500),
+                    cropZoom: clamp((style.cropZoom ?? 100) - event.deltaY * 0.15, 100, 300),
                   });
                 }}
               >
@@ -523,7 +530,7 @@ export function BannerSceneView({
                             100,
                           )}%`
                         : style.objectPosition || "center",
-                    transform: `scale(${clamp(style.cropZoom ?? 100, 10, 500) / 100})`,
+                    transform: `scale(${clamp(style.cropZoom ?? 100, 100, 300) / 100})`,
                     transformOrigin: "center",
                   }}
                 />
@@ -534,9 +541,8 @@ export function BannerSceneView({
                 key={layer.id}
                 {...commonProps}
                 className={`${commonProps.className} homepage-banner-layer--empty`}
-              >
-                Image
-              </div>
+                aria-label={layer.name}
+              />
             ) : null;
           }
 

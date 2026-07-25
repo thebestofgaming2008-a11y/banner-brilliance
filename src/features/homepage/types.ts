@@ -55,6 +55,7 @@ export type BannerLayerStyle = {
   whiteSpace?: "normal" | "nowrap" | "pre-wrap";
   color?: string;
   backgroundColor?: string;
+  backgroundImage?: string;
   borderColor?: string;
   borderWidth?: number;
   borderAlign?: "inside" | "center" | "outside";
@@ -91,6 +92,7 @@ export type BannerLayer = {
 
 export type BannerScene = {
   version: 1;
+  templateVersion?: number;
   name: string;
   height: number;
   mobileHeight: number;

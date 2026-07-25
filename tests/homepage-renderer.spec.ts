@@ -162,7 +162,7 @@ test("published visual homepage content renders responsively", async ({ page }) 
   }
   await expect(hero.getByRole("heading", { name: "FIRST HERO" })).toBeVisible({ timeout: 2_000 });
   await expect(page.getByRole("heading", { name: "VISUAL EDITOR TEST" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Shop now" })).toHaveAttribute("href", "/shop");
+  await expect(page.getByRole("link", { name: "Shop now" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "SHOP ALL" })).toBeVisible();
   const customHeading = page.getByRole("heading", { name: "VISUAL EDITOR TEST" });
   expect(
@@ -419,6 +419,8 @@ test("published banner scenes preserve responsive layers, fills, and links", asy
   const posterScene = poster.locator(".homepage-banner-scene");
   const posterImage = poster.locator('[data-banner-layer="banner-image"]');
   await expect(posterImage.locator("img")).toBeVisible();
+  await expect(poster.locator('[data-banner-layer="banner-overlay"]')).toHaveCount(0);
+  await expect(posterImage).toHaveCSS("box-shadow", "none");
   await expect(poster.getByRole("heading", { name: "HIDDEN POSTER TITLE" })).toHaveCount(0);
   await expect(poster.getByRole("link", { name: "Kashmir honey poster" })).toHaveAttribute(
     "href",
@@ -435,9 +437,12 @@ test("published banner scenes preserve responsive layers, fills, and links", asy
   );
   const posterSceneBox = await posterScene.boundingBox();
   const posterImageBox = await posterImage.boundingBox();
+  const posterBox = await poster.boundingBox();
   expect(posterSceneBox).not.toBeNull();
   expect(posterImageBox).not.toBeNull();
-  if (posterSceneBox && posterImageBox) {
+  expect(posterBox).not.toBeNull();
+  if (posterSceneBox && posterImageBox && posterBox) {
+    expect(Math.abs(posterBox.height - posterSceneBox.height)).toBeLessThan(1);
     expect(Math.abs(posterSceneBox.x - posterImageBox.x)).toBeLessThan(1);
     expect(Math.abs(posterSceneBox.y - posterImageBox.y)).toBeLessThan(1);
     expect(Math.abs(posterSceneBox.width - posterImageBox.width)).toBeLessThan(1);

@@ -11,6 +11,7 @@ export type StudioBannerSession = {
   cropFillId: string | null;
   snapGuides: { x?: number; y?: number } | null;
   interactionDisabled: boolean;
+  constrainLayersToCanvas?: boolean;
   editableLayerIds?: string[];
   onSelectLayer: (id: string, additive: boolean) => void;
   onSelectDeep: (clientX: number, clientY: number) => void;

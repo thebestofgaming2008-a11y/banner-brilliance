@@ -202,9 +202,6 @@ function homepagePublishIssues(data: HomepageData, products: StoreProduct[]) {
     const label = item.props.title.trim() || `Banner ${index}`;
     const image = item.type === "CollectionFeature" ? item.props.image : item.props.backgroundImage;
     if (!image.trim()) issues.push(`${label} needs a banner image.`);
-    if (!safeHomepageLink(item.props.buttonUrl)) {
-      issues.push(`${label} has an invalid shop button link.`);
-    }
     if (item.props.contentMode === "image-only" && !safeHomepageLink(item.props.imageLink)) {
       issues.push(`${label} has an invalid poster link.`);
     }
@@ -361,19 +358,22 @@ function refreshBannerPresentation(
   generated: BannerScene,
   previous?: BannerScene,
   preserveFillTransforms = true,
+  preserveTextStyles = true,
 ): BannerScene {
-  return migratePresetBannerScene(generated, previous, preserveFillTransforms);
+  return migratePresetBannerScene(generated, previous, preserveFillTransforms, preserveTextStyles);
 }
 
 function refreshCollectionScene(
   props: CollectionFeatureProps,
   previous?: BannerScene,
   preserveFillTransforms = true,
+  preserveTextStyles = true,
 ) {
   return refreshBannerPresentation(
     sceneFromCollectionFeature(props),
     previous,
     preserveFillTransforms,
+    preserveTextStyles,
   );
 }
 
@@ -381,8 +381,14 @@ function refreshPromoScene(
   props: PromoBannerProps,
   previous?: BannerScene,
   preserveFillTransforms = true,
+  preserveTextStyles = true,
 ) {
-  return refreshBannerPresentation(sceneFromPromo(props), previous, preserveFillTransforms);
+  return refreshBannerPresentation(
+    sceneFromPromo(props),
+    previous,
+    preserveFillTransforms,
+    preserveTextStyles,
+  );
 }
 
 function IconButton({
@@ -977,7 +983,10 @@ export function HomepageVisualEditor({
     commit(next);
     window.setTimeout(() => {
       const latest = listStudioBanners(next).find((banner) => banner.itemId === item.props.id);
-      if (latest) setSelectedBannerKey(latest.key);
+      if (latest) {
+        setSelectedBannerKey(latest.key);
+        setSelectedLayerIds(["banner-image"]);
+      }
     }, 0);
     setAddOpen(false);
   };
@@ -1120,6 +1129,9 @@ export function HomepageVisualEditor({
     } else if (selectedRef.kind === "collection-feature" && item.type === "CollectionFeature") {
       const previousScene = item.props.scene;
       const previousImage = item.props.image;
+      const preserveTextStyles = !["textAlign", "textColor", "titleSize", "mobileTitleSize"].some(
+        (key) => key in patch,
+      );
       Object.assign(item.props, patch);
       item.props.layout = "banner-top";
       item.props.titleFont = "sans";
@@ -1127,16 +1139,21 @@ export function HomepageVisualEditor({
         item.props,
         previousScene,
         previousImage === item.props.image,
+        preserveTextStyles,
       );
     } else if (selectedRef.kind === "standalone" && item.type === "PromoBanner") {
       const previousScene = item.props.scene;
       const previousImage = item.props.backgroundImage;
+      const preserveTextStyles = !["textAlign", "textColor", "titleSize", "mobileTitleSize"].some(
+        (key) => key in patch,
+      );
       Object.assign(item.props, patch);
       item.props.titleFont = "sans";
       item.props.scene = refreshPromoScene(
         item.props,
         previousScene,
         previousImage === item.props.backgroundImage,
+        preserveTextStyles,
       );
     }
     commit(next, true);
