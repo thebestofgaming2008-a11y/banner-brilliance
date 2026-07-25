@@ -235,6 +235,29 @@ test("yemeni shemagh includes red as a colour option", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("white kufi has one white colour and a fixed free size", async ({ page }) => {
+  const catalogResponse = await page.request.get("/api/catalog/products");
+  const catalog = (await catalogResponse.json()) as Array<{
+    slug: string;
+    color_options?: string[];
+    size_options?: string[];
+  }>;
+  const product = catalog.find((item) => item.slug === "white-kufi");
+  expect(product, "White Woven Kufi must stay in the live catalog").toBeTruthy();
+  expect(product!.color_options).toEqual(["White"]);
+  expect(product!.size_options).toEqual(["Free Size"]);
+
+  await page.goto("/products/white-kufi", {
+    waitUntil: "domcontentloaded",
+    timeout: 60_000,
+  });
+  await expect(
+    page.getByRole("group", { name: "Select colour" }).getByRole("button", { name: "White" }),
+  ).toBeVisible();
+  await expect(page.getByRole("group", { name: "Select size" })).toHaveCount(0);
+  await expect(page.getByText("Free Size", { exact: true })).toBeVisible();
+});
+
 test("stale generated product media falls back to a stable catalog image", async ({ page }) => {
   const catalogResponse = await page.request.get("/api/catalog/products");
   const catalog = (await catalogResponse.json()) as Array<{

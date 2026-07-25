@@ -141,7 +141,11 @@ export const storeProducts: StoreProduct[] = [
       "Lightweight feel",
       "Easy-care white finish",
     ],
-    options: ["56 cm", "58 cm", "60 cm"],
+    options: ["White"],
+    optionGroups: [
+      { name: "Colour", values: ["White"] },
+      { name: "Size", values: ["Free Size"] },
+    ],
     imageClassName: "origin-bottom scale-[1.16] translate-y-[4%]",
   },
   {

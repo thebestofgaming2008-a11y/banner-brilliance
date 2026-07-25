@@ -87,8 +87,8 @@ const starterProducts = [
     category: "Kufis",
     category_id: "kufis",
     tags: ["men"],
-    color_options: ["Ivory White"],
-    size_options: ["S", "M", "L"],
+    color_options: ["White"],
+    size_options: ["Free Size"],
     rating: 0,
     reviews_count: 0,
     stock_quantity: 50,
@@ -357,6 +357,47 @@ export const ensureYemeniShemaghRedOption = mutation({
     if (changed) {
       await ctx.db.patch(product._id, {
         color_options: colorOptions,
+        option_types: optionTypes,
+        updated_at: nowIso(),
+      });
+    }
+
+    return { updated: changed, color_options: colorOptions, size_options: sizeOptions };
+  },
+});
+
+export const ensureWhiteKufiFreeSize = mutation({
+  args: { token: v.optional(v.string()) },
+  returns: v.object({
+    updated: v.boolean(),
+    color_options: v.array(v.string()),
+    size_options: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const setupToken = process.env.ADMIN_UPLOAD_TOKEN;
+    if (!setupToken || args.token !== setupToken) await requireAdmin(ctx);
+
+    const product = await ctx.db
+      .query("products")
+      .withIndex("by_slug", (q) => q.eq("slug", "white-kufi"))
+      .first();
+    if (!product) throw new Error("White Woven Kufi product was not found.");
+
+    const colorOptions = ["White"];
+    const sizeOptions = ["Free Size"];
+    const optionTypes = [
+      { name: "Colour", values: colorOptions },
+      { name: "Size", values: sizeOptions },
+    ];
+    const changed =
+      JSON.stringify(product.color_options ?? []) !== JSON.stringify(colorOptions) ||
+      JSON.stringify(product.size_options ?? []) !== JSON.stringify(sizeOptions) ||
+      JSON.stringify(product.option_types ?? []) !== JSON.stringify(optionTypes);
+
+    if (changed) {
+      await ctx.db.patch(product._id, {
+        color_options: colorOptions,
+        size_options: sizeOptions,
         option_types: optionTypes,
         updated_at: nowIso(),
       });

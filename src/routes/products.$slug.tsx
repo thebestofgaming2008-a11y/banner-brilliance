@@ -231,26 +231,44 @@ function ProductPage() {
           </div>
           <p className="mt-6 text-[14px] leading-6 text-black/65">{product.description}</p>
 
-          {(product.optionGroups ?? []).map((group) => (
-            <fieldset className="mt-7" key={group.name}>
-              <legend className="text-[11px] font-bold uppercase">
-                Select {group.name.toLowerCase()}
-              </legend>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {group.values.map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setSelected((current) => ({ ...current, [group.name]: value }))}
-                    aria-pressed={selected[group.name] === value}
-                    className={`min-h-10 rounded-md border px-4 text-[11px] font-semibold transition-colors ${selected[group.name] === value ? "border-black bg-black text-white" : "border-black/20 bg-white hover:border-[#E2713F]"}`}
-                  >
-                    {value}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-          ))}
+          {(product.optionGroups ?? []).map((group) => {
+            const fixedFreeSize =
+              group.name.toLowerCase() === "size" &&
+              group.values.length === 1 &&
+              group.values[0].toLowerCase() === "free size";
+
+            if (fixedFreeSize) {
+              return (
+                <div className="mt-7" key={group.name}>
+                  <p className="text-[11px] font-bold uppercase">Size</p>
+                  <p className="mt-2 text-[14px] font-medium">Free Size</p>
+                </div>
+              );
+            }
+
+            return (
+              <fieldset className="mt-7" key={group.name}>
+                <legend className="text-[11px] font-bold uppercase">
+                  Select {group.name.toLowerCase()}
+                </legend>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {group.values.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() =>
+                        setSelected((current) => ({ ...current, [group.name]: value }))
+                      }
+                      aria-pressed={selected[group.name] === value}
+                      className={`min-h-10 rounded-md border px-4 text-[11px] font-semibold transition-colors ${selected[group.name] === value ? "border-black bg-black text-white" : "border-black/20 bg-white hover:border-[#E2713F]"}`}
+                    >
+                      {value}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            );
+          })}
 
           <div className="mt-7 grid grid-cols-[108px_1fr] gap-3">
             <div className="flex h-12 items-center overflow-hidden rounded-md border border-black/20">
