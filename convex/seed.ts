@@ -37,8 +37,8 @@ const starterProducts = [
     category: "Shemaghs",
     category_id: "shemaghs",
     tags: ["men", "bestseller"],
-    color_options: ["Red / White", "Black / White", "Ivory"],
-    size_options: ["Standard 130 x 130 cm"],
+    color_options: ["Brown", "Purple", "Blue", "Red"],
+    size_options: ["60 x 60 cm"],
     badge: "Bestseller",
     rating: 0,
     reviews_count: 0,
@@ -321,6 +321,48 @@ export const ensureCatalogFilters = mutation({
     }
 
     return { inserted, updated };
+  },
+});
+
+export const ensureYemeniShemaghRedOption = mutation({
+  args: { token: v.optional(v.string()) },
+  returns: v.object({
+    updated: v.boolean(),
+    color_options: v.array(v.string()),
+    size_options: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const setupToken = process.env.ADMIN_UPLOAD_TOKEN;
+    if (!setupToken || args.token !== setupToken) await requireAdmin(ctx);
+
+    const product = await ctx.db
+      .query("products")
+      .withIndex("by_slug", (q) => q.eq("slug", "yemeni-shemagh"))
+      .first();
+    if (!product) throw new Error("Yemeni Shemagh product was not found.");
+
+    const colorOptions = Array.from(
+      new Set([...(Array.isArray(product.color_options) ? product.color_options : []), "Red"]),
+    );
+    const sizeOptions = Array.isArray(product.size_options) ? product.size_options : [];
+    const optionTypes = [
+      { name: "Colour", values: colorOptions },
+      ...(sizeOptions.length ? [{ name: "Size", values: sizeOptions }] : []),
+    ];
+
+    const changed =
+      JSON.stringify(product.color_options ?? []) !== JSON.stringify(colorOptions) ||
+      JSON.stringify(product.option_types ?? []) !== JSON.stringify(optionTypes);
+
+    if (changed) {
+      await ctx.db.patch(product._id, {
+        color_options: colorOptions,
+        option_types: optionTypes,
+        updated_at: nowIso(),
+      });
+    }
+
+    return { updated: changed, color_options: colorOptions, size_options: sizeOptions };
   },
 });
 

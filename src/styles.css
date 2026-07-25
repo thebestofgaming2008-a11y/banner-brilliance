@@ -292,6 +292,7 @@
   --mango-orange: #f18532;
   --mango-red: #dc5c3c;
   --mango-solid: #f6ad32;
+  --mango-cta: #e8653d;
   --mango-gradient: linear-gradient(
     105deg,
     var(--mango-yellow) 0%,
@@ -404,6 +405,12 @@
   .brand-mango-bg {
     background-color: var(--mango-solid);
     background-image: var(--mango-gradient);
+  }
+
+  button.brand-mango-bg,
+  a.brand-mango-bg {
+    background-color: var(--mango-cta);
+    background-image: none;
   }
 
   .bg-gold {

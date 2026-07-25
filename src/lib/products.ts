@@ -67,7 +67,13 @@ export const catalog: Product[] = [
     rating: 0,
     reviews: 0,
     images: [shemaghRedHead],
-    sizes: ["Standard · 130 × 130 cm"],
+    colors: [
+      { name: "Brown", swatch: "#6f3f28" },
+      { name: "Purple", swatch: "#5d3a82" },
+      { name: "Blue", swatch: "#325c8f" },
+      { name: "Red", swatch: "#b91c1c" },
+    ],
+    sizes: ["60 x 60 cm"],
     short: "The heritage red-and-white keffiyeh, hand-loomed in Yemen.",
     description:
       "Hand-loomed in 100% long-staple cotton with the classic red-and-white herringbone weave. A generous 130 × 130 cm cut wraps without slipping — the honest Yemeni original.",

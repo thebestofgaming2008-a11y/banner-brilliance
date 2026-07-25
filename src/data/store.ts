@@ -62,7 +62,11 @@ export const storeProducts: StoreProduct[] = [
       "Finished edges",
       "Suitable for daily and occasion wear",
     ],
-    options: ["Standard", "Large"],
+    optionGroups: [
+      { name: "Colour", values: ["Brown", "Purple", "Blue", "Red"] },
+      { name: "Size", values: ["60 x 60 cm"] },
+    ],
+    options: ["Brown", "Purple", "Blue", "Red"],
     badge: "Bestseller",
     imageClassName: "origin-bottom scale-[1.12] translate-y-[2%]",
   },

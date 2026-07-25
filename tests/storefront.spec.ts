@@ -197,6 +197,30 @@ test("product choices remain attached to the cart line", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("yemeni shemagh includes red as a colour option", async ({ page }) => {
+  const catalogResponse = await page.request.get("/api/catalog/products");
+  const catalog = (await catalogResponse.json()) as Array<{
+    slug: string;
+    color_options?: string[];
+    size_options?: string[];
+  }>;
+  const product = catalog.find((item) => item.slug === "yemeni-shemagh");
+  expect(product, "Yemeni Shemagh must stay in the live catalog").toBeTruthy();
+  expect(product!.color_options).toEqual(expect.arrayContaining(["Red"]));
+  expect(product!.size_options).toEqual(expect.arrayContaining(["60 x 60 cm"]));
+
+  await page.goto("/products/yemeni-shemagh", {
+    waitUntil: "domcontentloaded",
+    timeout: 60_000,
+  });
+  await expect(
+    page.getByRole("group", { name: "Select colour" }).getByRole("button", { name: "Red" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Select size" }).getByRole("button", { name: "60 x 60 cm" }),
+  ).toBeVisible();
+});
+
 test("stale generated product media falls back to a stable catalog image", async ({ page }) => {
   const catalogResponse = await page.request.get("/api/catalog/products");
   const catalog = (await catalogResponse.json()) as Array<{
