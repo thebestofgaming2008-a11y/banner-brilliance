@@ -52,6 +52,53 @@ test.describe("fixed-template homepage studio", () => {
     await expect(page.getByRole("button", { name: "Align text left" })).toBeVisible();
   });
 
+  test("keeps Figma-style text boxes aligned in auto width, auto height and fixed modes", async ({
+    page,
+  }) => {
+    const frame = storefront(page);
+    const title = frame.locator('[data-editor-active="true"] [data-banner-layer="title"]');
+    const inspector = page.getByRole("complementary", { name: "Banner settings" });
+    await title.click({ force: true });
+
+    const initialBox = await title.boundingBox();
+    expect(initialBox).not.toBeNull();
+    const initialCenter = initialBox!.x + initialBox!.width / 2;
+
+    await inspector.getByRole("button", { name: "Auto width", exact: true }).click();
+    await expect(title).toHaveAttribute("data-text-resize", "width-and-height");
+    await inspector.getByLabel("Title", { exact: true }).fill("SALE");
+    await expect(title).toHaveText("SALE");
+    await expect
+      .poll(async () => {
+        const box = await title.boundingBox();
+        return box ? box.x + box.width / 2 : 0;
+      })
+      .toBeCloseTo(initialCenter, 1);
+    const autoWidthSelection = frame.locator('.studio-selection-box[data-selection-layer="title"]');
+    await expect
+      .poll(async () => {
+        const [textBox, selectionBox] = await Promise.all([
+          title.boundingBox(),
+          autoWidthSelection.boundingBox(),
+        ]);
+        return textBox && selectionBox ? Math.abs(textBox.width - selectionBox.width) : 999;
+      })
+      .toBeLessThan(1);
+
+    await inspector.getByRole("button", { name: "Auto height", exact: true }).click();
+    await inspector.getByLabel("W", { exact: true }).fill("20");
+    await inspector
+      .getByLabel("Title", { exact: true })
+      .fill("A LONG PROMOTION TITLE THAT WRAPS CLEANLY");
+    await expect(title).toHaveAttribute("data-text-resize", "height");
+    await expect
+      .poll(async () => (await title.boundingBox())?.height ?? 0)
+      .toBeGreaterThan(initialBox!.height);
+
+    await inspector.getByRole("button", { name: "Fixed size", exact: true }).click();
+    await expect(title).toHaveAttribute("data-text-resize", "none");
+  });
+
   test("keeps the original hero geometry exact at desktop and narrow mobile widths", async ({
     page,
     browser,
@@ -498,10 +545,56 @@ test.describe("fixed-template homepage studio", () => {
       .poll(() => bannerImage.locator("img").evaluate((element) => element.style.transform))
       .toContain("scale(1.25)");
     await bannerImage.click({ position: { x: 100, y: 50 } });
-    await expect(bannerImage).toHaveAttribute("data-layer-locked", "true");
+    await expect(bannerImage).not.toHaveAttribute("data-layer-locked", "true");
+    const imageSelection = standalone.locator(
+      '.studio-selection-box[data-selection-layer="banner-image"]',
+    );
+    await expect(imageSelection).toHaveCount(1);
     await expect(
-      standalone.locator('.studio-selection-box[data-selection-layer="banner-image"]'),
-    ).toHaveCount(0);
+      inspector.getByRole("heading", { name: "Image frame", exact: true }),
+    ).toBeVisible();
+    const widthBeforeResize = (await bannerImage.boundingBox())?.width ?? 0;
+    const eastHandle = imageSelection.getByRole("button", { name: "Resize e" });
+    await eastHandle.evaluate((handle) => {
+      const box = handle.getBoundingClientRect();
+      const startX = box.left + box.width / 2;
+      const startY = box.top + box.height / 2;
+      handle.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          bubbles: true,
+          button: 0,
+          buttons: 1,
+          clientX: startX,
+          clientY: startY,
+          isPrimary: true,
+          pointerId: 1,
+        }),
+      );
+      window.dispatchEvent(
+        new PointerEvent("pointermove", {
+          bubbles: true,
+          buttons: 1,
+          clientX: startX - 160,
+          clientY: startY,
+          isPrimary: true,
+          pointerId: 1,
+        }),
+      );
+      window.dispatchEvent(
+        new PointerEvent("pointerup", {
+          bubbles: true,
+          button: 0,
+          clientX: startX - 160,
+          clientY: startY,
+          isPrimary: true,
+          pointerId: 1,
+        }),
+      );
+    });
+    await expect
+      .poll(async () => (await bannerImage.boundingBox())?.width ?? widthBeforeResize)
+      .toBeLessThan(widthBeforeResize - 20);
+    await inspector.getByLabel("W", { exact: true }).fill("100");
     await expect(bannerImage).toHaveCSS("left", "0px");
     await expect(bannerImage).toHaveCSS("width", "1180px");
     const [imageLayerBox, imageElementBox] = await Promise.all([
@@ -614,7 +707,10 @@ test.describe("fixed-template homepage studio", () => {
     const collectionImage = collectionBanner.locator('[data-banner-layer="banner-image"]');
     await expect(collectionImage.locator("img")).toBeVisible();
     await collectionImage.click({ position: { x: 400, y: 50 } });
-    await expect(collectionImage).toHaveAttribute("data-layer-locked", "true");
+    await expect(collectionImage).not.toHaveAttribute("data-layer-locked", "true");
+    await expect(
+      collectionBanner.locator('.studio-selection-box[data-selection-layer="banner-image"]'),
+    ).toHaveCount(1);
     await inspector.getByRole("button", { name: "Crop image" }).click();
     await expect(collectionImage).toHaveClass(/is-cropping/);
     await page.getByRole("button", { name: "Done", exact: true }).click();

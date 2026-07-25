@@ -1,4 +1,10 @@
-import { useMemo, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useLayoutEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { createPortal } from "react-dom";
 
 import type { BannerLayer, BannerLayerStyle, HomepageViewport } from "./types";
@@ -26,7 +32,7 @@ export function StudioSelection({
   onPatchLayer: (id: string, patch: Partial<BannerLayerStyle>) => void;
   constrainToHost?: boolean;
 }) {
-  const selection = useMemo(() => {
+  const selection = useMemo<{ layer: BannerLayer | null; style: BannerLayerStyle } | null>(() => {
     if (!layers.length) return null;
     const resolved = layers.map((layer) => ({ layer, style: resolvedStyle(layer, viewport) }));
     if (resolved.length === 1) return resolved[0]!;
@@ -48,8 +54,70 @@ export function StudioSelection({
     };
   }, [layers, viewport]);
 
+  const [renderedBounds, setRenderedBounds] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const measuredLayer = selection?.layer ?? null;
+  const measuredStyle = selection?.style ?? null;
+  useLayoutEffect(() => {
+    if (
+      !host ||
+      !measuredLayer ||
+      measuredLayer.type !== "text" ||
+      (measuredStyle?.textAutoResize ?? "none") === "none"
+    ) {
+      setRenderedBounds(null);
+      return;
+    }
+    const element = host.querySelector<HTMLElement>(
+      `[data-banner-layer="${CSS.escape(measuredLayer.id)}"]`,
+    );
+    if (!element) return;
+    const measure = () => {
+      const hostRect = host.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+      if (!hostRect.width || !hostRect.height) return;
+      const bounds = {
+        x: ((elementRect.left - hostRect.left) / hostRect.width) * 100,
+        y: ((elementRect.top - hostRect.top) / hostRect.height) * 100,
+        width: (elementRect.width / hostRect.width) * 100,
+        height: (elementRect.height / hostRect.height) * 100,
+      };
+      setRenderedBounds(bounds);
+      const mode = measuredStyle?.textAutoResize ?? "none";
+      const patch: Partial<BannerLayerStyle> = {};
+      const storedWidth = measuredStyle?.width ?? bounds.width;
+      if (mode === "width-and-height" && Math.abs(bounds.width - storedWidth) > 0.01) {
+        patch.width = bounds.width;
+        if (measuredStyle?.textAlign === "center") {
+          patch.x = (measuredStyle?.x ?? bounds.x) + (storedWidth - bounds.width) / 2;
+        } else if (measuredStyle?.textAlign === "right") {
+          patch.x = (measuredStyle?.x ?? bounds.x) + storedWidth - bounds.width;
+        }
+      }
+      if (
+        (mode === "width-and-height" || mode === "height") &&
+        Math.abs(bounds.height - (measuredStyle?.height ?? bounds.height)) > 0.01
+      ) {
+        patch.height = bounds.height;
+      }
+      if (Object.keys(patch).length) onPatchLayer(measuredLayer.id, patch);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [host, measuredLayer, measuredStyle, onPatchLayer, viewport]);
+
   if (!host || !selection) return null;
-  const { layer, style } = selection;
+  const { layer, style: storedStyle } = selection;
+  const style =
+    layer?.type === "text" && (storedStyle.textAutoResize ?? "none") !== "none" && renderedBounds
+      ? { ...storedStyle, ...renderedBounds }
+      : storedStyle;
   const single = Boolean(layer);
   const locked = layer ? style.locked : true;
 
@@ -70,19 +138,35 @@ export function StudioSelection({
       const deltaYPx = moveEvent.clientY - startY;
       const horizontal = direction.includes("e") ? 1 : direction.includes("w") ? -1 : 0;
       const vertical = direction.includes("s") ? 1 : direction.includes("n") ? -1 : 0;
-      let nextWidthPx = Math.max(4, widthPx + deltaXPx * horizontal);
-      let nextHeightPx = Math.max(4, heightPx + deltaYPx * vertical);
-      if (style.lockAspectRatio) {
-        if (horizontal) nextHeightPx = nextWidthPx / ratio;
-        else nextWidthPx = nextHeightPx * ratio;
+      const fromCenter = moveEvent.altKey;
+      const multiplier = fromCenter ? 2 : 1;
+      let nextWidthPx = Math.max(4, widthPx + deltaXPx * horizontal * multiplier);
+      let nextHeightPx = Math.max(4, heightPx + deltaYPx * vertical * multiplier);
+      const corner = Boolean(horizontal && vertical);
+      const keepsRatioByDefault =
+        style.lockAspectRatio === true ||
+        (corner && layer.type === "image" && style.lockAspectRatio !== false);
+      const keepAspectRatio = moveEvent.shiftKey ? !keepsRatioByDefault : keepsRatioByDefault;
+      if (keepAspectRatio) {
+        if (corner && Math.abs(deltaYPx) > Math.abs(deltaXPx)) {
+          nextWidthPx = nextHeightPx * ratio;
+        } else if (horizontal) {
+          nextHeightPx = nextWidthPx / ratio;
+        } else {
+          nextWidthPx = nextHeightPx * ratio;
+        }
       } else {
         if (!horizontal) nextWidthPx = widthPx;
         if (!vertical) nextHeightPx = heightPx;
       }
       const nextWidth = (nextWidthPx / Math.max(1, rect.width)) * 100;
       const nextHeight = (nextHeightPx / Math.max(1, rect.height)) * 100;
-      const rawX = start.x + (horizontal < 0 ? start.width - nextWidth : 0);
-      const rawY = start.y + (vertical < 0 ? start.height - nextHeight : 0);
+      const rawX = fromCenter
+        ? start.x + (start.width - nextWidth) / 2
+        : start.x + (horizontal < 0 ? start.width - nextWidth : 0);
+      const rawY = fromCenter
+        ? start.y + (start.height - nextHeight) / 2
+        : start.y + (vertical < 0 ? start.height - nextHeight : 0);
       const nextX = clamp(rawX, constrainToHost ? 0 : -100, constrainToHost ? 99.5 : 200);
       const nextY = clamp(rawY, constrainToHost ? 0 : -100, constrainToHost ? 99.5 : 200);
       onPatchLayer(layer.id, {
@@ -91,6 +175,8 @@ export function StudioSelection({
         width: clamp(nextWidth, 0.5, constrainToHost ? 100 - nextX : 250),
         height: clamp(nextHeight, 0.5, constrainToHost ? 100 - nextY : 250),
         horizontalSizing: "fixed",
+        textAutoResize:
+          layer.type === "text" ? (horizontal && !vertical ? "height" : "none") : undefined,
       });
     };
     const stop = () => {

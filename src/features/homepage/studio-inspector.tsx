@@ -974,11 +974,11 @@ function LayerInspector({
     viewport === "mobile" ? { ...layer.style, ...(layer.mobileStyle ?? {}) } : layer.style;
   const patch = (next: Partial<BannerLayerStyle>) => onPatch(next);
   const isText = layer.type === "text" || layer.type === "button";
+  const isTextLayer = layer.type === "text";
   const fillColour =
     layer.type === "text" ? style.color || "#FFFFFF" : style.backgroundColor || "#00000000";
   const setFillColour = (value: string) =>
     layer.type === "text" ? patch({ color: value }) : patch({ backgroundColor: value });
-  const frameHeight = viewport === "mobile" ? scene.mobileHeight : scene.height;
   const coordinateWidth =
     scene.coordinateMode === "original-hero" ? 390 : viewport === "mobile" ? 390 : 1440;
   const coordinateHeight =
@@ -991,9 +991,6 @@ function LayerInspector({
   const toPixelsY = (percent: number) => (percent / 100) * coordinateHeight;
   const toPercentX = (pixels: number) => (pixels / coordinateWidth) * 100;
   const toPercentY = (pixels: number) => (pixels / coordinateHeight) * 100;
-  const fitTextWidth = () =>
-    clamp((((layer.text || "Text").length * (style.fontSize ?? 16) * 0.56) / 390) * 100, 2, 100);
-
   return (
     <>
       <LayerHeader
@@ -1091,41 +1088,51 @@ function LayerInspector({
       </InspectorSection>
 
       <InspectorSection title="Layout">
-        <span className="figma-control-label">Resizing</span>
-        <div className="figma-resize-modes">
-          <ToolButton
-            label="Fixed size"
-            active={(style.horizontalSizing || "fixed") === "fixed"}
-            onClick={() => patch({ horizontalSizing: "fixed" })}
-          >
-            <MoveHorizontal size={15} />
-          </ToolButton>
-          <ToolButton
-            label="Fit content"
-            active={style.horizontalSizing === "hug"}
-            onClick={() => {
-              if (!isText) return;
-              patch({
-                horizontalSizing: "hug",
-                width: fitTextWidth(),
-                height: clamp(
-                  (((style.fontSize ?? 16) * (style.lineHeight ?? 1.2)) / frameHeight) * 100,
-                  1,
-                  100,
-                ),
-              });
-            }}
-          >
-            <Scaling size={15} />
-          </ToolButton>
-          <ToolButton
-            label="Fill container"
-            active={style.horizontalSizing === "fill"}
-            onClick={() => patch({ horizontalSizing: "fill", x: 0, width: 100 })}
-          >
-            <Rows3 size={15} />
-          </ToolButton>
-        </div>
+        {isTextLayer ? (
+          <>
+            <span className="figma-control-label">Text box</span>
+            <div className="figma-resize-modes">
+              <ToolButton
+                label="Auto width"
+                active={style.textAutoResize === "width-and-height"}
+                onClick={() =>
+                  patch({
+                    textAutoResize: "width-and-height",
+                    horizontalSizing: "hug",
+                    whiteSpace: "nowrap",
+                  })
+                }
+              >
+                <Scaling size={15} />
+              </ToolButton>
+              <ToolButton
+                label="Auto height"
+                active={style.textAutoResize === "height"}
+                onClick={() =>
+                  patch({
+                    textAutoResize: "height",
+                    horizontalSizing: "fixed",
+                    whiteSpace: "normal",
+                  })
+                }
+              >
+                <Rows3 size={15} />
+              </ToolButton>
+              <ToolButton
+                label="Fixed size"
+                active={(style.textAutoResize ?? "none") === "none"}
+                onClick={() =>
+                  patch({
+                    textAutoResize: "none",
+                    horizontalSizing: "fixed",
+                  })
+                }
+              >
+                <MoveHorizontal size={15} />
+              </ToolButton>
+            </div>
+          </>
+        ) : null}
         <span className="figma-control-label">Dimensions</span>
         <div className="figma-control-line has-action">
           <NumberField
@@ -1139,10 +1146,15 @@ function LayerInspector({
                 style.lockAspectRatio
                   ? {
                       horizontalSizing: "fixed",
+                      textAutoResize: isTextLayer ? "height" : undefined,
                       width: nextWidth,
                       height: style.height * (nextWidth / style.width),
                     }
-                  : { horizontalSizing: "fixed", width: nextWidth },
+                  : {
+                      horizontalSizing: "fixed",
+                      textAutoResize: isTextLayer ? "height" : undefined,
+                      width: nextWidth,
+                    },
               );
             }}
           />
@@ -1156,10 +1168,14 @@ function LayerInspector({
               patch(
                 style.lockAspectRatio
                   ? {
+                      textAutoResize: isTextLayer ? "none" : undefined,
                       height: nextHeight,
                       width: style.width * (nextHeight / style.height),
                     }
-                  : { height: nextHeight },
+                  : {
+                      textAutoResize: isTextLayer ? "none" : undefined,
+                      height: nextHeight,
+                    },
               );
             }}
           />

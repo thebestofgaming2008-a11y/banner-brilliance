@@ -40,6 +40,7 @@ export type BannerLayerStyle = {
   flipX?: boolean;
   flipY?: boolean;
   horizontalSizing?: "fixed" | "hug" | "fill";
+  textAutoResize?: "width-and-height" | "height" | "none";
   opacity: number;
   visible: boolean;
   locked?: boolean;

@@ -110,13 +110,16 @@ function resolveLayerStyle(layer: BannerLayer, viewport: HomepageViewport): Bann
 function layerCss(style: BannerLayerStyle, scene: BannerScene, layer: BannerLayer): CSSProperties {
   const borderWidth = clamp(style.borderWidth ?? 0, 0, 40);
   const borderAlign = style.borderAlign || "inside";
+  const textAutoResize = layer.type === "text" ? (style.textAutoResize ?? "none") : "none";
   const scalesWithOriginalFrame =
     scene.coordinateMode === "original-hero" && (layer.id === "title" || layer.id === "body");
   return {
     left: `${clamp(style.x, -100, 200)}%`,
     top: `${clamp(style.y, -100, 200)}%`,
-    width: `${clamp(style.width, 0.5, 250)}%`,
-    height: `${clamp(style.height, 0.5, 250)}%`,
+    width:
+      textAutoResize === "width-and-height" ? "max-content" : `${clamp(style.width, 0.5, 250)}%`,
+    height: textAutoResize === "none" ? `${clamp(style.height, 0.5, 250)}%` : "auto",
+    maxWidth: textAutoResize === "width-and-height" ? "none" : undefined,
     transform: `rotate(${clamp(style.rotation, -360, 360)}deg) scaleX(${style.flipX ? -1 : 1}) scaleY(${style.flipY ? -1 : 1})`,
     opacity: clamp(style.opacity, 0, 100) / 100,
     display: style.visible === false ? "none" : undefined,
@@ -145,7 +148,7 @@ function layerCss(style: BannerLayerStyle, scene: BannerScene, layer: BannerLaye
     textTransform: style.textTransform || "none",
     textDecoration: style.textDecoration || "none",
     textUnderlineOffset: style.textDecoration === "underline" ? "4px" : undefined,
-    whiteSpace: style.whiteSpace || "pre-wrap",
+    whiteSpace: textAutoResize === "width-and-height" ? "nowrap" : style.whiteSpace || "pre-wrap",
     boxShadow:
       (style.shadowBlur ?? 0) > 0
         ? `${style.shadowX ?? 0}px ${style.shadowY ?? 8}px ${style.shadowBlur}px ${style.shadowColor ?? "#00000055"}`
@@ -447,16 +450,28 @@ export function BannerSceneView({
             const movingIds = studio.selectedLayerIds.includes(layer.id)
               ? studio.selectedLayerIds
               : [layer.id];
+            const rect = coordinateRoot.getBoundingClientRect();
             const origins = scene.layers
               .filter((item) => movingIds.includes(item.id))
-              .map((item) => ({
-                id: item.id,
-                style: { ...resolveLayerStyle(item, resolvedViewport) },
-              }))
+              .map((item) => {
+                const itemStyle = { ...resolveLayerStyle(item, resolvedViewport) };
+                if (item.type === "text" && (itemStyle.textAutoResize ?? "none") !== "none") {
+                  const element = coordinateRoot.querySelector<HTMLElement>(
+                    `[data-banner-layer="${CSS.escape(item.id)}"]`,
+                  );
+                  const elementRect = element?.getBoundingClientRect();
+                  if (elementRect && rect.width && rect.height) {
+                    itemStyle.x = ((elementRect.left - rect.left) / rect.width) * 100;
+                    itemStyle.y = ((elementRect.top - rect.top) / rect.height) * 100;
+                    itemStyle.width = (elementRect.width / rect.width) * 100;
+                    itemStyle.height = (elementRect.height / rect.height) * 100;
+                  }
+                }
+                return { id: item.id, style: itemStyle };
+              })
               .filter((item) => !item.style.locked);
             const startX = event.clientX;
             const startY = event.clientY;
-            const rect = coordinateRoot.getBoundingClientRect();
             const ownerWindow = event.currentTarget.ownerDocument.defaultView ?? window;
             const alignmentLayers = scene.layers.filter(
               (item) =>
@@ -525,6 +540,8 @@ export function BannerSceneView({
           const commonProps = {
             "data-banner-layer": layer.id,
             "data-layer-type": layer.type,
+            "data-text-resize":
+              layer.type === "text" ? (style.textAutoResize ?? "none") : undefined,
             "data-layer-locked": style.locked || undefined,
             "data-selected": selected || undefined,
             className: `homepage-banner-layer absolute z-10 box-border m-0 overflow-visible ${fixedBannerTypography} ${selected ? "is-selected" : ""}`,

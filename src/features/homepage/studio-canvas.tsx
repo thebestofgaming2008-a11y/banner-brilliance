@@ -383,12 +383,16 @@ export function StudioCanvas({
                     layers={
                       cropLayerId || cropFillId
                         ? []
-                        : selectedLayers.filter(
-                            (layer) =>
+                        : selectedLayers.filter((layer) => {
+                            const style =
+                              viewport === "mobile"
+                                ? { ...layer.style, ...(layer.mobileStyle ?? {}) }
+                                : layer.style;
+                            return (
                               editableLayerIds.includes(layer.id) &&
-                              (selectedRef.kind === "hero" ||
-                                (layer.type !== "image" && !layer.style.locked)),
-                          )
+                              (selectedRef.kind === "hero" || !style.locked)
+                            );
+                          })
                     }
                     viewport={viewport}
                     onPatchLayer={onPatchLayer}

@@ -61,6 +61,7 @@ function textLayer(
       letterSpacing: 0,
       textAlign: "left",
       textTransform: "none",
+      textAutoResize: "none",
       color: "#ffffff",
       ...style,
     }),
@@ -115,6 +116,7 @@ function imageLayer(
     style: baseStyle({
       objectFit: "contain",
       objectPosition: "center bottom",
+      lockAspectRatio: true,
       ...style,
     }),
   };
@@ -453,7 +455,7 @@ function presetBannerImage(src: string, alt = ""): BannerLayer {
     y: 0,
     width: 100,
     height: 100,
-    locked: true,
+    locked: false,
     objectFit: "cover",
     objectPosition: "center",
     cropX: 0,
@@ -467,7 +469,7 @@ function presetBannerImage(src: string, alt = ""): BannerLayer {
     y: 0,
     width: 100,
     height: 100,
-    locked: true,
+    locked: false,
     objectFit: "cover",
     objectPosition: "center",
     cropX: 0,
@@ -492,6 +494,8 @@ export function migratePresetBannerScene(
     Math.min(50, Math.max(-50, Number.isFinite(value) ? Number(value) : 0));
   const zoomValue = (value: number | undefined) =>
     Math.min(300, Math.max(100, Number.isFinite(value) ? Number(value) : 100));
+  const frameValue = (value: number | undefined, fallback: number, min: number, max: number) =>
+    Math.min(max, Math.max(min, Number.isFinite(value) ? Number(value) : fallback));
   return {
     ...generated,
     layers: generated.layers.map((layer) => {
@@ -501,12 +505,42 @@ export function migratePresetBannerScene(
         ...layer,
         style: {
           ...layer.style,
+          x: frameValue(previousImage?.style.x, layer.style.x, -100, 200),
+          y: frameValue(previousImage?.style.y, layer.style.y, -100, 200),
+          width: frameValue(previousImage?.style.width, layer.style.width, 0.5, 250),
+          height: frameValue(previousImage?.style.height, layer.style.height, 0.5, 250),
+          locked: false,
           cropX: cropValue(previousImage?.style.cropX ?? previousFill?.offsetX),
           cropY: cropValue(previousImage?.style.cropY ?? previousFill?.offsetY),
           cropZoom: zoomValue(previousImage?.style.cropZoom ?? previousFill?.zoom),
         },
         mobileStyle: {
           ...(layer.mobileStyle ?? {}),
+          x: frameValue(
+            previousImage?.mobileStyle?.x,
+            layer.mobileStyle?.x ?? layer.style.x,
+            -100,
+            200,
+          ),
+          y: frameValue(
+            previousImage?.mobileStyle?.y,
+            layer.mobileStyle?.y ?? layer.style.y,
+            -100,
+            200,
+          ),
+          width: frameValue(
+            previousImage?.mobileStyle?.width,
+            layer.mobileStyle?.width ?? layer.style.width,
+            0.5,
+            250,
+          ),
+          height: frameValue(
+            previousImage?.mobileStyle?.height,
+            layer.mobileStyle?.height ?? layer.style.height,
+            0.5,
+            250,
+          ),
+          locked: false,
           cropX: cropValue(
             previousImage?.mobileStyle?.cropX ??
               previousImage?.style.cropX ??

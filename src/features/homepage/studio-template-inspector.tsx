@@ -226,6 +226,139 @@ function InspectorHeader({
   );
 }
 
+function LayerFrameControls({
+  layer,
+  style,
+  onPatchLayer,
+}: {
+  layer: BannerLayer;
+  style: BannerLayerStyle;
+  onPatchLayer: (id: string, patch: Partial<BannerLayerStyle>) => void;
+}) {
+  const patch = (next: Partial<BannerLayerStyle>) => onPatchLayer(layer.id, next);
+  const isText = layer.type === "text";
+  return (
+    <>
+      <div className="studio-template-position">
+        <label>
+          <span>X</span>
+          <input
+            type="number"
+            step="0.1"
+            value={Number(style.x.toFixed(1))}
+            onChange={(event) => patch({ x: Number(event.target.value) })}
+          />
+        </label>
+        <label>
+          <span>Y</span>
+          <input
+            type="number"
+            step="0.1"
+            value={Number(style.y.toFixed(1))}
+            onChange={(event) => patch({ y: Number(event.target.value) })}
+          />
+        </label>
+        <label>
+          <span>W</span>
+          <input
+            type="number"
+            min="0.5"
+            step="0.1"
+            value={Number(style.width.toFixed(1))}
+            onChange={(event) => {
+              const width = Number(event.target.value);
+              patch({
+                width,
+                height:
+                  layer.type === "image" && style.lockAspectRatio !== false
+                    ? style.height * (width / Math.max(0.5, style.width))
+                    : style.height,
+                textAutoResize: isText ? "height" : undefined,
+                horizontalSizing: isText ? "fixed" : style.horizontalSizing,
+              });
+            }}
+          />
+        </label>
+        <label>
+          <span>H</span>
+          <input
+            type="number"
+            min="0.5"
+            step="0.1"
+            value={Number(style.height.toFixed(1))}
+            onChange={(event) => {
+              const height = Number(event.target.value);
+              patch({
+                height,
+                width:
+                  layer.type === "image" && style.lockAspectRatio !== false
+                    ? style.width * (height / Math.max(0.5, style.height))
+                    : style.width,
+                textAutoResize: isText ? "none" : undefined,
+              });
+            }}
+          />
+        </label>
+      </div>
+      {isText ? (
+        <>
+          <div className="studio-template-subheading">Text box</div>
+          <div className="studio-template-segment" role="group" aria-label="Text box resizing">
+            <button
+              type="button"
+              className={style.textAutoResize === "width-and-height" ? "is-active" : ""}
+              onClick={() =>
+                patch({
+                  textAutoResize: "width-and-height",
+                  horizontalSizing: "hug",
+                  whiteSpace: "nowrap",
+                })
+              }
+            >
+              Auto width
+            </button>
+            <button
+              type="button"
+              className={style.textAutoResize === "height" ? "is-active" : ""}
+              onClick={() =>
+                patch({
+                  textAutoResize: "height",
+                  horizontalSizing: "fixed",
+                  whiteSpace: "normal",
+                })
+              }
+            >
+              Auto height
+            </button>
+            <button
+              type="button"
+              className={(style.textAutoResize ?? "none") === "none" ? "is-active" : ""}
+              onClick={() =>
+                patch({
+                  textAutoResize: "none",
+                  horizontalSizing: "fixed",
+                })
+              }
+            >
+              Fixed size
+            </button>
+          </div>
+        </>
+      ) : null}
+      {layer.type === "image" ? (
+        <button
+          type="button"
+          className={`studio-template-action ${style.lockAspectRatio !== false ? "is-active" : ""}`}
+          aria-pressed={style.lockAspectRatio !== false}
+          onClick={() => patch({ lockAspectRatio: style.lockAspectRatio === false })}
+        >
+          {style.lockAspectRatio !== false ? "Ratio locked" : "Ratio unlocked"}
+        </button>
+      ) : null}
+    </>
+  );
+}
+
 function HeroTemplate({
   slide,
   selectedLayer,
@@ -292,54 +425,11 @@ function HeroTemplate({
       <section className="studio-template-section">
         <h3>{selectedLayer ? selectedLayer.name : "Text alignment"}</h3>
         {selectedLayer && selectedStyle ? (
-          <div className="studio-template-position">
-            <label>
-              <span>X</span>
-              <input
-                type="number"
-                step="0.1"
-                value={Number(selectedStyle.x.toFixed(1))}
-                onChange={(event) =>
-                  onPatchLayer(selectedLayer.id, { x: Number(event.target.value) })
-                }
-              />
-            </label>
-            <label>
-              <span>Y</span>
-              <input
-                type="number"
-                step="0.1"
-                value={Number(selectedStyle.y.toFixed(1))}
-                onChange={(event) =>
-                  onPatchLayer(selectedLayer.id, { y: Number(event.target.value) })
-                }
-              />
-            </label>
-            <label>
-              <span>W</span>
-              <input
-                type="number"
-                min="0.5"
-                step="0.1"
-                value={Number(selectedStyle.width.toFixed(1))}
-                onChange={(event) =>
-                  onPatchLayer(selectedLayer.id, { width: Number(event.target.value) })
-                }
-              />
-            </label>
-            <label>
-              <span>H</span>
-              <input
-                type="number"
-                min="0.5"
-                step="0.1"
-                value={Number(selectedStyle.height.toFixed(1))}
-                onChange={(event) =>
-                  onPatchLayer(selectedLayer.id, { height: Number(event.target.value) })
-                }
-              />
-            </label>
-          </div>
+          <LayerFrameControls
+            layer={selectedLayer}
+            style={selectedStyle}
+            onPatchLayer={onPatchLayer}
+          />
         ) : null}
         {selectedImage ? (
           <>
@@ -746,6 +836,7 @@ function BannerTemplate({
   categories,
   products,
   viewport,
+  selectedLayer,
   cropLayerId,
   onPatch,
   onPatchLayer,
@@ -757,6 +848,7 @@ function BannerTemplate({
   categories: AdminCategory[];
   products: StoreProduct[];
   viewport: HomepageViewport;
+  selectedLayer: BannerLayer | null;
   cropLayerId: string | null;
   onPatch: (patch: HomepageTemplatePatch) => void;
   onPatchLayer: (id: string, patch: Partial<BannerLayerStyle>) => void;
@@ -771,9 +863,24 @@ function BannerTemplate({
       ? { ...bannerImageLayer.style, ...(bannerImageLayer.mobileStyle ?? {}) }
       : bannerImageLayer.style
     : null;
+  const selectedStyle = selectedLayer
+    ? viewport === "mobile"
+      ? { ...selectedLayer.style, ...(selectedLayer.mobileStyle ?? {}) }
+      : selectedLayer.style
+    : null;
 
   return (
     <>
+      {selectedLayer?.type === "image" && selectedStyle ? (
+        <section className="studio-template-section">
+          <h3>Image frame</h3>
+          <LayerFrameControls
+            layer={selectedLayer}
+            style={selectedStyle}
+            onPatchLayer={onPatchLayer}
+          />
+        </section>
+      ) : null}
       <section className="studio-template-section">
         <h3>Banner type</h3>
         <div className="studio-template-segment" role="group" aria-label="Banner content">
@@ -1106,6 +1213,7 @@ export function StudioTemplateInspector({
             categories={categories}
             products={products}
             viewport={viewport}
+            selectedLayer={selectedLayer}
             cropLayerId={cropLayerId}
             onPatch={onPatch}
             onPatchLayer={onPatchLayer}
