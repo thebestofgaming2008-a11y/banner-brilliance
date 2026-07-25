@@ -225,6 +225,24 @@ test("mobile shop controls scroll and menu search filters the live catalog", asy
 
   const tabs = page.getByRole("tablist", { name: "Product collections" });
   await expect(tabs.getByRole("tab").first()).toBeVisible();
+  const previousCollections = page.getByRole("button", { name: "Previous collections" });
+  const moreCollections = page.getByRole("button", { name: "More collections" });
+  const [previousBox, tabsBox, moreBox] = await Promise.all([
+    previousCollections.boundingBox(),
+    tabs.boundingBox(),
+    moreCollections.boundingBox(),
+  ]);
+  expect(previousBox).not.toBeNull();
+  expect(tabsBox).not.toBeNull();
+  expect(moreBox).not.toBeNull();
+  expect(Math.abs(previousBox!.y - tabsBox!.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(moreBox!.y - tabsBox!.y)).toBeLessThanOrEqual(1);
+  expect(previousBox!.x + previousBox!.width).toBeLessThanOrEqual(tabsBox!.x);
+  expect(moreBox!.x).toBeGreaterThanOrEqual(tabsBox!.x + tabsBox!.width);
+  const searchControl = page.locator(".store-toolbar-control input").first();
+  const searchBox = await searchControl.boundingBox();
+  expect(searchBox).not.toBeNull();
+  expect(searchBox!.y).toBeGreaterThan(previousBox!.y + previousBox!.height);
   const collectionsOverflow = await tabs.evaluate(
     (element) => element.scrollWidth > element.clientWidth,
   );
@@ -268,6 +286,20 @@ test("mobile shop controls scroll and menu search filters the live catalog", asy
   await expect(page).toHaveURL(/\/shop\?q=honey$/);
   await expect(page.locator("article.store-product-card").first()).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test("storefront motion respects reduced-motion preferences", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/shop", { waitUntil: "domcontentloaded", timeout: 60_000 });
+  const firstCard = page.locator("article.store-product-card").first();
+  await firstCard.scrollIntoViewIfNeeded();
+  await expect(firstCard).toBeVisible();
+  await expect
+    .poll(() => firstCard.evaluate((element) => getComputedStyle(element).transitionDuration))
+    .toBe("0s");
+  await expect
+    .poll(() => firstCard.evaluate((element) => getComputedStyle(element).opacity))
+    .toBe("1");
 });
 
 test("account, tracking lookup, and admin entry render", async ({ page }) => {

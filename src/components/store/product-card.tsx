@@ -17,8 +17,8 @@ export function StoreProductCard({
   const { formatPrice } = useCurrency();
 
   return (
-    <article className="store-product-card group min-w-0">
-      <div className="relative aspect-[3/4] overflow-hidden rounded-md bg-[#F7F7F5]">
+    <article className="store-product-card group min-w-0" data-store-reveal>
+      <div className="store-product-card__media relative aspect-[3/4] overflow-hidden rounded-md bg-[#F7F7F5]">
         <a
           href={interactive ? `/products/${product.slug}` : undefined}
           aria-label={`View ${product.name}`}

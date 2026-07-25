@@ -194,6 +194,7 @@ function ProductPage() {
             <figure
               key={`${image}-${index}`}
               className={`w-[88vw] shrink-0 snap-center overflow-hidden bg-[#F7F7F5] md:w-auto ${index === 0 ? "md:col-span-2" : ""}`}
+              data-store-reveal
             >
               <div className="aspect-[3/4] overflow-hidden">
                 <img
@@ -208,7 +209,7 @@ function ProductPage() {
           ))}
         </div>
 
-        <div className="md:sticky md:top-[132px] md:self-start">
+        <div className="md:sticky md:top-[132px] md:self-start" data-store-reveal>
           <p className="section-kicker text-black/45">{product.collection}</p>
           <h1 className="section-heading mt-3 text-[38px] md:text-[52px]">{product.name}</h1>
           {product.reviews > 0 ? (
@@ -317,6 +318,7 @@ function ProductPage() {
         <section
           className="border-t border-black/10 bg-white px-[22px] py-14 md:px-8 md:py-20"
           data-testid="related-products-section"
+          data-store-reveal
         >
           <div className="mx-auto max-w-[1180px]">
             <div className="mb-5 h-1 w-16 brand-mango-bg" />
@@ -337,7 +339,11 @@ function ProductReviews({ productId }: { productId: string }) {
   const reviews = useQuery(api.reviews.listPublishedForProduct, { productId });
 
   return (
-    <section id="reviews" className="border-t border-black/10 px-[22px] py-16 md:px-8">
+    <section
+      id="reviews"
+      className="border-t border-black/10 px-[22px] py-16 md:px-8"
+      data-store-reveal
+    >
       <div className="mx-auto max-w-[1180px]">
         <p className="section-kicker text-black/45">Verified customer feedback</p>
         <h2 className="product-editorial-heading mt-2 text-[40px]">Reviews</h2>

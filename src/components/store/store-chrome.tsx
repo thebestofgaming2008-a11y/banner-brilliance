@@ -16,6 +16,7 @@ import { useAccount } from "@/lib/account";
 import { useCart } from "@/lib/cart";
 import { STORE_LOGO_URL } from "@/lib/store-config";
 import { useCurrency } from "@/hooks/use-currency";
+import { useStoreReveal } from "@/hooks/use-store-reveal";
 import { useCatalogPresentation } from "@/services/catalogPresentation";
 
 function ChromeButton({
@@ -322,13 +323,18 @@ export function StoreHeaderPreview() {
 }
 
 export function StoreFooter() {
+  useStoreReveal();
+
   const { taxonomy } = useCatalogPresentation();
   const collections = taxonomy.filter((item) => item.type === "collection");
   return (
-    <footer className="border-t-[6px] border-[#F18532] bg-black px-4 pb-7 pt-12 text-white md:px-8 md:pt-16">
-      <div className="mx-auto grid max-w-[1280px] gap-11 md:grid-cols-[1.3fr_0.7fr_0.7fr_0.65fr] md:gap-12">
+    <footer className="store-footer border-t-[6px] border-[#F18532] bg-black px-4 pb-7 pt-12 text-white md:px-8 md:pt-16">
+      <div
+        className="mx-auto grid max-w-[1280px] gap-11 md:grid-cols-[1.3fr_0.7fr_0.7fr_0.65fr] md:gap-12"
+        data-store-reveal
+      >
         <div>
-          <img src={STORE_LOGO_URL} alt="Fawzaan" className="h-14 w-auto" />
+          <img src={STORE_LOGO_URL} alt="Fawzaan" className="-ml-[26px] h-14 w-auto" />
           <p className="mt-5 max-w-sm text-[13px] leading-5 text-white/60">
             Premium modest essentials selected for faith, heritage, and everyday quality.
           </p>

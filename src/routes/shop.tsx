@@ -9,7 +9,6 @@ import shemaghManBack from "@/assets/product-photos/shemagh-man-back.jpg";
 import { StoreProductCard } from "@/components/store/product-card";
 import { StorePage } from "@/components/store/store-chrome";
 import { merchandiseProducts, toStoreProduct } from "@/data/store";
-import { useStoreReveal } from "@/hooks/use-store-reveal";
 import {
   listCatalogPresentation,
   type CatalogBanner,
@@ -237,7 +236,6 @@ function PromoBanner({ banner }: { banner: CatalogBanner }) {
 }
 
 function ShopPage() {
-  useStoreReveal();
   const { products: storeProducts, presentation } = Route.useLoaderData();
   const search = Route.useSearch();
   const collectionRows = presentation.taxonomy.filter((row) => row.type === "collection");
@@ -304,20 +302,23 @@ function ShopPage() {
 
       <section className="px-[22px] py-10 md:px-8 md:py-16">
         <div className="mx-auto max-w-[1180px]">
-          <div className="grid gap-4 border-b border-black/10 pb-6 md:grid-cols-[1fr_auto] md:items-end md:gap-5">
-            <div className="relative grid min-w-0 grid-cols-[36px_minmax(0,1fr)_36px] items-start gap-2">
+          <div className="grid gap-4 border-b border-black/10 pb-6">
+            <div
+              className="relative grid min-w-0 grid-cols-[36px_minmax(0,1fr)_36px] items-center gap-2"
+              data-store-reveal
+            >
               <button
                 type="button"
                 aria-label="Previous collections"
                 title="Previous collections"
                 onClick={() => scrollTabs(-1)}
-                className="brand-mango-bg grid h-8 w-8 place-items-center rounded-full text-white"
+                className="shop-scroll-button brand-mango-bg grid h-9 w-9 place-items-center rounded-full text-white"
               >
                 <ChevronLeft size={17} />
               </button>
               <div
                 ref={tabsRef}
-                className="no-scrollbar flex snap-x snap-mandatory gap-6 overflow-x-auto scroll-smooth px-1 touch-pan-x"
+                className="no-scrollbar flex h-9 snap-x snap-mandatory items-center gap-6 overflow-x-auto scroll-smooth px-1 touch-pan-x"
                 role="tablist"
                 aria-label="Product collections"
               >
@@ -328,7 +329,7 @@ function ShopPage() {
                     role="tab"
                     aria-selected={collection === item.slug}
                     onClick={() => setCollection(item.slug)}
-                    className={`relative shrink-0 snap-start pb-3 text-[11px] font-bold uppercase ${collection === item.slug ? "text-black" : "text-black/40"}`}
+                    className={`shop-collection-tab relative flex h-9 shrink-0 snap-start items-center text-[11px] font-bold uppercase ${collection === item.slug ? "text-black" : "text-black/40"}`}
                   >
                     {item.name}
                     {collection === item.slug ? (
@@ -342,13 +343,16 @@ function ShopPage() {
                 aria-label="More collections"
                 title="More collections"
                 onClick={() => scrollTabs(1)}
-                className="brand-mango-bg grid h-8 w-8 place-items-center rounded-full text-white"
+                className="shop-scroll-button brand-mango-bg grid h-9 w-9 place-items-center rounded-full text-white"
               >
                 <ChevronRight size={17} />
               </button>
             </div>
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
-              <label className="flex h-11 min-w-0 items-center gap-2 rounded-md border border-black/15 px-3 md:w-56">
+            <div
+              className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 md:grid-cols-[minmax(0,1fr)_180px]"
+              data-store-reveal
+            >
+              <label className="store-toolbar-control flex h-11 min-w-0 items-center gap-2 rounded-md border border-black/15 px-3">
                 <Search size={16} className="shrink-0 text-[#D9643C]" />
                 <input
                   type="search"
@@ -358,7 +362,7 @@ function ShopPage() {
                   className="min-w-0 flex-1 bg-transparent text-[13px] outline-none"
                 />
               </label>
-              <label className="flex h-11 min-w-[118px] items-center gap-2 rounded-md border border-black/15 px-3">
+              <label className="store-toolbar-control flex h-11 min-w-[118px] items-center gap-2 rounded-md border border-black/15 px-3">
                 <SlidersHorizontal size={15} className="shrink-0 text-[#D9643C]" />
                 <select
                   value={sort}
@@ -373,11 +377,14 @@ function ShopPage() {
               </label>
             </div>
             {filterRows.length ? (
-              <div className="no-scrollbar col-span-full flex gap-2 overflow-x-auto pb-1 touch-pan-x">
+              <div
+                className="no-scrollbar flex gap-2 overflow-x-auto pb-1 touch-pan-x"
+                data-store-reveal
+              >
                 <button
                   type="button"
                   onClick={() => setActiveFilter("")}
-                  className={`shrink-0 rounded-md border px-3 py-2 text-[10px] font-bold uppercase ${!activeFilter ? "border-black bg-black text-white" : "border-black/15"}`}
+                  className={`store-filter-chip shrink-0 rounded-md border px-3 py-2 text-[10px] font-bold uppercase ${!activeFilter ? "border-black bg-black text-white" : "border-black/15"}`}
                 >
                   Any label
                 </button>
@@ -386,7 +393,7 @@ function ShopPage() {
                     key={filter.slug}
                     type="button"
                     onClick={() => setActiveFilter(filter.slug === activeFilter ? "" : filter.slug)}
-                    className={`shrink-0 rounded-md border px-3 py-2 text-[10px] font-bold uppercase ${activeFilter === filter.slug ? "border-black bg-black text-white" : "border-black/15"}`}
+                    className={`store-filter-chip shrink-0 rounded-md border px-3 py-2 text-[10px] font-bold uppercase ${activeFilter === filter.slug ? "border-black bg-black text-white" : "border-black/15"}`}
                   >
                     {filter.name}
                   </button>
