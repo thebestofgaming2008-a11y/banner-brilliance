@@ -248,27 +248,74 @@ test.describe("fixed-template homepage studio", () => {
     ).toHaveAttribute("data-selected", "true");
     await inspector.getByLabel("Small label", { exact: true }).fill("LIMITED RELEASE");
     await inspector.getByLabel("Title", { exact: true }).fill("RAMADAN OFFER");
-    await inspector.getByRole("button", { name: "Align text right" }).click();
+    await inspector
+      .getByLabel("Subtitle", { exact: true })
+      .fill("Raw floral honey, selected by origin.");
     const standalone = frame.locator('[data-homepage-banner-id][data-editor-active="true"]');
+    const honeyBanner = frame.locator("#honey .collection-banner");
+    const honeyTitle = honeyBanner.getByRole("heading", { name: "KASHMIR HONEY" });
     await expect(standalone).toContainText("LIMITED RELEASE");
     await expect(standalone).toContainText("RAMADAN OFFER");
     await expect(standalone.locator('[data-banner-layer="button"]')).toHaveCount(0);
     await expect(inspector.getByLabel("Shop button text", { exact: true })).toHaveCount(0);
+    await expect(inspector.getByRole("button", { name: "Align text right" })).toHaveCount(0);
+    await expect(inspector.getByLabel("Text colour", { exact: true })).toHaveCount(0);
     await expect(standalone.getByRole("heading", { name: "RAMADAN OFFER" })).toHaveCSS(
       "text-align",
-      "right",
+      "left",
     );
     const presetTitle = standalone.locator('[data-banner-layer="title"]');
-    await expect(presetTitle).not.toHaveAttribute("data-layer-locked", "true");
+    const [honeyBannerBox, standaloneBox, honeyTitleBox, presetTitleBox] = await Promise.all([
+      honeyBanner.boundingBox(),
+      standalone.boundingBox(),
+      honeyTitle.boundingBox(),
+      presetTitle.boundingBox(),
+    ]);
+    expect(honeyBannerBox).not.toBeNull();
+    expect(standaloneBox).not.toBeNull();
+    expect(honeyTitleBox).not.toBeNull();
+    expect(presetTitleBox).not.toBeNull();
+    if (honeyBannerBox && standaloneBox && honeyTitleBox && presetTitleBox) {
+      expect(Math.abs(honeyBannerBox.width - standaloneBox.width)).toBeLessThan(1);
+      expect(Math.abs(honeyBannerBox.height - standaloneBox.height)).toBeLessThan(1);
+      expect(
+        Math.abs(honeyTitleBox.x - honeyBannerBox.x - (presetTitleBox.x - standaloneBox.x)),
+      ).toBeLessThan(1);
+      expect(
+        Math.abs(honeyTitleBox.y - honeyBannerBox.y - (presetTitleBox.y - standaloneBox.y)),
+      ).toBeLessThan(1);
+    }
+    const honeyTitleTypography = await honeyTitle.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        fontFamily: style.fontFamily,
+        fontSize: style.fontSize,
+        fontWeight: style.fontWeight,
+        lineHeight: style.lineHeight,
+        textTransform: style.textTransform,
+      };
+    });
+    await expect
+      .poll(() =>
+        presetTitle.evaluate((element) => {
+          const style = getComputedStyle(element);
+          return {
+            fontFamily: style.fontFamily,
+            fontSize: style.fontSize,
+            fontWeight: style.fontWeight,
+            lineHeight: style.lineHeight,
+            textTransform: style.textTransform,
+          };
+        }),
+      )
+      .toEqual(honeyTitleTypography);
+    await expect(presetTitle).toHaveAttribute("data-layer-locked", "true");
     await presetTitle.click();
     const titleSelection = standalone.locator(
       '.studio-selection-box[data-selection-layer="title"]',
     );
-    await expect(titleSelection).toBeVisible();
-    await expect(titleSelection.locator(".studio-selection-handle")).toHaveCount(8);
-    const titleLeftBefore = await presetTitle.evaluate((element) =>
-      Number.parseFloat(element.style.left),
-    );
+    await expect(titleSelection).toHaveCount(0);
+    const titleLeftBefore = (await presetTitle.boundingBox())?.x ?? 0;
     const titleBox = await presetTitle.boundingBox();
     expect(titleBox).not.toBeNull();
     if (titleBox) {
@@ -278,27 +325,23 @@ test.describe("fixed-template homepage studio", () => {
       await page.mouse.up();
     }
     await expect
-      .poll(() => presetTitle.evaluate((element) => Number.parseFloat(element.style.left)))
-      .toBeGreaterThan(titleLeftBefore);
-    const titleLeftAfterDrag = await presetTitle.evaluate((element) =>
-      Number.parseFloat(element.style.left),
-    );
+      .poll(async () => (await presetTitle.boundingBox())?.x ?? 0)
+      .toBeCloseTo(titleLeftBefore, 3);
     await presetTitle.dblclick();
     await presetTitle.locator('[contenteditable="true"]').fill("RAMADAN OFFER UPDATED");
     await presetTitle.locator('[contenteditable="true"]').press("Tab");
     await expect(inspector.getByLabel("Title", { exact: true })).toHaveValue(
       "RAMADAN OFFER UPDATED",
     );
-    await inspector.getByLabel("Text colour", { exact: true }).fill("#123456");
     await expect(standalone.getByRole("heading", { name: "RAMADAN OFFER UPDATED" })).toHaveCSS(
       "color",
-      "rgb(18, 52, 86)",
+      "rgb(255, 255, 255)",
     );
 
     await inspector.getByLabel("Banner image URL").fill("/homepage/hero-shemagh.webp");
     await expect
-      .poll(() => presetTitle.evaluate((element) => Number.parseFloat(element.style.left)))
-      .toBeCloseTo(titleLeftAfterDrag, 3);
+      .poll(async () => (await presetTitle.boundingBox())?.x ?? 0)
+      .toBeCloseTo(titleLeftBefore, 3);
     await expect(inspector.getByRole("button", { name: "Crop image" })).toBeVisible();
     await expect(inspector.getByText("Desktop crop", { exact: true })).toBeVisible();
     await inspector.getByLabel("Zoom %", { exact: true }).fill("125");
@@ -312,7 +355,7 @@ test.describe("fixed-template homepage studio", () => {
       standalone.locator('.studio-selection-box[data-selection-layer="banner-image"]'),
     ).toHaveCount(0);
     await expect(bannerImage).toHaveCSS("left", "0px");
-    await expect(bannerImage).toHaveCSS("width", "1120px");
+    await expect(bannerImage).toHaveCSS("width", "1180px");
 
     await bannerImage.dblclick({ position: { x: 100, y: 50 } });
     await expect(page.getByText("Crop image", { exact: true })).toBeVisible();

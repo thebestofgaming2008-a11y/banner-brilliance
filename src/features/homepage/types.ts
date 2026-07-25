@@ -97,6 +97,7 @@ export type BannerScene = {
   height: number;
   mobileHeight: number;
   coordinateMode?: "full" | "original-hero";
+  preset?: "honey-banner";
   fills: BannerFill[];
   layers: BannerLayer[];
 };

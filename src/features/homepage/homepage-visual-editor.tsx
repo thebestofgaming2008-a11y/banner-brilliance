@@ -358,22 +358,19 @@ function refreshBannerPresentation(
   generated: BannerScene,
   previous?: BannerScene,
   preserveFillTransforms = true,
-  preserveTextStyles = true,
 ): BannerScene {
-  return migratePresetBannerScene(generated, previous, preserveFillTransforms, preserveTextStyles);
+  return migratePresetBannerScene(generated, previous, preserveFillTransforms);
 }
 
 function refreshCollectionScene(
   props: CollectionFeatureProps,
   previous?: BannerScene,
   preserveFillTransforms = true,
-  preserveTextStyles = true,
 ) {
   return refreshBannerPresentation(
     sceneFromCollectionFeature(props),
     previous,
     preserveFillTransforms,
-    preserveTextStyles,
   );
 }
 
@@ -381,14 +378,8 @@ function refreshPromoScene(
   props: PromoBannerProps,
   previous?: BannerScene,
   preserveFillTransforms = true,
-  preserveTextStyles = true,
 ) {
-  return refreshBannerPresentation(
-    sceneFromPromo(props),
-    previous,
-    preserveFillTransforms,
-    preserveTextStyles,
-  );
+  return refreshBannerPresentation(sceneFromPromo(props), previous, preserveFillTransforms);
 }
 
 function IconButton({
@@ -965,10 +956,7 @@ export function HomepageVisualEditor({
     }, 0);
   };
 
-  const addSection = (
-    kind: "standalone" | "collection",
-    layout: "banner-top" | "banner-left" | "banner-right" = "banner-top",
-  ) => {
+  const addSection = (kind: "standalone" | "collection") => {
     const current = dataRef.current;
     if (!current) return;
     const next = clone(current);
@@ -977,7 +965,6 @@ export function HomepageVisualEditor({
         ? createStandaloneBanner()
         : createCollectionWithProducts(
             categories.find((category) => category.type === "collection")?.slug || "all",
-            layout,
           );
     next.content.push(item);
     commit(next);
@@ -1129,31 +1116,33 @@ export function HomepageVisualEditor({
     } else if (selectedRef.kind === "collection-feature" && item.type === "CollectionFeature") {
       const previousScene = item.props.scene;
       const previousImage = item.props.image;
-      const preserveTextStyles = !["textAlign", "textColor", "titleSize", "mobileTitleSize"].some(
-        (key) => key in patch,
-      );
       Object.assign(item.props, patch);
       item.props.layout = "banner-top";
+      item.props.textTone = "light";
+      item.props.textColor = "#ffffff";
+      item.props.textAlign = "left";
       item.props.titleFont = "sans";
+      item.props.titleSize = 62;
+      item.props.mobileTitleSize = 38;
       item.props.scene = refreshCollectionScene(
         item.props,
         previousScene,
         previousImage === item.props.image,
-        preserveTextStyles,
       );
     } else if (selectedRef.kind === "standalone" && item.type === "PromoBanner") {
       const previousScene = item.props.scene;
       const previousImage = item.props.backgroundImage;
-      const preserveTextStyles = !["textAlign", "textColor", "titleSize", "mobileTitleSize"].some(
-        (key) => key in patch,
-      );
       Object.assign(item.props, patch);
+      item.props.textTone = "light";
+      item.props.textColor = "#ffffff";
+      item.props.textAlign = "left";
       item.props.titleFont = "sans";
+      item.props.titleSize = 62;
+      item.props.mobileTitleSize = 38;
       item.props.scene = refreshPromoScene(
         item.props,
         previousScene,
         previousImage === item.props.backgroundImage,
-        preserveTextStyles,
       );
     }
     commit(next, true);

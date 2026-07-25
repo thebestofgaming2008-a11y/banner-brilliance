@@ -451,9 +451,9 @@ export function sceneFromCollectionCard(card: CollectionCard, index = 0): Banner
   };
 }
 
-const CUSTOM_BANNER_TEMPLATE_VERSION = 2;
-const CUSTOM_BANNER_HEIGHT = 620;
-const CUSTOM_BANNER_MOBILE_HEIGHT = 500;
+const CUSTOM_BANNER_TEMPLATE_VERSION = 3;
+const CUSTOM_BANNER_HEIGHT = 520;
+const CUSTOM_BANNER_MOBILE_HEIGHT = 420;
 
 function presetBannerImage(src: string, alt = ""): BannerLayer {
   const image = imageLayer("banner-image", "Banner image", src, {
@@ -490,61 +490,20 @@ export function migratePresetBannerScene(
   generated: BannerScene,
   previous?: BannerScene,
   preserveCrop = true,
-  preserveTextStyles = true,
 ): BannerScene {
   if (!previous) return generated;
   const previousImage = previous.layers?.find((layer) => layer.id === "banner-image");
   const previousFill = [...(previous.fills ?? [])]
     .reverse()
     .find((fill) => fill.type === "image" && fill.src);
-  const currentTemplate = previous.templateVersion === CUSTOM_BANNER_TEMPLATE_VERSION;
   const cropValue = (value: number | undefined) =>
     Math.min(50, Math.max(-50, Number.isFinite(value) ? Number(value) : 0));
   const zoomValue = (value: number | undefined) =>
     Math.min(300, Math.max(100, Number.isFinite(value) ? Number(value) : 100));
-  const preservedTextStyle = (
-    style: Partial<BannerLayerStyle> | undefined,
-  ): Partial<BannerLayerStyle> => {
-    if (!style) return {};
-    const result: Partial<BannerLayerStyle> = {
-      x: style.x,
-      y: style.y,
-      width: style.width,
-      height: style.height,
-      rotation: style.rotation,
-    };
-    if (preserveTextStyles) {
-      result.fontFamily = style.fontFamily;
-      result.fontSize = style.fontSize;
-      result.fontWeight = style.fontWeight;
-      result.lineHeight = style.lineHeight;
-      result.textAlign = style.textAlign;
-      result.color = style.color;
-    }
-    return Object.fromEntries(
-      Object.entries(result).filter(([, value]) => value !== undefined),
-    ) as Partial<BannerLayerStyle>;
-  };
   return {
     ...generated,
     layers: generated.layers.map((layer) => {
-      if (layer.id !== "banner-image") {
-        const previousLayer = currentTemplate
-          ? previous.layers.find((candidate) => candidate.id === layer.id)
-          : undefined;
-        if (!previousLayer || layer.type !== "text") return layer;
-        return {
-          ...layer,
-          style: {
-            ...layer.style,
-            ...preservedTextStyle(previousLayer.style),
-          },
-          mobileStyle: {
-            ...(layer.mobileStyle ?? {}),
-            ...preservedTextStyle(previousLayer.mobileStyle),
-          },
-        };
-      }
+      if (layer.id !== "banner-image") return layer;
       if (!preserveCrop) return layer;
       return {
         ...layer,
@@ -578,22 +537,9 @@ export function migratePresetBannerScene(
 }
 
 function presetBannerTextLayers(
-  props: Pick<
-    CollectionFeatureProps,
-    | "contentMode"
-    | "eyebrow"
-    | "title"
-    | "body"
-    | "textTone"
-    | "textColor"
-    | "textAlign"
-    | "titleSize"
-    | "mobileTitleSize"
-  >,
+  props: Pick<CollectionFeatureProps, "contentMode" | "eyebrow" | "title" | "body">,
 ) {
   const imageOnly = props.contentMode === "image-only";
-  const light = props.textTone === "light";
-  const color = props.textColor || (light ? "#ffffff" : "#000000");
   const overlay: BannerLayer = {
     id: "banner-overlay",
     name: "Text overlay",
@@ -605,62 +551,69 @@ function presetBannerTextLayers(
       height: 100,
       locked: true,
       visible: !imageOnly,
-      backgroundImage: light
-        ? "linear-gradient(180deg, transparent 30%, rgba(0, 0, 0, 0.72) 100%)"
-        : "linear-gradient(180deg, transparent 30%, rgba(255, 255, 255, 0.82) 100%)",
+      backgroundImage:
+        "linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.15) 50%, rgba(0, 0, 0, 0.76) 100%)",
     }),
   };
   const eyebrow = textLayer("eyebrow", "Eyebrow", props.eyebrow, {
-    x: 6,
-    y: 56,
-    width: 88,
-    height: 5,
-    fontSize: 12,
-    fontWeight: 600,
+    x: 3.05,
+    y: 72.2,
+    width: 93.9,
+    height: 2.2,
+    fontSize: 10,
+    fontWeight: 800,
+    lineHeight: 1,
     textTransform: "uppercase",
-    textAlign: props.textAlign,
-    color,
+    textAlign: "left",
+    color: "#ffffff",
+    opacity: 72,
+    locked: true,
     visible: !imageOnly,
   });
-  eyebrow.mobileStyle = { x: 6, y: 57, width: 88, height: 5 };
+  eyebrow.mobileStyle = { x: 6.88, y: 73.4, width: 86.24, height: 2.5 };
   const title = textLayer(
     "title",
     "Title",
     props.title,
     {
-      x: 6,
-      y: 63,
-      width: 88,
-      height: 16,
+      x: 3.05,
+      y: 75.65,
+      width: 93.9,
+      height: 11,
       fontFamily: "schibsted",
-      fontSize: props.titleSize,
-      fontWeight: 400,
-      lineHeight: 0.95,
-      textAlign: props.textAlign,
-      color,
+      fontSize: 62,
+      fontWeight: 850,
+      lineHeight: 0.88,
+      textAlign: "left",
+      textTransform: "uppercase",
+      color: "#ffffff",
+      locked: true,
       visible: !imageOnly,
     },
     "h2",
   );
   title.mobileStyle = {
-    x: 6,
-    y: 64,
-    width: 88,
-    height: 16,
-    fontSize: props.mobileTitleSize,
+    x: 6.88,
+    y: 77.7,
+    width: 86.24,
+    height: 10,
+    fontSize: 38,
   };
   const body = textLayer("body", "Description", props.body, {
-    x: 6,
-    y: 82,
-    width: 88,
-    height: 9,
-    fontSize: 14,
-    lineHeight: 1.4,
-    textAlign: props.textAlign,
-    color,
+    x: 3.05,
+    y: 89.2,
+    width: 27.12,
+    height: 4,
+    fontSize: 13,
+    fontWeight: 400,
+    lineHeight: 1.55,
+    textAlign: "left",
+    color: "#ffffff",
+    opacity: 74,
+    locked: true,
     visible: !imageOnly,
   });
-  body.mobileStyle = { x: 6, y: 82, width: 88, height: 9 };
+  body.mobileStyle = { x: 6.88, y: 89.5, width: 86.24, height: 4.8 };
   return imageOnly ? [] : [overlay, eyebrow, title, body];
 }
 
@@ -672,6 +625,7 @@ export function sceneFromCollectionFeature(props: CollectionFeatureProps): Banne
     name: props.title || "Collection with products",
     height: CUSTOM_BANNER_HEIGHT,
     mobileHeight: CUSTOM_BANNER_MOBILE_HEIGHT,
+    preset: "honey-banner",
     fills: [
       { id: "fill-solid", type: "solid", enabled: true, opacity: 100, color: props.bannerColor },
     ],
@@ -687,6 +641,7 @@ export function sceneFromPromo(props: PromoBannerProps): BannerScene {
     name: props.title || "Standalone banner",
     height: CUSTOM_BANNER_HEIGHT,
     mobileHeight: CUSTOM_BANNER_MOBILE_HEIGHT,
+    preset: "honey-banner",
     fills: [
       {
         id: "fill-solid",
@@ -706,6 +661,13 @@ export function ensureCustomBannerScenes(data: HomepageData): HomepageData {
     if (item.type === "CollectionFeature") {
       item.props.contentMode =
         item.props.contentMode === "image-only" ? "image-only" : "text-overlay";
+      item.props.layout = "banner-top";
+      item.props.textTone = "light";
+      item.props.textColor = "#ffffff";
+      item.props.textAlign = "left";
+      item.props.titleFont = "sans";
+      item.props.titleSize = 62;
+      item.props.mobileTitleSize = 38;
       item.props.imageAlt = String(item.props.imageAlt ?? "");
       item.props.imageLink = String(item.props.imageLink ?? "");
       item.props.scene = migratePresetBannerScene(
@@ -715,6 +677,12 @@ export function ensureCustomBannerScenes(data: HomepageData): HomepageData {
     } else if (item.type === "PromoBanner") {
       item.props.contentMode =
         item.props.contentMode === "image-only" ? "image-only" : "text-overlay";
+      item.props.textTone = "light";
+      item.props.textColor = "#ffffff";
+      item.props.textAlign = "left";
+      item.props.titleFont = "sans";
+      item.props.titleSize = 62;
+      item.props.mobileTitleSize = 38;
       item.props.imageAlt = String(item.props.imageAlt ?? "");
       item.props.imageLink = String(item.props.imageLink ?? "");
       item.props.scene = migratePresetBannerScene(sceneFromPromo(item.props), item.props.scene);
@@ -924,23 +892,20 @@ export function createStandaloneBanner(): HomepageContentItem {
     textColor: "#ffffff",
     textAlign: "left",
     titleFont: "sans",
-    titleSize: 72,
-    mobileTitleSize: 44,
+    titleSize: 62,
+    mobileTitleSize: 38,
     buttonBackgroundColor: "#ffffff",
     buttonTextColor: "#000000",
     imageFocus: "center",
     foregroundScale: 55,
     overlayOpacity: 12,
-    minHeight: 560,
+    minHeight: 520,
   };
   props.scene = sceneFromPromo(props);
   return { type: "PromoBanner", props };
 }
 
-export function createCollectionWithProducts(
-  collection = "all",
-  layout: CollectionFeatureProps["layout"] = "banner-top",
-): HomepageContentItem {
+export function createCollectionWithProducts(collection = "all"): HomepageContentItem {
   const id = createStudioId("collection");
   const props: CollectionFeatureProps & { id: string } = {
     id,
@@ -960,13 +925,13 @@ export function createCollectionWithProducts(
     textColor: "#ffffff",
     textAlign: "left",
     titleFont: "sans",
-    titleSize: 68,
-    mobileTitleSize: 42,
+    titleSize: 62,
+    mobileTitleSize: 38,
     buttonBackgroundColor: "#ffffff",
     buttonTextColor: "#000000",
     productLimit: 4,
     productSelection: "collection",
-    layout,
+    layout: "banner-top",
   };
   props.scene = sceneFromCollectionFeature(props);
   return { type: "CollectionFeature", props };

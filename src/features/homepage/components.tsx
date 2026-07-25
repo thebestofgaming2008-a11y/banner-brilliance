@@ -805,9 +805,9 @@ export function HomepageCollectionFeature({
     </div>
   );
   return (
-    <section className="px-[18px] py-14 md:px-8 md:py-20" style={{ backgroundColor }}>
+    <section className="px-[22px] py-16 md:px-8 md:py-24" style={{ backgroundColor }}>
       <div
-        className={`mx-auto max-w-[1120px] ${layout === "banner-top" ? "space-y-10" : "grid gap-6 md:grid-cols-[0.9fr_1.1fr]"}`}
+        className={`mx-auto max-w-[1180px] ${layout === "banner-top" ? "space-y-10" : "grid gap-6 md:grid-cols-[0.9fr_1.1fr]"}`}
       >
         {layout === "banner-right" ? grid : banner}
         {layout === "banner-right" ? banner : grid}
@@ -825,12 +825,12 @@ export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
   const editorKey = props.id ? `${props.id}:standalone` : undefined;
   const editorSession = useStudioBannerSession(editorKey);
   return (
-    <section className="bg-white px-[18px] py-14 md:px-8 md:py-20">
+    <section className="bg-white px-[22px] py-16 md:px-8 md:py-24">
       <div
         data-homepage-banner-id={props.id}
         data-editor-banner-key={props.editMode ? editorKey : undefined}
         data-editor-active={props.editMode && editorSession ? "true" : undefined}
-        className="relative mx-auto max-w-[1120px] overflow-hidden"
+        className="relative mx-auto max-w-[1180px] overflow-hidden"
         style={{
           minHeight: props.scene ? undefined : `${Math.max(300, props.minHeight)}px`,
           backgroundColor: props.backgroundColor,

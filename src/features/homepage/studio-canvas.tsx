@@ -386,7 +386,8 @@ export function StudioCanvas({
                         : selectedLayers.filter(
                             (layer) =>
                               editableLayerIds.includes(layer.id) &&
-                              (selectedRef.kind === "hero" || layer.type !== "image"),
+                              (selectedRef.kind === "hero" ||
+                                (layer.type !== "image" && !layer.style.locked)),
                           )
                     }
                     viewport={viewport}

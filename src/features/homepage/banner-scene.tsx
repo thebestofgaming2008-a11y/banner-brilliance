@@ -47,7 +47,7 @@ function fontFamily(value: BannerLayerStyle["fontFamily"]) {
   if (value === "instrument") return '"Instrument Serif", Georgia, serif';
   if (value === "serif") return "Georgia, Times, serif";
   if (value === "sans") return "Arial, Helvetica, sans-serif";
-  return '"Schibsted Grotesk", Arial, sans-serif';
+  return "var(--font-sans-ui)";
 }
 
 function withAlpha(color: string | undefined, fallback: string) {
@@ -201,6 +201,7 @@ export function BannerSceneView({
   const backgroundCropChange = studio?.onBackgroundCropChange ?? onBackgroundCropChange;
   const resolvedViewport = useSceneViewport(studioViewport ?? viewport);
   const height = resolvedViewport === "mobile" ? scene.mobileHeight : scene.height;
+  const fixedHoneyPreset = scene.preset === "honey-banner";
   const fills = useMemo(() => scene.fills.filter((fill) => fill.enabled), [scene.fills]);
   const backgroundSelected = Boolean(
     studio && !studio.interactionDisabled && studio.selectedLayerIds.length === 0,
@@ -322,7 +323,17 @@ export function BannerSceneView({
         style={
           scene.coordinateMode === "original-hero"
             ? { aspectRatio: "390 / 649", pointerEvents: "none", transform: "translateX(-50%)" }
-            : { pointerEvents: "none" }
+            : fixedHoneyPreset
+              ? {
+                  pointerEvents: "none",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "flex-end",
+                  alignItems: "flex-start",
+                  boxSizing: "border-box",
+                  padding: resolvedViewport === "mobile" ? "24px" : "36px",
+                }
+              : { pointerEvents: "none" }
         }
       >
         {scene.layers.map((layer, index) => {
@@ -332,6 +343,29 @@ export function BannerSceneView({
           const selected = activeSelectedLayerId === layer.id;
           const editing = activeEditingLayerId === layer.id;
           const cropping = activeCropLayerId === layer.id;
+          const fixedBannerTypography = fixedHoneyPreset
+            ? layer.id === "title"
+              ? "banner-heading"
+              : layer.id === "eyebrow"
+                ? "section-kicker"
+                : layer.id === "body"
+                  ? "commerce-copy"
+                  : ""
+            : "";
+          const fixedBannerTextStyle: CSSProperties =
+            fixedBannerTypography && layer.type === "text"
+              ? {
+                  position: "static",
+                  left: "auto",
+                  top: "auto",
+                  width: layer.id === "body" ? "min(320px, 100%)" : "100%",
+                  height: "auto",
+                  flex: "0 0 auto",
+                  marginTop: layer.id === "title" ? "8px" : layer.id === "body" ? "16px" : 0,
+                  whiteSpace: "normal",
+                  display: layer.text ? undefined : "none",
+                }
+              : {};
           const startLayerDrag = (event: ReactPointerEvent<HTMLElement>) => {
             if (
               !studio ||
@@ -437,9 +471,10 @@ export function BannerSceneView({
             "data-layer-type": layer.type,
             "data-layer-locked": style.locked || undefined,
             "data-selected": selected || undefined,
-            className: `homepage-banner-layer absolute z-10 box-border m-0 overflow-visible ${selected ? "is-selected" : ""}`,
+            className: `homepage-banner-layer absolute z-10 box-border m-0 overflow-visible ${fixedBannerTypography} ${selected ? "is-selected" : ""}`,
             style: {
               ...layerCss(style),
+              ...fixedBannerTextStyle,
               zIndex: index + 1,
               pointerEvents: studio && !layerEditable ? ("none" as const) : ("auto" as const),
             },
