@@ -121,6 +121,10 @@ test("shop product cart and checkout path uses the live product", async ({ page 
     "font-family",
     /Cormorant Garamond/,
   );
+  await expect(page.getByRole("heading", { name: productName, exact: true })).toHaveCSS(
+    "font-weight",
+    "700",
+  );
   await expect(page.locator("main img, section img").first()).toBeVisible();
   const addToCartButton = page.getByRole("button", { name: "Add to cart" }).first();
   await expect(addToCartButton).toHaveCSS("color", "rgb(255, 255, 255)");
@@ -400,7 +404,7 @@ test("mobile shop controls scroll and menu search filters the live catalog", asy
   );
   await expect(storeMenu.getByRole("link", { name: "Shop all", exact: true })).toHaveCSS(
     "font-weight",
-    "500",
+    "700",
   );
   const currencyButton = storeMenu.getByRole("button", { name: /^Currency:/ });
   await currencyButton.click();
