@@ -155,6 +155,68 @@ test("shop product cart and checkout path uses the live product", async ({ page 
   expect(errors).toEqual([]);
 });
 
+test("product choices remain attached to the cart line", async ({ page }) => {
+  const catalogResponse = await page.request.get("/api/catalog/products");
+  const catalog = (await catalogResponse.json()) as Array<{
+    slug: string;
+    stock_quantity?: number;
+    is_active?: boolean;
+    color_options?: string[];
+    size_options?: string[];
+  }>;
+  const product = catalog.find(
+    (item) =>
+      item.is_active !== false &&
+      Number(item.stock_quantity ?? 0) > 0 &&
+      Boolean(item.color_options?.length || item.size_options?.length),
+  );
+  expect(product, "The live catalog needs an in-stock product with customer choices").toBeTruthy();
+
+  await page.goto(`/products/${product!.slug}`, {
+    waitUntil: "domcontentloaded",
+    timeout: 60_000,
+  });
+  const selectedValues: string[] = [];
+  for (const [name, values] of [
+    ["colour", product!.color_options],
+    ["size", product!.size_options],
+  ] as const) {
+    if (!values?.length) continue;
+    const value = values.at(-1)!;
+    await page
+      .getByRole("group", { name: `Select ${name}` })
+      .getByRole("button", { name: value })
+      .click();
+    selectedValues.push(value);
+  }
+
+  await page.getByRole("button", { name: "Add to cart" }).first().click();
+  await page.goto("/cart");
+  await expect(
+    page.getByRole("article").getByText(selectedValues.join(" / "), { exact: true }),
+  ).toBeVisible();
+});
+
+test("stale generated product media falls back to a stable catalog image", async ({ page }) => {
+  const catalogResponse = await page.request.get("/api/catalog/products");
+  const catalog = (await catalogResponse.json()) as Array<{
+    slug: string;
+    cover_image_url?: string | null;
+  }>;
+  const product = catalog.find((item) =>
+    /^\/assets\/.+-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/.test(item.cover_image_url ?? ""),
+  );
+  test.skip(!product, "The live catalog has no stale generated product media.");
+
+  await page.goto(`/products/${product!.slug}`, {
+    waitUntil: "domcontentloaded",
+    timeout: 60_000,
+  });
+  const productImage = page.locator("section figure img").first();
+  await expect(productImage).toBeVisible();
+  await expect.poll(() => productImage.evaluate((image) => image.naturalWidth)).toBeGreaterThan(0);
+});
+
 test("mobile shop controls scroll and menu search filters the live catalog", async ({ page }) => {
   test.setTimeout(90_000);
   const errors = watchPageErrors(page);
@@ -186,6 +248,10 @@ test("mobile shop controls scroll and menu search filters the live catalog", asy
     if ((await storeMenu.getAttribute("aria-hidden")) !== "false") await openMenu.click();
     await expect(storeMenu).toHaveAttribute("aria-hidden", "false");
   }).toPass({ timeout: 30_000 });
+  await expect(storeMenu.getByRole("link", { name: "Home", exact: true })).toHaveAttribute(
+    "href",
+    "/",
+  );
   const currencyButton = storeMenu.getByRole("button", { name: /^Currency:/ });
   await currencyButton.click();
   const currencySearch = storeMenu.getByRole("searchbox", { name: "Search currencies" });

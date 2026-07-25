@@ -141,6 +141,7 @@ export function StoreHeader() {
           <p className="section-kicker text-black/45">Shop</p>
           <ul className="mt-5 divide-y divide-black/10">
             {[
+              ["Home", "/"],
               ["Shop all", "/shop"],
               ...collections.map((item) => [
                 item.name,
@@ -324,8 +325,8 @@ export function StoreFooter() {
   const { taxonomy } = useCatalogPresentation();
   const collections = taxonomy.filter((item) => item.type === "collection");
   return (
-    <footer className="border-t-[6px] border-[#F18532] bg-black px-[22px] pb-7 pt-12 text-white md:px-8 md:pt-16">
-      <div className="mx-auto grid max-w-[1120px] gap-11 md:grid-cols-[1.3fr_0.7fr_0.7fr_0.65fr] md:gap-12">
+    <footer className="border-t-[6px] border-[#F18532] bg-black px-4 pb-7 pt-12 text-white md:px-8 md:pt-16">
+      <div className="mx-auto grid max-w-[1280px] gap-11 md:grid-cols-[1.3fr_0.7fr_0.7fr_0.65fr] md:gap-12">
         <div>
           <img src={STORE_LOGO_URL} alt="Fawzaan" className="h-14 w-auto" />
           <p className="mt-5 max-w-sm text-[13px] leading-5 text-white/60">
@@ -378,7 +379,7 @@ export function StoreFooter() {
           </a>
         </div>
       </div>
-      <div className="mx-auto mt-12 max-w-[1120px] border-t border-white/15 pt-6 text-[10px] uppercase text-white/40">
+      <div className="mx-auto mt-12 max-w-[1280px] border-t border-white/15 pt-6 text-[10px] uppercase text-white/40">
         <p>© 2026 Fawzaan. All rights reserved.</p>
       </div>
     </footer>

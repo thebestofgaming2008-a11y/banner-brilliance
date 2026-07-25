@@ -4722,6 +4722,23 @@ function cleanImageUrl(value: string | null | undefined) {
   return raw.split("#")[0] || null;
 }
 
+function persistableProductImage(value: string | null | undefined) {
+  const url = cleanImageUrl(value);
+  if (!url) return null;
+  try {
+    const pathname = new URL(url, window.location.origin).pathname;
+    if (
+      pathname.startsWith("/src/assets/") ||
+      /^\/assets\/.+-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/.test(pathname)
+    ) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+  return url;
+}
+
 function imageUrlsMatch(a: string | null | undefined, b: string | null | undefined) {
   const left = cleanImageUrl(a);
   const right = cleanImageUrl(b);
@@ -4888,6 +4905,12 @@ function ProductDrawer({
     hidden_image_urls: product?.hidden_image_urls ?? [],
     linked_product_ids: product?.linked_product_ids ?? [],
     variant_label: product?.variant_label ?? "",
+    color_options: product?.color_options ?? [],
+    size_options: product?.size_options ?? [],
+    option_types: product?.option_types?.map((group) => ({
+      name: String(group.name ?? ""),
+      values: Array.isArray(group.values) ? group.values : [],
+    })),
     badge: product?.badge ?? null,
     stock_quantity: product?.stock_quantity ?? 0,
     is_active: product?.is_active ?? true,
@@ -5171,13 +5194,8 @@ function ProductDrawer({
     try {
       const savedImages = Array.from(
         new Set(
-          [
-            form.cover_image_url,
-            activeImage,
-            ...(Array.isArray(form.images) ? form.images : []),
-            ...fallbackImagesForProduct({ ...product, ...form }),
-          ]
-            .map(cleanImageUrl)
+          [form.cover_image_url, activeImage, ...(Array.isArray(form.images) ? form.images : [])]
+            .map(persistableProductImage)
             .filter(
               (url): url is string =>
                 Boolean(url) &&
@@ -5191,7 +5209,11 @@ function ProductDrawer({
       const payload = {
         ...form,
         price: form.price_inr,
-        cover_image_url: coverImage ?? cleanImageUrl(activeImage) ?? savedImages[0] ?? null,
+        cover_image_url:
+          persistableProductImage(coverImage) ??
+          persistableProductImage(activeImage) ??
+          savedImages[0] ??
+          null,
         images: savedImages,
         category:
           collectionCategories.find((category) => category.slug === form.category_id)?.name ??
@@ -5201,6 +5223,10 @@ function ProductDrawer({
           .split(",")
           .map((id) => id.trim())
           .filter(Boolean),
+        option_types: [
+          ...(form.color_options?.length ? [{ name: "Colour", values: form.color_options }] : []),
+          ...(form.size_options?.length ? [{ name: "Size", values: form.size_options }] : []),
+        ],
       };
       const result = product
         ? await updateProduct(product.id, payload)
@@ -5563,6 +5589,30 @@ function ProductDrawer({
             />
           </div>
 
+          <div className="grid gap-4 rounded-xl border border-[#E5E7EB] bg-white p-4 lg:col-span-2 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <p className="text-sm font-semibold text-[#111827]">Customer choices</p>
+              <p className="mt-1 text-xs leading-5 text-[#6B7280]">
+                Add the colours and sizes customers can select. Empty groups stay hidden on the
+                storefront.
+              </p>
+            </div>
+            <OptionListField
+              label="Colours"
+              singularLabel="colour"
+              values={form.color_options ?? []}
+              onChange={(values) => setForm({ ...form, color_options: values })}
+              placeholder="Brown"
+            />
+            <OptionListField
+              label="Sizes"
+              singularLabel="size"
+              values={form.size_options ?? []}
+              onChange={(values) => setForm({ ...form, size_options: values })}
+              placeholder="60 x 60 cm"
+            />
+          </div>
+
           <div className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-foreground/[0.015] p-3">
             <Field
               label="Version label"
@@ -5853,6 +5903,88 @@ function Field({
         className="w-full rounded-md border border-border bg-background px-3 py-2 outline-none focus:border-brand transition-colors"
       />
     </label>
+  );
+}
+
+function OptionListField({
+  label,
+  singularLabel,
+  values,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  singularLabel: string;
+  values: string[];
+  onChange: (values: string[]) => void;
+  placeholder: string;
+}) {
+  const [draft, setDraft] = useState("");
+
+  const addValues = () => {
+    const additions = draft
+      .split(/[,\n]/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (!additions.length) return;
+    const known = new Set(values.map((value) => value.toLocaleLowerCase()));
+    const next = [...values];
+    for (const addition of additions) {
+      if (known.has(addition.toLocaleLowerCase())) continue;
+      known.add(addition.toLocaleLowerCase());
+      next.push(addition);
+    }
+    onChange(next.slice(0, 30));
+    setDraft("");
+  };
+
+  return (
+    <fieldset className="min-w-0">
+      <legend className="text-xs font-medium text-foreground/70">{label}</legend>
+      <div className="mt-2 flex min-h-11 flex-wrap gap-2 rounded-md border border-border bg-background p-2">
+        {values.map((value) => (
+          <span
+            key={value}
+            className="inline-flex h-7 max-w-full items-center gap-1.5 rounded bg-[#F3F4F6] pl-2.5 pr-1 text-xs font-medium text-[#111827]"
+          >
+            <span className="truncate">{value}</span>
+            <button
+              type="button"
+              aria-label={`Remove ${value}`}
+              onClick={() => onChange(values.filter((item) => item !== value))}
+              className="grid h-6 w-6 shrink-0 place-items-center rounded hover:bg-black/5"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </span>
+        ))}
+        <input
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== ",") return;
+            event.preventDefault();
+            addValues();
+          }}
+          aria-label={`Add ${singularLabel}`}
+          placeholder={values.length ? `Add ${singularLabel}` : placeholder}
+          className="h-7 min-w-[120px] flex-1 bg-transparent px-1 text-xs outline-none placeholder:text-foreground/35"
+        />
+        <button
+          type="button"
+          onClick={addValues}
+          disabled={!draft.trim()}
+          aria-label={`Add ${singularLabel}`}
+          title={`Add ${singularLabel}`}
+          className="grid h-7 w-7 shrink-0 place-items-center rounded bg-[#111827] text-white disabled:opacity-30"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <p className="mt-1.5 text-[11px] text-[#6B7280]">
+        {values.length ? `${values.length} option${values.length === 1 ? "" : "s"}` : "No options"}
+      </p>
+    </fieldset>
   );
 }
 

@@ -18,7 +18,7 @@ export function StoreProductCard({
 
   return (
     <article className="store-product-card group min-w-0">
-      <div className="relative aspect-[3/4] overflow-hidden bg-[#F7F7F5]">
+      <div className="relative aspect-[3/4] overflow-hidden rounded-md bg-[#F7F7F5]">
         <a
           href={interactive ? `/products/${product.slug}` : undefined}
           aria-label={`View ${product.name}`}
@@ -44,7 +44,7 @@ export function StoreProductCard({
             type="button"
             aria-label={`Wishlist preview for ${product.name}`}
             disabled
-            className="absolute right-2 top-2 grid h-9 w-9 place-items-center bg-white text-black"
+            className="absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-full bg-white text-[#D9643C] shadow-sm"
           >
             <Heart size={16} />
           </button>
@@ -100,7 +100,7 @@ function WishlistButton({ product }: { product: StoreProduct }) {
       aria-pressed={isSaved}
       title={isSaved ? "Remove from wishlist" : "Save to wishlist"}
       onClick={toggleWishlist}
-      className="absolute right-2 top-2 grid h-9 w-9 place-items-center bg-white text-black transition-colors hover:bg-black hover:text-white"
+      className="absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-full bg-white text-[#D9643C] shadow-sm transition-transform hover:scale-105"
     >
       <Heart size={16} fill={isSaved ? "currentColor" : "none"} />
     </button>

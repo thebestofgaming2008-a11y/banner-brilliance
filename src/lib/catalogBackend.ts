@@ -129,6 +129,18 @@ function genderFromBackend(
   return fallback?.gender ?? "unisex";
 }
 
+function isGeneratedBuildAsset(src: string) {
+  try {
+    const pathname = new URL(src, "https://fawzaan.local").pathname;
+    return (
+      pathname.startsWith("/src/assets/") ||
+      /^\/assets\/.+-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/.test(pathname)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function backendProductToProduct(product: BackendProduct): Product {
   const fallbackSlug = product.slug === "yemeni-shemagh" ? "yemeni-shemagh-red" : product.slug;
   const fallback = catalog.find((item) => item.slug === fallbackSlug);
@@ -143,7 +155,12 @@ export function backendProductToProduct(product: BackendProduct): Product {
   const images = [
     product.cover_image_url,
     ...(Array.isArray(product.images) ? product.images : []),
-  ].filter((src): src is string => Boolean(src) && !hiddenImages.has(String(src).split("#")[0]));
+  ].filter(
+    (src): src is string =>
+      Boolean(src) &&
+      !hiddenImages.has(String(src).split("#")[0]) &&
+      !isGeneratedBuildAsset(String(src)),
+  );
   const fallbackImages = (fallback?.images ?? []).filter(
     (src) => !hiddenImages.has(String(src).split("#")[0]),
   );

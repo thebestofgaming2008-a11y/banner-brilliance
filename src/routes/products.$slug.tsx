@@ -1,5 +1,5 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { Check, Heart, Minus, Plus, Star } from "lucide-react";
+import { CircleCheck, Heart, Minus, Plus, Star } from "lucide-react";
 import { useQuery } from "convex/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -241,7 +241,8 @@ function ProductPage() {
                     key={value}
                     type="button"
                     onClick={() => setSelected((current) => ({ ...current, [group.name]: value }))}
-                    className={`min-h-10 border px-4 text-[11px] font-semibold ${selected[group.name] === value ? "border-black bg-black text-white" : "border-black/20"}`}
+                    aria-pressed={selected[group.name] === value}
+                    className={`min-h-10 rounded-md border px-4 text-[11px] font-semibold transition-colors ${selected[group.name] === value ? "border-black bg-black text-white" : "border-black/20 bg-white hover:border-[#E2713F]"}`}
                   >
                     {value}
                   </button>
@@ -251,7 +252,7 @@ function ProductPage() {
           ))}
 
           <div className="mt-7 grid grid-cols-[108px_1fr] gap-3">
-            <div className="flex h-12 items-center border border-black/20">
+            <div className="flex h-12 items-center overflow-hidden rounded-md border border-black/20">
               <button
                 type="button"
                 aria-label="Decrease quantity"
@@ -274,7 +275,7 @@ function ProductPage() {
               type="button"
               onClick={addToCart}
               disabled={!isCartReady || product.inStock === false}
-              className="brand-mango-bg h-12 text-[11px] font-bold uppercase disabled:bg-black/10 disabled:bg-none"
+              className="brand-mango-bg h-12 rounded-md text-[11px] font-bold uppercase disabled:bg-black/10 disabled:bg-none"
             >
               {product.inStock === false ? "Out of stock" : added ? "Added to cart" : "Add to cart"}
             </button>
@@ -292,7 +293,7 @@ function ProductPage() {
                 );
               }
             }}
-            className="mt-3 flex h-11 w-full items-center justify-center gap-2 border border-black/20 text-[11px] font-bold uppercase"
+            className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-md border border-black/20 text-[11px] font-bold uppercase transition-colors hover:border-[#E2713F] hover:text-[#C85F22]"
           >
             <Heart size={15} fill={wished ? "currentColor" : "none"} />
             {wished ? "Saved to wishlist" : "Save to wishlist"}
@@ -300,9 +301,9 @@ function ProductPage() {
           {product.details?.length ? (
             <div className="mt-8 divide-y divide-black/10 border-y border-black/10">
               {product.details.map((detail) => (
-                <div key={detail} className="flex items-center gap-3 py-3 text-[12px]">
-                  <Check size={15} className="text-[#d79f00]" />
-                  {detail}
+                <div key={detail} className="flex items-center gap-3 py-3.5">
+                  <CircleCheck size={18} strokeWidth={1.5} className="shrink-0 text-[#E09A2F]" />
+                  <span className="product-feature-copy">{detail}</span>
                 </div>
               ))}
             </div>
@@ -339,7 +340,7 @@ function ProductReviews({ productId }: { productId: string }) {
     <section id="reviews" className="border-t border-black/10 px-[22px] py-16 md:px-8">
       <div className="mx-auto max-w-[1180px]">
         <p className="section-kicker text-black/45">Verified customer feedback</p>
-        <h2 className="section-heading mt-2 text-[34px]">REVIEWS</h2>
+        <h2 className="product-editorial-heading mt-2 text-[40px]">Reviews</h2>
         {reviews === undefined ? (
           <p className="mt-8 text-[13px] text-black/50">Loading reviews...</p>
         ) : reviews.length ? (

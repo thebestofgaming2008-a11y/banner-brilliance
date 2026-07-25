@@ -290,12 +290,14 @@
   --ink: #000000;
   --mango-yellow: #fbcb3d;
   --mango-orange: #f18532;
+  --mango-red: #dc5c3c;
   --mango-solid: #f6ad32;
   --mango-gradient: linear-gradient(
     105deg,
     var(--mango-yellow) 0%,
-    #f8b937 58%,
-    var(--mango-orange) 100%
+    #f8ad35 34%,
+    var(--mango-orange) 68%,
+    var(--mango-red) 100%
   );
   --gold: var(--mango-solid);
   --gold-deep: #b95720;
@@ -459,6 +461,19 @@
     letter-spacing: 0;
     text-transform: uppercase;
     text-wrap: balance;
+  }
+
+  .product-editorial-heading {
+    font-family: var(--font-serif-display);
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: uppercase;
+  }
+
+  .product-feature-copy {
+    font-family: var(--font-serif-display);
+    font-size: 15px;
+    line-height: 1.2;
   }
 
   .commerce-copy {

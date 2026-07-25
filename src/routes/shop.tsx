@@ -305,10 +305,19 @@ function ShopPage() {
       <section className="px-[22px] py-10 md:px-8 md:py-16">
         <div className="mx-auto max-w-[1180px]">
           <div className="grid gap-4 border-b border-black/10 pb-6 md:grid-cols-[1fr_auto] md:items-end md:gap-5">
-            <div className="relative min-w-0">
+            <div className="relative grid min-w-0 grid-cols-[36px_minmax(0,1fr)_36px] items-start gap-2">
+              <button
+                type="button"
+                aria-label="Previous collections"
+                title="Previous collections"
+                onClick={() => scrollTabs(-1)}
+                className="brand-mango-bg grid h-8 w-8 place-items-center rounded-full text-white"
+              >
+                <ChevronLeft size={17} />
+              </button>
               <div
                 ref={tabsRef}
-                className="no-scrollbar -mx-[22px] flex snap-x snap-mandatory gap-6 overflow-x-auto scroll-smooth px-[54px] touch-pan-x md:mx-0 md:px-0"
+                className="no-scrollbar flex snap-x snap-mandatory gap-6 overflow-x-auto scroll-smooth px-1 touch-pan-x"
                 role="tablist"
                 aria-label="Product collections"
               >
@@ -330,26 +339,17 @@ function ShopPage() {
               </div>
               <button
                 type="button"
-                aria-label="Previous collections"
-                title="Previous collections"
-                onClick={() => scrollTabs(-1)}
-                className="absolute -left-[22px] top-0 grid h-8 w-8 place-items-center bg-white shadow-[8px_0_12px_white] md:hidden"
-              >
-                <ChevronLeft size={17} />
-              </button>
-              <button
-                type="button"
                 aria-label="More collections"
                 title="More collections"
                 onClick={() => scrollTabs(1)}
-                className="absolute -right-[22px] top-0 grid h-8 w-8 place-items-center bg-white shadow-[-8px_0_12px_white] md:hidden"
+                className="brand-mango-bg grid h-8 w-8 place-items-center rounded-full text-white"
               >
                 <ChevronRight size={17} />
               </button>
             </div>
             <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
-              <label className="flex h-11 min-w-0 items-center gap-2 border-b border-black/25 md:w-56">
-                <Search size={16} className="shrink-0" />
+              <label className="flex h-11 min-w-0 items-center gap-2 rounded-md border border-black/15 px-3 md:w-56">
+                <Search size={16} className="shrink-0 text-[#D9643C]" />
                 <input
                   type="search"
                   value={query}
@@ -358,8 +358,8 @@ function ShopPage() {
                   className="min-w-0 flex-1 bg-transparent text-[13px] outline-none"
                 />
               </label>
-              <label className="flex h-11 min-w-[118px] items-center gap-2 border-b border-black/25">
-                <SlidersHorizontal size={15} className="shrink-0" />
+              <label className="flex h-11 min-w-[118px] items-center gap-2 rounded-md border border-black/15 px-3">
+                <SlidersHorizontal size={15} className="shrink-0 text-[#D9643C]" />
                 <select
                   value={sort}
                   onChange={(event) => setSort(event.target.value)}
@@ -377,7 +377,7 @@ function ShopPage() {
                 <button
                   type="button"
                   onClick={() => setActiveFilter("")}
-                  className={`shrink-0 border px-3 py-2 text-[10px] font-bold uppercase ${!activeFilter ? "border-black bg-black text-white" : "border-black/15"}`}
+                  className={`shrink-0 rounded-md border px-3 py-2 text-[10px] font-bold uppercase ${!activeFilter ? "border-black bg-black text-white" : "border-black/15"}`}
                 >
                   Any label
                 </button>
@@ -386,7 +386,7 @@ function ShopPage() {
                     key={filter.slug}
                     type="button"
                     onClick={() => setActiveFilter(filter.slug === activeFilter ? "" : filter.slug)}
-                    className={`shrink-0 border px-3 py-2 text-[10px] font-bold uppercase ${activeFilter === filter.slug ? "border-black bg-black text-white" : "border-black/15"}`}
+                    className={`shrink-0 rounded-md border px-3 py-2 text-[10px] font-bold uppercase ${activeFilter === filter.slug ? "border-black bg-black text-white" : "border-black/15"}`}
                   >
                     {filter.name}
                   </button>
@@ -394,9 +394,15 @@ function ShopPage() {
               </div>
             ) : null}
           </div>
-          <div className="mt-6 flex items-center justify-between text-[11px] text-black/50">
-            <span>{displayedProducts.length} products</span>
-            <span>{selectedCollection?.name || "All collections"}</span>
+          <div className="mt-6 flex items-center justify-between text-[12px]">
+            <span className="flex items-center gap-2 font-bold">
+              <SlidersHorizontal size={15} className="text-[#D9643C]" />
+              {displayedProducts.length} products
+            </span>
+            <span className="flex items-center gap-1 font-bold text-[#C85F22]">
+              {selectedCollection?.name || "All products"}
+              <ChevronRight size={15} />
+            </span>
           </div>
           {displayedProducts.length ? (
             <div className="mt-8 grid grid-cols-2 gap-x-3 gap-y-12 md:grid-cols-4 md:gap-x-4 md:gap-y-16">

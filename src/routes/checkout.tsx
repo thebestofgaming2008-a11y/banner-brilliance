@@ -641,7 +641,7 @@ function CheckoutPage() {
               type="button"
               onClick={placeOrder}
               disabled={processing || Boolean(pendingPayment)}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 bg-ink px-6 py-4 text-xs font-semibold uppercase tracking-[0.22em] text-ivory transition hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-60"
+              className="brand-mango-bg mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md px-6 py-4 text-xs font-semibold uppercase text-black transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {processing ? (
                 "Processing..."
