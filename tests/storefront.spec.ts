@@ -124,6 +124,10 @@ test("shop product cart and checkout path uses the live product", async ({ page 
   await expect(page.locator("main img, section img").first()).toBeVisible();
   const addToCartButton = page.getByRole("button", { name: "Add to cart" }).first();
   await expect(addToCartButton).toHaveCSS("color", "rgb(255, 255, 255)");
+  await expect(addToCartButton).toHaveCSS(
+    "background-image",
+    /linear-gradient\(105deg, rgb\(255, 187, 0\).+rgb\(255, 0, 81\)/,
+  );
   await expect(page.getByRole("heading", { name: "YOU MAY ALSO LIKE" })).toBeVisible();
   const relatedProducts = page.locator(
     '[data-testid="related-products-section"] article.store-product-card',
