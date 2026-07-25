@@ -42,12 +42,12 @@ export function PromotionPopover() {
   };
 
   return (
-    <div className="fixed bottom-5 right-4 z-[70] sm:bottom-7 sm:right-7">
+    <div className="fixed bottom-5 right-4 z-[70] h-[72px] w-[72px] sm:bottom-7 sm:right-7">
       {open ? (
         <section
           role="dialog"
           aria-label={promotion.title}
-          className="mb-3 w-[calc(100vw-2rem)] max-w-[340px] border border-black/10 bg-white p-5 text-black shadow-[0_18px_55px_rgba(0,0,0,0.2)]"
+          className="absolute bottom-[84px] right-0 w-[calc(100vw-2rem)] max-w-[340px] border border-black/10 bg-white p-5 text-black shadow-[0_18px_55px_rgba(0,0,0,0.2)]"
         >
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -103,7 +103,7 @@ export function PromotionPopover() {
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
         aria-label={open ? "Hide current offer" : "Show current offer"}
-        className="ml-auto grid h-[72px] w-[72px] place-items-center rounded-full border-2 border-white bg-[#C85F22] px-2 text-center text-[9px] font-bold uppercase leading-[1.15] text-white shadow-[0_10px_30px_rgba(0,0,0,0.24)] transition hover:scale-[1.04] focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+        className="grid h-[72px] w-[72px] place-items-center rounded-full border-2 border-white bg-[#C85F22] px-2 text-center text-[9px] font-bold uppercase leading-[1.15] text-white shadow-[0_10px_30px_rgba(0,0,0,0.24)] transition hover:scale-[1.04] focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
       >
         <span className="max-w-full break-words">{promotion.badge}</span>
       </button>

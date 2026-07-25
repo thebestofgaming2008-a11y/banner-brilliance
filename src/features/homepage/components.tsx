@@ -169,6 +169,7 @@ export function HomepageHero({
   const activeLayout = (activeSlide?.layout ?? layout) === "banner" ? "banner" : "original";
   const activeLightText = (activeSlide?.textTone ?? textTone) === "light";
   const activeScene = activeSlide?.scene;
+  const usesOriginalHeroFrame = activeScene?.coordinateMode === "original-hero";
 
   return (
     <section
@@ -176,11 +177,16 @@ export function HomepageHero({
       className={`relative overflow-hidden ${activeScene ? "homepage-scene-hero" : ""} ${activeLightText ? "text-white" : "text-black"} ${dragging ? "cursor-grabbing" : safeSlides.length > 1 ? "cursor-grab" : ""}`}
       style={
         activeScene
-          ? ({
-              "--homepage-scene-height": `${Math.max(420, activeScene.height)}px`,
-              "--homepage-scene-mobile-height": `${Math.max(320, activeScene.mobileHeight)}px`,
-              touchAction: "pan-y",
-            } as CSSProperties)
+          ? usesOriginalHeroFrame
+            ? {
+                height: "clamp(560px, 166.4102564102564vw, 820px)",
+                touchAction: "pan-y",
+              }
+            : ({
+                "--homepage-scene-height": `${Math.max(420, activeScene.height)}px`,
+                "--homepage-scene-mobile-height": `${Math.max(320, activeScene.mobileHeight)}px`,
+                touchAction: "pan-y",
+              } as CSSProperties)
           : {
               height:
                 activeLayout === "original"

@@ -167,16 +167,8 @@ export function sceneFromHero(slide: HeroSlide, index = 0): BannerScene {
   const light = (slide.textTone ?? "light") === "light";
   const color = light ? "#ffffff" : "#000000";
   if (original) {
-    const desktopWidth = 1440;
-    const desktopHeight = 820;
     const mobileWidth = 390;
     const mobileHeight = 649;
-    const originalFrameWidth = (desktopHeight * mobileWidth) / mobileHeight;
-    const originalFrameLeft = (desktopWidth - originalFrameWidth) / 2;
-    const desktopX = (value: number) =>
-      ((originalFrameLeft + (value / mobileWidth) * originalFrameWidth) / desktopWidth) * 100;
-    const desktopWidthPercent = (value: number) =>
-      (((value / mobileWidth) * originalFrameWidth) / desktopWidth) * 100;
     const titleFrame =
       index === 0
         ? { left: 37, top: 121, width: 316 }
@@ -187,9 +179,9 @@ export function sceneFromHero(slide: HeroSlide, index = 0): BannerScene {
     return {
       version: 1,
       name: slide.title || `Hero ${index + 1}`,
-      height: desktopHeight,
+      height: 820,
       mobileHeight,
-      coordinateMode: "full",
+      coordinateMode: "original-hero",
       fills: [
         {
           id: "fill-solid",
@@ -233,9 +225,9 @@ export function sceneFromHero(slide: HeroSlide, index = 0): BannerScene {
       ],
       layers: [
         imageLayer("foreground", "Product image", slide.foregroundImage, {
-          x: desktopX(0),
+          x: 0,
           y: 0,
-          width: desktopWidthPercent(mobileWidth),
+          width: 100,
           height: 100,
           objectFit: "contain",
           objectPosition: "center bottom",
@@ -245,12 +237,12 @@ export function sceneFromHero(slide: HeroSlide, index = 0): BannerScene {
           "Title",
           slide.title,
           {
-            x: desktopX(titleFrame.left),
+            x: (titleFrame.left / mobileWidth) * 100,
             y: (titleFrame.top / mobileHeight) * 100,
-            width: desktopWidthPercent(titleFrame.width),
+            width: (titleFrame.width / mobileWidth) * 100,
             height: 8.1,
             fontFamily: "instrument",
-            fontSize: (52 / mobileHeight) * desktopHeight,
+            fontSize: 52,
             fontWeight: 400,
             lineHeight: 1,
             textAlign: "center",
@@ -260,21 +252,21 @@ export function sceneFromHero(slide: HeroSlide, index = 0): BannerScene {
           "h1",
         ),
         textLayer("body", "Subtitle", slide.body, {
-          x: desktopX(titleFrame.left),
+          x: (titleFrame.left / mobileWidth) * 100,
           y: ((titleFrame.top + 58) / mobileHeight) * 100,
-          width: desktopWidthPercent(titleFrame.width),
+          width: (titleFrame.width / mobileWidth) * 100,
           height: 5,
           fontFamily: "schibsted",
-          fontSize: (14 / mobileHeight) * desktopHeight,
+          fontSize: 14,
           fontWeight: 500,
           lineHeight: 1.2,
           textAlign: "center",
           color,
         }),
         buttonLayer("button", slide.buttonLabel || "Shop the collection", slide.buttonUrl, {
-          x: desktopX(25),
+          x: (25 / mobileWidth) * 100,
           y: (614 / mobileHeight) * 100,
-          width: desktopWidthPercent((42 / 100) * mobileWidth),
+          width: 42,
           height: 2.6,
           color,
           backgroundColor: "#00000000",
@@ -728,8 +720,8 @@ export function ensureHomepageScenes(data: HomepageData): HomepageData {
       item.props.slides = item.props.slides.map((slide, index) => ({
         ...slide,
         scene:
-          slide.scene?.coordinateMode === "original-hero"
-            ? migrateOriginalHeroScene(slide.scene)
+          (slide.layout ?? item.props.layout ?? "original") === "original"
+            ? restoreOriginalHeroScene(slide.scene ?? sceneFromHero(slide, index))
             : (slide.scene ?? sceneFromHero(slide, index)),
       }));
     }
@@ -738,25 +730,30 @@ export function ensureHomepageScenes(data: HomepageData): HomepageData {
   return next;
 }
 
-function migrateOriginalHeroScene(scene: BannerScene): BannerScene {
+function restoreOriginalHeroScene(scene: BannerScene): BannerScene {
+  if (scene.coordinateMode === "original-hero") return scene;
   const desktopWidth = 1440;
   const frameWidth = (scene.height * 390) / 649;
   const frameWidthPercent = (frameWidth / desktopWidth) * 100;
   const frameLeftPercent = (100 - frameWidthPercent) / 2;
   return {
     ...scene,
-    coordinateMode: "full",
+    coordinateMode: "original-hero",
     layers: scene.layers.map((layer) => ({
       ...layer,
       style: {
         ...layer.style,
-        x: frameLeftPercent + (layer.style.x * frameWidthPercent) / 100,
-        width: (layer.style.width * frameWidthPercent) / 100,
+        x: ((layer.style.x - frameLeftPercent) / frameWidthPercent) * 100,
+        width: (layer.style.width / frameWidthPercent) * 100,
+        fontSize:
+          layer.id === "title" || layer.id === "body"
+            ? (layer.style.fontSize ?? 16) * (390 / frameWidth)
+            : layer.style.fontSize,
       },
       mobileStyle: {
-        x: layer.style.x,
+        x: ((layer.style.x - frameLeftPercent) / frameWidthPercent) * 100,
         y: layer.style.y,
-        width: layer.style.width,
+        width: (layer.style.width / frameWidthPercent) * 100,
         height: layer.style.height,
         ...(layer.mobileStyle ?? {}),
       },

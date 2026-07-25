@@ -107,9 +107,11 @@ function resolveLayerStyle(layer: BannerLayer, viewport: HomepageViewport): Bann
   return viewport === "mobile" ? { ...layer.style, ...(layer.mobileStyle ?? {}) } : layer.style;
 }
 
-function layerCss(style: BannerLayerStyle): CSSProperties {
+function layerCss(style: BannerLayerStyle, scene: BannerScene, layer: BannerLayer): CSSProperties {
   const borderWidth = clamp(style.borderWidth ?? 0, 0, 40);
   const borderAlign = style.borderAlign || "inside";
+  const scalesWithOriginalFrame =
+    scene.coordinateMode === "original-hero" && (layer.id === "title" || layer.id === "body");
   return {
     left: `${clamp(style.x, -100, 200)}%`,
     top: `${clamp(style.y, -100, 200)}%`,
@@ -132,7 +134,9 @@ function layerCss(style: BannerLayerStyle): CSSProperties {
     borderRadius: `${clamp(style.borderRadius ?? 0, 0, 999)}px`,
     padding: `${clamp(style.paddingY ?? 0, 0, 120)}px ${clamp(style.paddingX ?? 0, 0, 120)}px`,
     fontFamily: fontFamily(style.fontFamily),
-    fontSize: `${clamp(style.fontSize ?? 16, 6, 360)}px`,
+    fontSize: scalesWithOriginalFrame
+      ? `${(clamp(style.fontSize ?? 16, 6, 360) / 390) * 100}cqw`
+      : `${clamp(style.fontSize ?? 16, 6, 360)}px`,
     fontWeight: clamp(style.fontWeight ?? 400, 100, 900),
     fontStyle: style.fontStyle || "normal",
     lineHeight: clamp(style.lineHeight ?? 1.2, 0.5, 4),
@@ -231,7 +235,9 @@ export function BannerSceneView({
   return (
     <div
       className={`homepage-banner-scene relative isolate w-full overflow-hidden ${backgroundSelected ? "is-background-selected" : ""} ${activeCropFillId ? "is-background-cropping" : ""} ${className}`}
-      style={{ height: `${Math.max(160, height)}px` }}
+      style={{
+        height: scene.coordinateMode === "original-hero" ? "100%" : `${Math.max(160, height)}px`,
+      }}
       data-scene-viewport={resolvedViewport}
       data-editor-banner-key={editorKey}
       data-editor-active={studio ? "true" : undefined}
@@ -343,7 +349,12 @@ export function BannerSceneView({
         data-banner-coordinate-root
         style={
           scene.coordinateMode === "original-hero"
-            ? { aspectRatio: "390 / 649", pointerEvents: "none", transform: "translateX(-50%)" }
+            ? {
+                aspectRatio: "390 / 649",
+                containerType: "inline-size",
+                pointerEvents: "none",
+                transform: "translateX(-50%)",
+              }
             : fixedHoneyPreset
               ? {
                   pointerEvents: "none",
@@ -518,7 +529,7 @@ export function BannerSceneView({
             "data-selected": selected || undefined,
             className: `homepage-banner-layer absolute z-10 box-border m-0 overflow-visible ${fixedBannerTypography} ${selected ? "is-selected" : ""}`,
             style: {
-              ...layerCss(style),
+              ...layerCss(style, scene, layer),
               ...fixedBannerTextStyle,
               zIndex: index + 1,
               pointerEvents: studio && !layerEditable ? ("none" as const) : ("auto" as const),
@@ -638,7 +649,15 @@ export function BannerSceneView({
             <span
               className={
                 layer.type === "button"
-                  ? "flex h-full items-center justify-center"
+                  ? scene.coordinateMode === "original-hero"
+                    ? "block h-full w-full"
+                    : `flex h-full items-center ${
+                        style.textAlign === "left"
+                          ? "justify-start"
+                          : style.textAlign === "right"
+                            ? "justify-end"
+                            : "justify-center"
+                      }`
                   : "block h-full w-full"
               }
               contentEditable={editing}
