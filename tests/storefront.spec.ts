@@ -117,6 +117,8 @@ test("shop product cart and checkout path uses the live product", async ({ page 
   await expect(page).toHaveURL(new RegExp(`/products/${selectedSlug}$`));
   await expect(page.getByRole("heading", { name: productName, exact: true })).toBeVisible();
   await expect(page.locator("main img, section img").first()).toBeVisible();
+  const addToCartButton = page.getByRole("button", { name: "Add to cart" }).first();
+  await expect(addToCartButton).toHaveCSS("color", "rgb(255, 255, 255)");
   await expect(page.getByRole("heading", { name: "YOU MAY ALSO LIKE" })).toBeVisible();
   const relatedProducts = page.locator(
     '[data-testid="related-products-section"] article.store-product-card',
@@ -153,6 +155,18 @@ test("shop product cart and checkout path uses the live product", async ({ page 
   await page.getByRole("option", { name: /United States/ }).click();
   await expect(countryButton).toHaveAccessibleName("Country: United States");
   expect(errors).toEqual([]);
+});
+
+test("product feature rows use readable Poppins typography", async ({ page }) => {
+  await page.goto("/products/kashmir-acacia-honey", {
+    waitUntil: "domcontentloaded",
+    timeout: 60_000,
+  });
+  const featureCopy = page.locator(".product-feature-copy").first();
+  await expect(featureCopy).toBeVisible();
+  await expect(featureCopy).toHaveCSS("font-family", /Poppins/);
+  await expect(featureCopy).toHaveCSS("font-weight", "400");
+  await expect(featureCopy).toHaveCSS("line-height", "21.7px");
 });
 
 test("product choices remain attached to the cart line", async ({ page }) => {
@@ -293,6 +307,14 @@ test("mobile shop controls scroll and menu search filters the live catalog", asy
   await expect(storeMenu.getByRole("link", { name: "Home", exact: true })).toHaveAttribute(
     "href",
     "/",
+  );
+  await expect(storeMenu.getByRole("link", { name: "Shop all", exact: true })).toHaveCSS(
+    "font-family",
+    /Poppins/,
+  );
+  await expect(storeMenu.getByRole("link", { name: "Shop all", exact: true })).toHaveCSS(
+    "font-weight",
+    "700",
   );
   const currencyButton = storeMenu.getByRole("button", { name: /^Currency:/ });
   await currencyButton.click();

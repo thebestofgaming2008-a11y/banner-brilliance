@@ -522,7 +522,7 @@ function Header() {
                 <a
                   href={href}
                   onClick={closeDrawer}
-                  className="flex items-center justify-between py-4 text-[21px] font-bold uppercase leading-none"
+                  className="store-index-link flex items-center justify-between py-4 text-[21px] uppercase leading-none"
                 >
                   {label} <ChevronRight size={18} strokeWidth={1.7} />
                 </a>

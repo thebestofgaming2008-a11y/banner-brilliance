@@ -152,7 +152,7 @@ export function StoreHeader() {
               <li key={label} className="drawer-item">
                 <a
                   href={href}
-                  className="flex items-center justify-between py-3 text-[18px] font-bold uppercase leading-none sm:py-3.5 sm:text-[20px]"
+                  className="store-index-link flex items-center justify-between py-3 text-[18px] uppercase leading-none sm:py-3.5 sm:text-[20px]"
                 >
                   {label}
                   <ChevronRight size={18} />

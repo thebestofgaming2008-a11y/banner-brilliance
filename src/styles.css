@@ -218,6 +218,7 @@
 @theme inline {
   --font-serif-display: "Instrument Serif", ui-serif, Georgia, serif;
   --font-sans-ui: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-menu: "Poppins", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Instrument Serif", ui-serif, Georgia, serif;
   --font-body: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
@@ -411,6 +412,7 @@
   a.brand-mango-bg {
     background-color: var(--mango-cta);
     background-image: none;
+    color: #ffffff;
   }
 
   .bg-gold {
@@ -478,9 +480,17 @@
   }
 
   .product-feature-copy {
-    font-family: var(--font-serif-display);
-    font-size: 15px;
-    line-height: 1.2;
+    font-family: var(--font-menu);
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.55;
+    letter-spacing: 0;
+  }
+
+  .store-index-link {
+    font-family: var(--font-menu);
+    font-weight: 700;
+    letter-spacing: 0;
   }
 
   .commerce-copy {
