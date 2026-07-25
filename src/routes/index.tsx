@@ -571,7 +571,7 @@ function Header() {
               <div className="flex min-w-0 flex-col justify-between py-1">
                 <div>
                   <p className="section-kicker text-black/45">{product.collection}</p>
-                  <h3 className="mt-1 text-[14px] font-semibold leading-4">{product.name}</h3>
+                  <h3 className="product-name mt-1 text-[16px] leading-4">{product.name}</h3>
                   <p className="mt-2 text-[13px] font-semibold">{product.price}</p>
                 </div>
                 <div className="mt-4 flex w-fit items-center border border-black/15">
@@ -1088,7 +1088,7 @@ function ProductTile({
       </div>
       <div className="mt-3 text-left">
         <p className="section-kicker text-black/45">{product.collection}</p>
-        <h3 className="mt-1 min-h-8 text-[13px] font-semibold leading-4 text-current md:text-[14px]">
+        <h3 className="product-name mt-1 min-h-8 text-[15px] leading-4 text-current md:text-[16px]">
           {product.name}
         </h3>
         {product.reviews > 0 ? (

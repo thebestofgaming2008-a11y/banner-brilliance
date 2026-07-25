@@ -45,7 +45,7 @@ function CartPage() {
                         <p className="section-kicker text-black/45">Fawzaan</p>
                         <a
                           href={`/products/${slug}`}
-                          className="mt-1 block text-[15px] font-semibold"
+                          className="product-name mt-1 block text-[17px]"
                         >
                           {line.name}
                         </a>

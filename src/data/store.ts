@@ -98,15 +98,16 @@ export const storeProducts: StoreProduct[] = [
     rating: 0,
     reviews: 0,
     images: [niqabKhadijaFull, niqabKhadijaClose, niqabKhadijaSide, niqabKhadijaBack],
-    description:
-      "A two-layer chiffon niqab designed for clean coverage, comfortable wear, and an elegant long drape.",
-    details: [
-      "Soft breathable chiffon",
-      "Two-layer construction",
-      "Comfortable tie-back fit",
-      "Opaque front panel",
-    ],
+    description: "Daily comfort wear.",
+    details: ["Premium chiffon fabric"],
     options: ["Black"],
+    optionGroups: [
+      { name: "Colour", values: ["Black"] },
+      {
+        name: "Size",
+        values: ["One Size - Layers: 54 / 34 in; Veil: 22.5 x 13.5 in; Gear: 82 in"],
+      },
+    ],
     badge: "Bestseller",
     imageClassName: "origin-bottom scale-[1.14] translate-y-[3%]",
   },

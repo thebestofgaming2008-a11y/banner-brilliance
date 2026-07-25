@@ -174,7 +174,7 @@ function ProductPage() {
       <div className="sticky top-[65px] z-40 border-y border-black/10 bg-white/95 px-4 py-2 backdrop-blur-md">
         <div className="mx-auto flex max-w-[1180px] items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate text-[11px] font-bold uppercase">{product.name}</p>
+            <p className="product-name truncate text-[15px] uppercase">{product.name}</p>
             <p className="text-[11px] text-black/50">{formatPrice(product.price)}</p>
           </div>
           <button
@@ -211,7 +211,9 @@ function ProductPage() {
 
         <div className="md:sticky md:top-[132px] md:self-start" data-store-reveal>
           <p className="section-kicker text-black/45">{product.collection}</p>
-          <h1 className="section-heading mt-3 text-[38px] md:text-[52px]">{product.name}</h1>
+          <h1 className="product-name mt-3 text-[44px] uppercase leading-[0.88] md:text-[60px]">
+            {product.name}
+          </h1>
           {product.reviews > 0 ? (
             <div className="mt-4 flex items-center gap-2 text-[12px]">
               <Star size={14} fill="currentColor" />

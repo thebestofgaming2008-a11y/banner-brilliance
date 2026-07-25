@@ -117,6 +117,10 @@ test("shop product cart and checkout path uses the live product", async ({ page 
   await productLink.click();
   await expect(page).toHaveURL(new RegExp(`/products/${selectedSlug}$`));
   await expect(page.getByRole("heading", { name: productName, exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: productName, exact: true })).toHaveCSS(
+    "font-family",
+    /Cormorant Garamond/,
+  );
   await expect(page.locator("main img, section img").first()).toBeVisible();
   const addToCartButton = page.getByRole("button", { name: "Add to cart" }).first();
   await expect(addToCartButton).toHaveCSS("color", "rgb(255, 255, 255)");
@@ -262,6 +266,42 @@ test("white kufi has one white colour and a fixed free size", async ({ page }) =
   await expect(page.getByText("Free Size", { exact: true })).toBeVisible();
 });
 
+test("khadija niqab presents the corrected comfort, colour, and size details", async ({ page }) => {
+  const catalogResponse = await page.request.get("/api/catalog/products");
+  const catalog = (await catalogResponse.json()) as Array<{
+    slug: string;
+    short_description?: string;
+    highlights?: string[];
+    color_options?: string[];
+    size_options?: string[];
+  }>;
+  const product = catalog.find((item) => item.slug === "khadija-niqab");
+  expect(product, "Khadija Niqab must stay in the live catalog").toBeTruthy();
+  expect(product!.short_description).toBe("Daily comfort wear.");
+  expect(product!.highlights).toEqual(["Premium chiffon fabric"]);
+  expect(product!.color_options).toEqual(["Black"]);
+  expect(product!.size_options).toEqual([
+    "One Size - Layers: 54 / 34 in; Veil: 22.5 x 13.5 in; Gear: 82 in",
+  ]);
+
+  await page.goto("/products/khadija-niqab", {
+    waitUntil: "domcontentloaded",
+    timeout: 60_000,
+  });
+  await expect(page.getByText("Daily comfort wear.", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Select colour" }).getByRole("button", { name: "Black" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Select size" }).getByRole("button", {
+      name: "One Size - Layers: 54 / 34 in; Veil: 22.5 x 13.5 in; Gear: 82 in",
+    }),
+  ).toBeVisible();
+  await expect(page.getByText("Premium chiffon fabric", { exact: true })).toBeVisible();
+  await expect(page.getByText("Adjustable elastic band", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Onyx Black", { exact: true })).toHaveCount(0);
+});
+
 test("stale generated product media falls back to a stable catalog image", async ({ page }) => {
   const catalogResponse = await page.request.get("/api/catalog/products");
   const catalog = (await catalogResponse.json()) as Array<{
@@ -352,11 +392,11 @@ test("mobile shop controls scroll and menu search filters the live catalog", asy
   );
   await expect(storeMenu.getByRole("link", { name: "Shop all", exact: true })).toHaveCSS(
     "font-family",
-    /Poppins/,
+    /Cormorant Garamond/,
   );
   await expect(storeMenu.getByRole("link", { name: "Shop all", exact: true })).toHaveCSS(
     "font-weight",
-    "700",
+    "500",
   );
   const currencyButton = storeMenu.getByRole("button", { name: /^Currency:/ });
   await currencyButton.click();

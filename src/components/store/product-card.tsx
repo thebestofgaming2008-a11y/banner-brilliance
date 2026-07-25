@@ -57,7 +57,7 @@ export function StoreProductCard({
           className="block"
           aria-disabled={!interactive || undefined}
         >
-          <h3 className="mt-1 min-h-8 text-[13px] font-semibold leading-4 md:text-[14px]">
+          <h3 className="product-name mt-1 min-h-8 text-[15px] leading-4 md:text-[16px]">
             {product.name}
           </h3>
         </a>

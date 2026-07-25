@@ -224,7 +224,7 @@ export function StoreHeader() {
                   <p className="section-kicker text-black/45">Fawzaan</p>
                   <a
                     href={`/products/${line.slug ?? line.id.split("__")[0]}`}
-                    className="mt-1 block text-[14px] font-semibold leading-4"
+                    className="product-name mt-1 block text-[16px] leading-4"
                   >
                     {line.name}
                   </a>

@@ -162,7 +162,7 @@ function OrderLookup({ orderNumber, email }: { orderNumber: string; email: strin
                     <div className="aspect-[3/4] bg-black/5" />
                   )}
                   <div>
-                    <p className="text-sm font-semibold">{item.product_name}</p>
+                    <p className="product-name text-[16px]">{item.product_name}</p>
                     <p className="mt-1 text-[11px] text-black/50">
                       {[item.selected_color, item.selected_size].filter(Boolean).join(" / ") ||
                         "Standard"}{" "}
@@ -264,7 +264,7 @@ function ReviewOrderItems({ order, email }: { order: TrackedOrder; email: string
               }
               className="flex w-full items-center justify-between gap-3 text-left text-sm font-semibold"
             >
-              <span>{item.product_name}</span>
+              <span className="product-name text-[16px]">{item.product_name}</span>
               <span className="text-[10px] uppercase underline">Write review</span>
             </button>
             {openProduct === item.product_id ? (

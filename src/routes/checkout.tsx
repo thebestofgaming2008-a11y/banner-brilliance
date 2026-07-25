@@ -669,7 +669,7 @@ function CheckoutPage() {
                     </span>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate">{item.name}</p>
+                    <p className="product-name truncate text-[16px]">{item.name}</p>
                     {item.variant ? (
                       <p className="text-[11px] uppercase tracking-widest text-ink/55">
                         {item.variant}

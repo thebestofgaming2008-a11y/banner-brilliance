@@ -47,15 +47,15 @@ const starterProducts = [
   {
     slug: "khadija-niqab",
     name: "Khadija Niqab",
-    short_description: "Two-layer chiffon niqab with long draping veil.",
-    description:
-      "Featherlight two-layer chiffon niqab with an extended draping veil. Breathable, opaque, and cut generously to layer over any abaya.",
+    short_description: "Daily comfort wear.",
+    description: "Daily comfort wear.",
     price_inr: 650,
     category: "Niqabs",
     category_id: "niqabs",
     tags: ["women", "bestseller"],
-    color_options: ["Onyx Black"],
-    size_options: ["One Size"],
+    highlights: ["Premium chiffon fabric"],
+    color_options: ["Black"],
+    size_options: ["One Size - Layers: 54 / 34 in; Veil: 22.5 x 13.5 in; Gear: 82 in"],
     badge: "Bestseller",
     rating: 0,
     reviews_count: 0,
@@ -404,6 +404,63 @@ export const ensureWhiteKufiFreeSize = mutation({
     }
 
     return { updated: changed, color_options: colorOptions, size_options: sizeOptions };
+  },
+});
+
+export const ensureKhadijaNiqabDetails = mutation({
+  args: { token: v.optional(v.string()) },
+  returns: v.object({
+    updated: v.boolean(),
+    description: v.string(),
+    highlights: v.array(v.string()),
+    color_options: v.array(v.string()),
+    size_options: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const setupToken = process.env.ADMIN_UPLOAD_TOKEN;
+    if (!setupToken || args.token !== setupToken) await requireAdmin(ctx);
+
+    const product = await ctx.db
+      .query("products")
+      .withIndex("by_slug", (q) => q.eq("slug", "khadija-niqab"))
+      .first();
+    if (!product) throw new Error("Khadija Niqab product was not found.");
+
+    const description = "Daily comfort wear.";
+    const highlights = ["Premium chiffon fabric"];
+    const colorOptions = ["Black"];
+    const sizeOptions = ["One Size - Layers: 54 / 34 in; Veil: 22.5 x 13.5 in; Gear: 82 in"];
+    const optionTypes = [
+      { name: "Colour", values: colorOptions },
+      { name: "Size", values: sizeOptions },
+    ];
+    const changed =
+      product.short_description !== description ||
+      product.description !== description ||
+      JSON.stringify(product.highlights ?? []) !== JSON.stringify(highlights) ||
+      JSON.stringify(product.color_options ?? []) !== JSON.stringify(colorOptions) ||
+      JSON.stringify(product.size_options ?? []) !== JSON.stringify(sizeOptions) ||
+      JSON.stringify(product.option_types ?? []) !== JSON.stringify(optionTypes);
+
+    if (changed) {
+      await ctx.db.patch(product._id, {
+        short_description: description,
+        description,
+        highlights,
+        color_options: colorOptions,
+        size_options: sizeOptions,
+        option_types: optionTypes,
+        updated_at: nowIso(),
+      });
+    }
+
+    return {
+      updated: changed,
+      description,
+      highlights,
+      color_options: colorOptions,
+      size_options: sizeOptions,
+    };
   },
 });
 

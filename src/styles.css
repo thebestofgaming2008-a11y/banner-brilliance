@@ -219,6 +219,7 @@
   --font-serif-display: "Instrument Serif", ui-serif, Georgia, serif;
   --font-sans-ui: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-menu: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-product-name: "Cormorant Garamond", ui-serif, Georgia, serif;
   --font-display: "Instrument Serif", ui-serif, Georgia, serif;
   --font-body: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
@@ -489,8 +490,14 @@
   }
 
   .store-index-link {
-    font-family: var(--font-menu);
-    font-weight: 700;
+    font-family: var(--font-product-name);
+    font-weight: 500;
+    letter-spacing: 0;
+  }
+
+  .product-name {
+    font-family: var(--font-product-name);
+    font-weight: 500;
     letter-spacing: 0;
   }
 
