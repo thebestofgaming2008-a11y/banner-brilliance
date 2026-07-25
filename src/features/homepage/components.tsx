@@ -733,7 +733,7 @@ export function HomepageCollectionFeature({
       className={`group relative block overflow-hidden ${
         scene ? "" : "min-h-[500px] md:min-h-[620px]"
       }`}
-      style={{ backgroundColor: bannerColor, color: resolvedTextColor }}
+      style={{ backgroundColor: scene ? "#000000" : bannerColor, color: resolvedTextColor }}
     >
       {scene ? (
         contentMode === "image-only" && imageLink ? (
@@ -805,7 +805,7 @@ export function HomepageCollectionFeature({
     </div>
   );
   return (
-    <section className="px-[22px] py-16 md:px-8 md:py-24" style={{ backgroundColor }}>
+    <section className="px-[22px] py-10 md:px-8 md:py-16" style={{ backgroundColor }}>
       <div
         className={`mx-auto max-w-[1180px] ${layout === "banner-top" ? "space-y-10" : "grid gap-6 md:grid-cols-[0.9fr_1.1fr]"}`}
       >
@@ -825,7 +825,7 @@ export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
   const editorKey = props.id ? `${props.id}:standalone` : undefined;
   const editorSession = useStudioBannerSession(editorKey);
   return (
-    <section className="bg-white px-[22px] py-16 md:px-8 md:py-24">
+    <section className="bg-white px-[22px] py-10 md:px-8 md:py-16">
       <div
         data-homepage-banner-id={props.id}
         data-editor-banner-key={props.editMode ? editorKey : undefined}
@@ -833,7 +833,7 @@ export function HomepagePromoBanner(props: PromoBannerProps & EditorAware) {
         className="relative mx-auto max-w-[1180px] overflow-hidden"
         style={{
           minHeight: props.scene ? undefined : `${Math.max(300, props.minHeight)}px`,
-          backgroundColor: props.backgroundColor,
+          backgroundColor: props.scene ? "#000000" : props.backgroundColor,
           color: resolvedTextColor,
         }}
       >

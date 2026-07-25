@@ -43,6 +43,27 @@ function safeHref(value: string | undefined) {
   return href.startsWith("/") || href.startsWith("#") || /^https:\/\//i.test(href) ? href : "#";
 }
 
+function focusEditableText(layerElement: HTMLElement) {
+  const ownerWindow = layerElement.ownerDocument.defaultView ?? window;
+  let attempts = 0;
+  const focus = () => {
+    const editable = layerElement.querySelector<HTMLElement>('[contenteditable="true"]');
+    if (!editable && attempts < 2) {
+      attempts += 1;
+      ownerWindow.requestAnimationFrame(focus);
+      return;
+    }
+    if (!editable) return;
+    editable.focus();
+    const selection = ownerWindow.getSelection();
+    const range = layerElement.ownerDocument.createRange();
+    range.selectNodeContents(editable);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  };
+  ownerWindow.requestAnimationFrame(focus);
+}
+
 function fontFamily(value: BannerLayerStyle["fontFamily"]) {
   if (value === "instrument") return '"Instrument Serif", Georgia, serif';
   if (value === "serif") return "Georgia, Times, serif";
@@ -352,20 +373,44 @@ export function BannerSceneView({
                   ? "commerce-copy"
                   : ""
             : "";
-          const fixedBannerTextStyle: CSSProperties =
-            fixedBannerTypography && layer.type === "text"
-              ? {
-                  position: "static",
-                  left: "auto",
-                  top: "auto",
-                  width: layer.id === "body" ? "min(320px, 100%)" : "100%",
-                  height: "auto",
-                  flex: "0 0 auto",
-                  marginTop: layer.id === "title" ? "8px" : layer.id === "body" ? "16px" : 0,
-                  whiteSpace: "normal",
-                  display: layer.text ? undefined : "none",
-                }
-              : {};
+          const fixedBannerFlowLayer =
+            fixedHoneyPreset &&
+            (layer.id === "eyebrow" ||
+              layer.id === "title" ||
+              layer.id === "body" ||
+              layer.id === "button");
+          const fixedBannerTextStyle: CSSProperties = fixedBannerFlowLayer
+            ? {
+                position: "static",
+                left: "auto",
+                top: "auto",
+                width:
+                  layer.id === "button"
+                    ? "auto"
+                    : layer.id === "body"
+                      ? "min(320px, 100%)"
+                      : "100%",
+                height: layer.id === "button" ? "44px" : "auto",
+                flex: "0 0 auto",
+                marginTop:
+                  layer.id === "title"
+                    ? "8px"
+                    : layer.id === "body"
+                      ? "16px"
+                      : layer.id === "button"
+                        ? "28px"
+                        : 0,
+                whiteSpace: "normal",
+                display:
+                  style.visible === false || !layer.text
+                    ? "none"
+                    : layer.id === "button"
+                      ? "inline-flex"
+                      : undefined,
+                alignItems: layer.id === "button" ? "center" : undefined,
+                justifyContent: layer.id === "button" ? "center" : undefined,
+              }
+            : {};
           const startLayerDrag = (event: ReactPointerEvent<HTMLElement>) => {
             if (
               !studio ||
@@ -493,6 +538,9 @@ export function BannerSceneView({
               event.stopPropagation();
               if (studio?.interactionDisabled || !layerEditable) return;
               editLayer?.(layer.id);
+              if (layer.type === "text" || layer.type === "button") {
+                focusEditableText(event.currentTarget);
+              }
             },
           };
 
@@ -556,6 +604,9 @@ export function BannerSceneView({
                   loading={interactive ? "lazy" : "eager"}
                   className="pointer-events-none absolute inset-0 h-full w-full max-w-none"
                   style={{
+                    inset: fixedHoneyPreset ? "-1px" : undefined,
+                    width: fixedHoneyPreset ? "calc(100% + 2px)" : undefined,
+                    height: fixedHoneyPreset ? "calc(100% + 2px)" : undefined,
                     objectFit: style.objectFit || "contain",
                     objectPosition:
                       style.cropX !== undefined || style.cropY !== undefined
@@ -585,7 +636,11 @@ export function BannerSceneView({
 
           const content = (
             <span
-              className="block h-full w-full"
+              className={
+                layer.type === "button"
+                  ? "flex h-full items-center justify-center"
+                  : "block h-full w-full"
+              }
               contentEditable={editing}
               suppressContentEditableWarning
               onBlur={(event) => {

@@ -764,7 +764,6 @@ function BannerTemplate({
 }) {
   const withProducts = item.type === "CollectionFeature";
   const imageOnly = item.props.contentMode === "image-only";
-  const colour = withProducts ? item.props.bannerColor : item.props.backgroundColor;
   const bannerImageLayer = item.props.scene?.layers.find((layer) => layer.id === "banner-image");
   const image = withProducts ? item.props.image : item.props.backgroundImage;
   const activeImageStyle = bannerImageLayer
@@ -876,13 +875,6 @@ function BannerTemplate({
             onChange={(imageLink) => onPatch({ imageLink })}
           />
         ) : null}
-        <ColourField
-          label="Background colour"
-          value={colour}
-          onChange={(nextColour) =>
-            onPatch(withProducts ? { bannerColor: nextColour } : { backgroundColor: nextColour })
-          }
-        />
       </section>
 
       {!imageOnly ? (
@@ -905,6 +897,20 @@ function BannerTemplate({
               multiline
               onChange={(body) => onPatch({ body })}
             />
+            {!withProducts ? (
+              <>
+                <TextField
+                  label="Shop button text"
+                  value={item.props.buttonLabel}
+                  onChange={(buttonLabel) => onPatch({ buttonLabel })}
+                />
+                <TextField
+                  label="Shop button link"
+                  value={item.props.buttonUrl}
+                  onChange={(buttonUrl) => onPatch({ buttonUrl })}
+                />
+              </>
+            ) : null}
           </section>
         </>
       ) : null}

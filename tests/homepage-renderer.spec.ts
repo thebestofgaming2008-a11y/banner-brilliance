@@ -162,7 +162,7 @@ test("published visual homepage content renders responsively", async ({ page }) 
   }
   await expect(hero.getByRole("heading", { name: "FIRST HERO" })).toBeVisible({ timeout: 2_000 });
   await expect(page.getByRole("heading", { name: "VISUAL EDITOR TEST" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Shop now" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Shop now" })).toHaveAttribute("href", "/shop");
   await expect(page.getByRole("heading", { name: "SHOP ALL" })).toBeVisible();
   const customHeading = page.getByRole("heading", { name: "VISUAL EDITOR TEST" });
   expect(
@@ -420,6 +420,7 @@ test("published banner scenes preserve responsive layers, fills, and links", asy
   const posterImage = poster.locator('[data-banner-layer="banner-image"]');
   await expect(posterImage.locator("img")).toBeVisible();
   await expect(poster.locator('[data-banner-layer="banner-overlay"]')).toHaveCount(0);
+  await expect(poster.locator('[data-banner-layer="button"]')).toHaveCount(0);
   await expect(posterImage).toHaveCSS("box-shadow", "none");
   await expect(poster.getByRole("heading", { name: "HIDDEN POSTER TITLE" })).toHaveCount(0);
   await expect(poster.getByRole("link", { name: "Kashmir honey poster" })).toHaveAttribute(

@@ -451,7 +451,7 @@ export function sceneFromCollectionCard(card: CollectionCard, index = 0): Banner
   };
 }
 
-const CUSTOM_BANNER_TEMPLATE_VERSION = 3;
+const CUSTOM_BANNER_TEMPLATE_VERSION = 4;
 const CUSTOM_BANNER_HEIGHT = 520;
 const CUSTOM_BANNER_MOBILE_HEIGHT = 420;
 
@@ -537,7 +537,11 @@ export function migratePresetBannerScene(
 }
 
 function presetBannerTextLayers(
-  props: Pick<CollectionFeatureProps, "contentMode" | "eyebrow" | "title" | "body">,
+  props: Pick<
+    CollectionFeatureProps,
+    "contentMode" | "eyebrow" | "title" | "body" | "buttonLabel" | "buttonUrl"
+  >,
+  includeButton = false,
 ) {
   const imageOnly = props.contentMode === "image-only";
   const overlay: BannerLayer = {
@@ -614,7 +618,30 @@ function presetBannerTextLayers(
     visible: !imageOnly,
   });
   body.mobileStyle = { x: 6.88, y: 89.5, width: 86.24, height: 4.8 };
-  return imageOnly ? [] : [overlay, eyebrow, title, body];
+  const button = buttonLayer(
+    "button",
+    props.buttonLabel || "Shop edit",
+    props.buttonUrl || "/shop",
+    {
+      x: 3.05,
+      y: 94,
+      width: 12,
+      height: 8.46,
+      fontSize: 10,
+      fontWeight: 700,
+      lineHeight: 1,
+      textAlign: "center",
+      textTransform: "uppercase",
+      color: "#000000",
+      backgroundColor: "#ffffff",
+      paddingX: 20,
+      paddingY: 0,
+      locked: true,
+      visible: includeButton && !imageOnly,
+    },
+  );
+  button.mobileStyle = { x: 6.88, y: 89.5, width: 22, height: 10.48 };
+  return imageOnly ? [] : [overlay, eyebrow, title, body, ...(includeButton ? [button] : [])];
 }
 
 export function sceneFromCollectionFeature(props: CollectionFeatureProps): BannerScene {
@@ -626,9 +653,7 @@ export function sceneFromCollectionFeature(props: CollectionFeatureProps): Banne
     height: CUSTOM_BANNER_HEIGHT,
     mobileHeight: CUSTOM_BANNER_MOBILE_HEIGHT,
     preset: "honey-banner",
-    fills: [
-      { id: "fill-solid", type: "solid", enabled: true, opacity: 100, color: props.bannerColor },
-    ],
+    fills: [{ id: "fill-solid", type: "solid", enabled: true, opacity: 100, color: "#000000" }],
     layers: [image, ...presetBannerTextLayers(props)],
   };
 }
@@ -648,10 +673,10 @@ export function sceneFromPromo(props: PromoBannerProps): BannerScene {
         type: "solid",
         enabled: true,
         opacity: 100,
-        color: props.backgroundColor,
+        color: "#000000",
       },
     ],
-    layers: [image, ...presetBannerTextLayers(props)],
+    layers: [image, ...presetBannerTextLayers(props, true)],
   };
 }
 
@@ -662,6 +687,7 @@ export function ensureCustomBannerScenes(data: HomepageData): HomepageData {
       item.props.contentMode =
         item.props.contentMode === "image-only" ? "image-only" : "text-overlay";
       item.props.layout = "banner-top";
+      item.props.bannerColor = "#000000";
       item.props.textTone = "light";
       item.props.textColor = "#ffffff";
       item.props.textAlign = "left";
@@ -677,6 +703,9 @@ export function ensureCustomBannerScenes(data: HomepageData): HomepageData {
     } else if (item.type === "PromoBanner") {
       item.props.contentMode =
         item.props.contentMode === "image-only" ? "image-only" : "text-overlay";
+      item.props.buttonLabel = String(item.props.buttonLabel || "Shop edit");
+      item.props.buttonUrl = String(item.props.buttonUrl || "/shop");
+      item.props.backgroundColor = "#000000";
       item.props.textTone = "light";
       item.props.textColor = "#ffffff";
       item.props.textAlign = "left";
@@ -883,11 +912,11 @@ export function createStandaloneBanner(): HomepageContentItem {
     eyebrow: "Collection",
     title: "NEW BANNER",
     body: "",
-    buttonLabel: "",
-    buttonUrl: "",
+    buttonLabel: "Shop edit",
+    buttonUrl: "/shop",
     backgroundImage: "",
     foregroundImage: "",
-    backgroundColor: "#F6AD32",
+    backgroundColor: "#000000",
     textTone: "light",
     textColor: "#ffffff",
     textAlign: "left",

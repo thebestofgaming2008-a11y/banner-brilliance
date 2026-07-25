@@ -205,6 +205,12 @@ function homepagePublishIssues(data: HomepageData, products: StoreProduct[]) {
     if (item.props.contentMode === "image-only" && !safeHomepageLink(item.props.imageLink)) {
       issues.push(`${label} has an invalid poster link.`);
     }
+    if (item.type === "PromoBanner" && item.props.contentMode !== "image-only") {
+      if (!item.props.buttonLabel.trim()) issues.push(`${label} needs shop button text.`);
+      if (!safeHomepageLink(item.props.buttonUrl) || !item.props.buttonUrl.trim()) {
+        issues.push(`${label} needs a valid shop button link.`);
+      }
+    }
     const imageLayer = item.props.scene?.layers.find((layer) => layer.id === "banner-image");
     if (!imageLayer) {
       issues.push(`${label} needs its banner image frame restored.`);

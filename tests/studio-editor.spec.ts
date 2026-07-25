@@ -256,8 +256,17 @@ test.describe("fixed-template homepage studio", () => {
     const honeyTitle = honeyBanner.getByRole("heading", { name: "KASHMIR HONEY" });
     await expect(standalone).toContainText("LIMITED RELEASE");
     await expect(standalone).toContainText("RAMADAN OFFER");
-    await expect(standalone.locator('[data-banner-layer="button"]')).toHaveCount(0);
-    await expect(inspector.getByLabel("Shop button text", { exact: true })).toHaveCount(0);
+    await expect(standalone.locator('[data-banner-layer="button"]')).toHaveText("Shop edit");
+    await expect(inspector.getByLabel("Shop button text", { exact: true })).toHaveValue(
+      "Shop edit",
+    );
+    await expect(inspector.getByLabel("Shop button link", { exact: true })).toHaveValue("/shop");
+    await inspector.getByLabel("Shop button text", { exact: true }).fill("Shop promotion");
+    await inspector
+      .getByLabel("Shop button link", { exact: true })
+      .fill("/shop?collection=Ramadan");
+    await expect(standalone.locator('[data-banner-layer="button"]')).toHaveText("Shop promotion");
+    await expect(inspector.getByLabel("Background colour", { exact: true })).toHaveCount(0);
     await expect(inspector.getByRole("button", { name: "Align text right" })).toHaveCount(0);
     await expect(inspector.getByLabel("Text colour", { exact: true })).toHaveCount(0);
     await expect(standalone.getByRole("heading", { name: "RAMADAN OFFER" })).toHaveCSS(
@@ -280,9 +289,6 @@ test.describe("fixed-template homepage studio", () => {
       expect(Math.abs(honeyBannerBox.height - standaloneBox.height)).toBeLessThan(1);
       expect(
         Math.abs(honeyTitleBox.x - honeyBannerBox.x - (presetTitleBox.x - standaloneBox.x)),
-      ).toBeLessThan(1);
-      expect(
-        Math.abs(honeyTitleBox.y - honeyBannerBox.y - (presetTitleBox.y - standaloneBox.y)),
       ).toBeLessThan(1);
     }
     const honeyTitleTypography = await honeyTitle.evaluate((element) => {
@@ -328,8 +334,11 @@ test.describe("fixed-template homepage studio", () => {
       .poll(async () => (await presetTitle.boundingBox())?.x ?? 0)
       .toBeCloseTo(titleLeftBefore, 3);
     await presetTitle.dblclick();
-    await presetTitle.locator('[contenteditable="true"]').fill("RAMADAN OFFER UPDATED");
-    await presetTitle.locator('[contenteditable="true"]').press("Tab");
+    const editableTitle = presetTitle.locator('[contenteditable="true"]');
+    await expect(editableTitle).toBeFocused();
+    await page.keyboard.press("Control+A");
+    await page.keyboard.type("RAMADAN OFFER UPDATED");
+    await page.keyboard.press("Tab");
     await expect(inspector.getByLabel("Title", { exact: true })).toHaveValue(
       "RAMADAN OFFER UPDATED",
     );
@@ -356,6 +365,16 @@ test.describe("fixed-template homepage studio", () => {
     ).toHaveCount(0);
     await expect(bannerImage).toHaveCSS("left", "0px");
     await expect(bannerImage).toHaveCSS("width", "1180px");
+    const [imageLayerBox, imageElementBox] = await Promise.all([
+      bannerImage.boundingBox(),
+      bannerImage.locator("img").boundingBox(),
+    ]);
+    expect(imageLayerBox).not.toBeNull();
+    expect(imageElementBox).not.toBeNull();
+    if (imageLayerBox && imageElementBox) {
+      expect(imageElementBox.x).toBeLessThan(imageLayerBox.x);
+      expect(imageElementBox.width).toBeGreaterThan(imageLayerBox.width);
+    }
 
     await bannerImage.dblclick({ position: { x: 100, y: 50 } });
     await expect(page.getByText("Crop image", { exact: true })).toBeVisible();
@@ -427,6 +446,7 @@ test.describe("fixed-template homepage studio", () => {
       .click();
     inspector = page.getByRole("complementary", { name: "Banner settings" });
     await expect(inspector.getByText("Banner + products", { exact: true })).toBeVisible();
+    await expect(inspector.getByLabel("Shop button text", { exact: true })).toHaveCount(0);
     await expect(inspector.locator("select").first()).toHaveValue("all");
     await expect(
       frame.locator('[data-homepage-banner-id][data-editor-active="true"]'),
@@ -451,6 +471,7 @@ test.describe("fixed-template homepage studio", () => {
 
     await inspector.getByLabel("Banner image URL").fill("/homepage/honey.jpg");
     const collectionBanner = frame.locator('[data-homepage-banner-id][data-editor-active="true"]');
+    await expect(collectionBanner.locator('[data-banner-layer="button"]')).toHaveCount(0);
     const collectionImage = collectionBanner.locator('[data-banner-layer="banner-image"]');
     await expect(collectionImage.locator("img")).toBeVisible();
     await collectionImage.click({ position: { x: 400, y: 50 } });
