@@ -817,7 +817,13 @@ function HeroSlider() {
   const [active, setActive] = useState(0);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const drag = useRef<{ pointerId: number; startX: number; moved: boolean } | null>(null);
+  const drag = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    intent: "pending" | "horizontal" | "vertical";
+    moved: boolean;
+  } | null>(null);
   const suppressClick = useRef(false);
   const { banners: managedBanners } = useCatalogPresentation();
   const managedHeroBanners = managedBanners.filter(
@@ -869,10 +875,14 @@ function HeroSlider() {
     if (slideCount < 2 || event.button !== 0) return;
     if ((event.target as HTMLElement).closest('[aria-label="Choose hero slide"]')) return;
 
-    drag.current = { pointerId: event.pointerId, startX: event.clientX, moved: false };
+    drag.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      intent: "pending",
+      moved: false,
+    };
     suppressClick.current = false;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    setIsDragging(true);
     setDragOffset(0);
   };
 
@@ -881,6 +891,23 @@ function HeroSlider() {
     if (!currentDrag || currentDrag.pointerId !== event.pointerId) return;
 
     const offset = event.clientX - currentDrag.startX;
+    const verticalOffset = event.clientY - currentDrag.startY;
+    if (currentDrag.intent === "pending") {
+      const horizontalDistance = Math.abs(offset);
+      const verticalDistance = Math.abs(verticalOffset);
+      if (horizontalDistance < 8 && verticalDistance < 8) return;
+      if (verticalDistance >= horizontalDistance * 1.1) {
+        currentDrag.intent = "vertical";
+        return;
+      }
+      if (horizontalDistance < verticalDistance * 1.2) return;
+
+      currentDrag.intent = "horizontal";
+      setIsDragging(true);
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    if (currentDrag.intent !== "horizontal") return;
+
     if (Math.abs(offset) > 5) currentDrag.moved = true;
     setDragOffset(offset);
   };
@@ -891,12 +918,12 @@ function HeroSlider() {
 
     const offset = event.clientX - currentDrag.startX;
     const threshold = Math.min(96, Math.max(44, event.currentTarget.clientWidth * 0.12));
-    if (!cancelled && Math.abs(offset) >= threshold) {
+    if (!cancelled && currentDrag.intent === "horizontal" && Math.abs(offset) >= threshold) {
       const direction = offset < 0 ? 1 : -1;
       setActive((current) => (current + direction + slideCount) % slideCount);
     }
 
-    suppressClick.current = !cancelled && currentDrag.moved;
+    suppressClick.current = !cancelled && currentDrag.intent === "horizontal" && currentDrag.moved;
     window.setTimeout(() => {
       suppressClick.current = false;
     }, 0);

@@ -86,7 +86,12 @@ export function HomepageHero({
   const [dragOffset, setDragOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const dragStart = useRef<number | null>(null);
+  const dragStart = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+    intent: "pending" | "horizontal" | "vertical";
+  } | null>(null);
   const dragged = useRef(false);
 
   useEffect(() => {
@@ -147,11 +152,16 @@ export function HomepageHero({
     );
   };
 
-  const finishDrag = (event: ReactPointerEvent<HTMLElement>) => {
-    if (dragStart.current === null) return;
+  const finishDrag = (event: ReactPointerEvent<HTMLElement>, cancelled = false) => {
+    const currentDrag = dragStart.current;
+    if (!currentDrag || currentDrag.pointerId !== event.pointerId) return;
     const threshold = Math.min(72, event.currentTarget.clientWidth * 0.14);
-    const completedOffset = event.clientX - dragStart.current;
-    if (Math.abs(completedOffset) >= threshold) {
+    const completedOffset = event.clientX - currentDrag.x;
+    if (
+      !cancelled &&
+      currentDrag.intent === "horizontal" &&
+      Math.abs(completedOffset) >= threshold
+    ) {
       goTo(active + (completedOffset < 0 ? 1 : -1));
     }
     dragStart.current = null;
@@ -201,19 +211,40 @@ export function HomepageHero({
       onMouseLeave={() => setHovered(false)}
       onPointerDown={(event) => {
         if (editMode || safeSlides.length < 2 || !event.isPrimary || event.button !== 0) return;
-        dragStart.current = event.clientX;
+        dragStart.current = {
+          pointerId: event.pointerId,
+          x: event.clientX,
+          y: event.clientY,
+          intent: "pending",
+        };
         dragged.current = false;
-        setDragging(true);
-        event.currentTarget.setPointerCapture(event.pointerId);
       }}
       onPointerMove={(event) => {
-        if (dragStart.current === null) return;
-        const nextOffset = event.clientX - dragStart.current;
+        const currentDrag = dragStart.current;
+        if (!currentDrag || currentDrag.pointerId !== event.pointerId) return;
+        const nextOffset = event.clientX - currentDrag.x;
+        const verticalOffset = event.clientY - currentDrag.y;
+        if (currentDrag.intent === "pending") {
+          const horizontalDistance = Math.abs(nextOffset);
+          const verticalDistance = Math.abs(verticalOffset);
+          if (horizontalDistance < 8 && verticalDistance < 8) return;
+          if (verticalDistance >= horizontalDistance * 1.1) {
+            currentDrag.intent = "vertical";
+            return;
+          }
+          if (horizontalDistance < verticalDistance * 1.2) return;
+
+          currentDrag.intent = "horizontal";
+          setDragging(true);
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }
+        if (currentDrag.intent !== "horizontal") return;
+
         if (Math.abs(nextOffset) > 5) dragged.current = true;
         setDragOffset(nextOffset);
       }}
       onPointerUp={finishDrag}
-      onPointerCancel={finishDrag}
+      onPointerCancel={(event) => finishDrag(event, true)}
       onClickCapture={(event) => {
         if (!dragged.current) return;
         event.preventDefault();

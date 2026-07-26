@@ -1,4 +1,43 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+
+async function dragMostlyVertically(target: Locator) {
+  const box = await target.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+
+  const startX = box.x + box.width / 2;
+  const startY = box.y + Math.min(180, box.height / 3);
+  const pointer = {
+    pointerId: 71,
+    pointerType: "touch",
+    isPrimary: true,
+    button: 0,
+  };
+  await target.dispatchEvent("pointerdown", {
+    ...pointer,
+    buttons: 1,
+    clientX: startX,
+    clientY: startY,
+  });
+  await target.dispatchEvent("pointermove", {
+    ...pointer,
+    buttons: 1,
+    clientX: startX + 8,
+    clientY: startY + 42,
+  });
+  await target.dispatchEvent("pointermove", {
+    ...pointer,
+    buttons: 1,
+    clientX: startX + 100,
+    clientY: startY + 190,
+  });
+  await target.dispatchEvent("pointerup", {
+    ...pointer,
+    buttons: 0,
+    clientX: startX + 100,
+    clientY: startY + 190,
+  });
+}
 
 function watchPageErrors(page: Page) {
   const errors: string[] = [];
@@ -24,8 +63,25 @@ test("coded homepage uses the client-approved hero gradients", async ({ page }) 
     "background-image",
     /linear-gradient\(105deg, rgb\(255, 187, 0\), rgb\(255, 0, 81\)\)/,
   );
+  await dragMostlyVertically(hero);
+  await expect(hero.getByRole("button", { name: "Show AL-IKHWAAN SET" })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
 
-  await hero.getByRole("button", { name: "Show AS-SALIHAAT SET" }).click();
+  const heroBox = await hero.boundingBox();
+  expect(heroBox).not.toBeNull();
+  if (heroBox) {
+    const pointerY = heroBox.y + Math.min(240, heroBox.height / 2);
+    await page.mouse.move(heroBox.x + heroBox.width * 0.72, pointerY);
+    await page.mouse.down();
+    await page.mouse.move(heroBox.x + heroBox.width * 0.28, pointerY, { steps: 8 });
+    await page.mouse.up();
+  }
+  await expect(hero.getByRole("button", { name: "Show AS-SALIHAAT SET" })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
   const salihaat = hero.locator('[data-default-hero="AS-SALIHAAT SET"]');
   await expect(salihaat).toHaveCSS(
     "background-image",
@@ -138,6 +194,8 @@ test("published visual homepage content renders responsively", async ({ page }) 
     "background-image",
     /linear-gradient/,
   );
+  await dragMostlyVertically(hero);
+  await expect(hero.getByRole("heading", { name: "FIRST HERO" })).toBeVisible();
   await hero.getByRole("button", { name: "Show SECOND HERO" }).click();
   await expect(hero.getByRole("heading", { name: "SECOND HERO" })).toBeVisible();
   await expect(hero.locator("[data-hero-track]")).toHaveCSS("transition-duration", "0.76s");
