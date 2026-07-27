@@ -442,7 +442,7 @@ test("homepage shop controls filter, pluralize, and link to the selected collect
   );
 });
 
-test("hero preset supplies luxury subtitles and editable ornament layers", async ({ page }) => {
+test("hero preset supplies a responsive conversion lockup", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/", { waitUntil: "domcontentloaded", timeout: 60_000 });
 
@@ -452,7 +452,10 @@ test("hero preset supplies luxury subtitles and editable ornament layers", async
     .first();
   await expect(firstSlide.locator('[data-banner-layer="title"]')).toHaveText("AL-IKHWAAN SET");
   await expect(firstSlide.locator('[data-banner-layer="body"]')).toHaveText("LIL-MUSLIMEEN");
-  await expect(firstSlide.locator('[data-banner-layer^="ornament-"]')).toHaveCount(3);
+  await expect(firstSlide.locator('[data-banner-layer^="ornament-"]')).toHaveCount(0);
+  await expect(firstSlide.locator('[data-banner-layer="button"]')).toHaveText(
+    "Shop the collection",
+  );
   await expect(firstSlide.locator('[data-banner-layer="foreground"] img')).toHaveCSS(
     "filter",
     /drop-shadow/,

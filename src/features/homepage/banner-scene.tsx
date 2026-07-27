@@ -371,6 +371,9 @@ export function BannerSceneView({
               : { pointerEvents: "none" }
         }
       >
+        {scene.coordinateMode === "original-hero" ? (
+          <span className="hero-mobile-legibility-scrim" aria-hidden="true" />
+        ) : null}
         {scene.layers.map((layer, index) => {
           const style = resolveLayerStyle(layer, resolvedViewport);
           const layerEditable =
@@ -671,7 +674,7 @@ export function BannerSceneView({
               className={
                 layer.type === "button"
                   ? scene.coordinateMode === "original-hero"
-                    ? "block h-full w-full"
+                    ? "flex h-full w-full items-center justify-center"
                     : `flex h-full items-center ${
                         style.textAlign === "left"
                           ? "justify-start"

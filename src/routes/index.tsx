@@ -665,7 +665,7 @@ function HeroBanner({
       />
 
       <div
-        className="pointer-events-none absolute left-1/2 top-0 h-full -translate-x-1/2 overflow-hidden"
+        className="hero-product-frame pointer-events-none absolute top-0 h-full -translate-x-1/2 overflow-hidden"
         style={{
           aspectRatio: `${FRAME_W} / ${FRAME_H}`,
           containerType: "inline-size",
@@ -680,26 +680,16 @@ function HeroBanner({
           className="absolute inset-x-0 bottom-0 z-10 mx-auto h-auto w-full"
           style={{ filter: "drop-shadow(18px 12px 20px rgba(50, 14, 20, 0.26))" }}
         />
-        <div className="absolute inset-x-[2%] top-[77%] z-20 text-center text-white">
-          <h1
-            className="m-0 whitespace-nowrap font-serif-display font-normal leading-none"
-            style={{ fontSize: `${(46 / FRAME_W) * 100}cqw` }}
-          >
-            {banner.title}
-          </h1>
-          <p
-            className="mt-[1.5cqw] whitespace-nowrap font-serif-display font-normal uppercase leading-none"
-            style={{ fontSize: `${(15 / FRAME_W) * 100}cqw` }}
-          >
-            {banner.subtitle}
-          </p>
-          <div className="mx-auto mt-[2.2cqw] flex w-[62%] items-center justify-center gap-[6%]">
-            <span className="h-px flex-1 bg-white/75" />
-            <span className="block h-[1.2cqw] w-[1.2cqw] rotate-45 border border-white/80" />
-            <span className="h-px flex-1 bg-white/75" />
-          </div>
-        </div>
-        <span className="pointer-events-none absolute inset-x-[28%] top-[93%] z-20 text-center text-[11px] font-semibold uppercase leading-none text-white underline underline-offset-4">
+      </div>
+      <span className="hero-mobile-legibility-scrim" aria-hidden="true" />
+      <div className="hero-conversion-copy pointer-events-none absolute z-20">
+        <h1 className="hero-conversion-title m-0 whitespace-nowrap font-serif-display font-normal">
+          {banner.title}
+        </h1>
+        <p className="hero-conversion-subtitle whitespace-nowrap font-bold uppercase">
+          {banner.subtitle}
+        </p>
+        <span className="hero-conversion-cta inline-flex items-center justify-center bg-white font-bold uppercase text-[#211719] md:bg-[#211719] md:text-white">
           Shop the collection
         </span>
       </div>

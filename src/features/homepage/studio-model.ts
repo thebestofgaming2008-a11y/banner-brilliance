@@ -122,7 +122,7 @@ function imageLayer(
   };
 }
 
-const LUXURY_HERO_TEMPLATE_VERSION = 2;
+const LUXURY_HERO_TEMPLATE_VERSION = 3;
 
 function defaultHeroSubtitle(slide: HeroSlide, index: number) {
   if (slide.body.trim()) return slide.body;
@@ -131,118 +131,96 @@ function defaultHeroSubtitle(slide: HeroSlide, index: number) {
   return "";
 }
 
-function heroOrnamentLayer(
-  id: string,
-  name: string,
-  style: Partial<BannerLayerStyle>,
-): BannerLayer {
-  return {
-    id,
-    name,
-    type: "shape",
-    style: baseStyle({
-      backgroundColor: "#ffffff",
-      opacity: 76,
-      locked: true,
-      ...style,
-    }),
-  };
-}
-
 function originalHeroCaptionLayers(slide: HeroSlide, index: number, color: string) {
   const title = textLayer(
     "title",
     "Title",
     slide.title,
     {
-      x: 2,
-      y: 77,
-      width: 96,
-      height: 8,
+      x: -86,
+      y: 53,
+      width: 84,
+      height: 11,
       fontFamily: "instrument",
-      fontSize: 46,
+      fontSize: 58,
       fontWeight: 400,
-      lineHeight: 1,
-      textAlign: "center",
+      lineHeight: 0.95,
+      textAlign: "left",
       whiteSpace: "nowrap",
-      color,
+      color: "#211719",
     },
     "h1",
   );
-  title.mobileStyle = { x: 2, y: 77, width: 96, height: 8, fontSize: 46, textAlign: "center" };
-
-  const subtitle = textLayer("body", "Subtitle", defaultHeroSubtitle(slide, index), {
-    x: 20,
-    y: 84.8,
-    width: 60,
-    height: 3.4,
-    fontFamily: "instrument",
-    fontSize: 15,
-    fontWeight: 400,
-    lineHeight: 1,
+  title.mobileStyle = {
+    x: 6,
+    y: 72,
+    width: 88,
+    height: 8,
+    fontSize: 42,
+    lineHeight: 0.95,
     textAlign: "center",
-    textTransform: "uppercase",
-    whiteSpace: "nowrap",
     color,
-  });
-  subtitle.mobileStyle = {
-    x: 20,
-    y: 84.8,
-    width: 60,
-    height: 3.4,
-    fontSize: 15,
-    textAlign: "center",
   };
 
-  const ornamentLeft = heroOrnamentLayer("ornament-left", "Left ornament", {
-    x: 19,
-    y: 88.65,
-    width: 25,
-    height: 0.16,
+  const subtitle = textLayer("body", "Subtitle", defaultHeroSubtitle(slide, index), {
+    x: -86,
+    y: 65.5,
+    width: 70,
+    height: 4,
+    fontFamily: "schibsted",
+    fontSize: 15,
+    fontWeight: 700,
+    lineHeight: 1,
+    textAlign: "left",
+    textTransform: "uppercase",
+    whiteSpace: "nowrap",
+    color: "#211719",
   });
-  ornamentLeft.mobileStyle = { x: 19, y: 88.65, width: 25, height: 0.16 };
-  const ornamentRight = heroOrnamentLayer("ornament-right", "Right ornament", {
-    x: 56,
-    y: 88.65,
-    width: 25,
-    height: 0.16,
-  });
-  ornamentRight.mobileStyle = { x: 56, y: 88.65, width: 25, height: 0.16 };
-  const ornamentDiamond = heroOrnamentLayer("ornament-diamond", "Centre ornament", {
-    x: 49,
-    y: 88.05,
-    width: 2,
-    height: 1.2,
-    rotation: 45,
-    backgroundColor: "#ffffff00",
-    borderColor: "#ffffff",
-    borderWidth: 1,
-  });
-  ornamentDiamond.mobileStyle = { x: 49, y: 88.05, width: 2, height: 1.2, rotation: 45 };
+  subtitle.mobileStyle = {
+    x: 12,
+    y: 80.5,
+    width: 76,
+    height: 3,
+    fontSize: 12,
+    fontWeight: 700,
+    textAlign: "center",
+    color,
+  };
 
   const button = buttonLayer(
     "button",
     slide.buttonLabel || "Shop the collection",
     slide.buttonUrl,
     {
-      x: 28,
-      y: 93,
-      width: 44,
-      height: 3,
-      color,
-      backgroundColor: "#00000000",
+      x: -86,
+      y: 72,
+      width: 38,
+      height: 6.2,
+      color: "#ffffff",
+      backgroundColor: "#211719",
       borderWidth: 0,
-      fontSize: 11,
-      fontWeight: 600,
+      borderRadius: 2,
+      fontSize: 12,
+      fontWeight: 700,
       textAlign: "center",
-      textDecoration: "underline",
-      paddingX: 0,
+      textDecoration: "none",
+      paddingX: 16,
       paddingY: 0,
     },
   );
-  button.mobileStyle = { x: 28, y: 93, width: 44, height: 3, fontSize: 11, textAlign: "center" };
+  button.mobileStyle = {
+    x: 27,
+    y: 86,
+    width: 46,
+    height: 6.8,
+    fontSize: 11,
+    textAlign: "center",
+    color: "#211719",
+    backgroundColor: "#ffffff",
+    borderRadius: 2,
+  };
 
-  return [title, subtitle, ornamentLeft, ornamentRight, ornamentDiamond, button];
+  return [title, subtitle, button];
 }
 
 function defaultFills(
@@ -344,9 +322,9 @@ export function sceneFromHero(slide: HeroSlide, index = 0): BannerScene {
       ],
       layers: [
         imageLayer("foreground", "Product image", slide.foregroundImage, {
-          x: 0,
+          x: 8,
           y: 0,
-          width: 100,
+          width: 115,
           height: 100,
           objectFit: "contain",
           objectPosition: "center bottom",
@@ -825,6 +803,15 @@ function upgradeOriginalHeroScene(
 ): BannerScene {
   if ((scene.templateVersion ?? 0) >= LUXURY_HERO_TEMPLATE_VERSION) return scene;
   const foreground = scene.layers.find((layer) => layer.id === "foreground");
+  const migratedForeground = foreground
+    ? {
+        ...foreground,
+        style: {
+          ...foreground.style,
+          x: 8,
+        },
+      }
+    : null;
   const currentTitle = scene.layers.find((layer) => layer.id === "title")?.text?.trim();
   const currentSubtitle = scene.layers.find((layer) => layer.id === "body")?.text?.trim();
   const currentButton = scene.layers.find((layer) => layer.id === "button");
@@ -840,7 +827,7 @@ function upgradeOriginalHeroScene(
     templateVersion: LUXURY_HERO_TEMPLATE_VERSION,
     name: migratedSlide.title || scene.name,
     layers: [
-      ...(foreground ? [foreground] : []),
+      ...(migratedForeground ? [migratedForeground] : []),
       ...originalHeroCaptionLayers(
         migratedSlide,
         index,
