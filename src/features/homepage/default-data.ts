@@ -18,7 +18,7 @@ export const DEFAULT_HOMEPAGE_DATA: HomepageData = {
           {
             eyebrow: "New collection",
             title: "AL-IKHWAAN SET",
-            body: "",
+            body: "LIL-MUSLIMEEN",
             buttonLabel: "Shop the collection",
             buttonUrl: "/shop?collection=Shemaghs",
             backgroundImage: "",
@@ -41,7 +41,7 @@ export const DEFAULT_HOMEPAGE_DATA: HomepageData = {
           {
             eyebrow: "New collection",
             title: "AS-SALIHAAT SET",
-            body: "",
+            body: "LIL MUSLIMAAT",
             buttonLabel: "Shop the collection",
             buttonUrl: "/shop?collection=Niqabs",
             backgroundImage: "",

@@ -420,6 +420,45 @@ test("mobile shop controls scroll and menu search filters the live catalog", asy
   expect(errors).toEqual([]);
 });
 
+test("homepage shop controls filter, pluralize, and link to the selected collection", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/", { waitUntil: "domcontentloaded", timeout: 60_000 });
+
+  const shop = page.locator("#shop-all");
+  await expect(shop.getByRole("button", { name: "Previous collections" })).toBeVisible();
+  await expect(shop.getByRole("button", { name: "More collections" })).toBeVisible();
+  await expect(shop.getByPlaceholder("Search products")).toBeVisible();
+  await expect(shop.getByLabel("Sort homepage products")).toBeVisible();
+
+  await shop.getByRole("tab", { name: "Shemaghs", exact: true }).click();
+  await expect(
+    shop.getByLabel("Filter homepage products by collection").locator("xpath=..").locator("span"),
+  ).toHaveText("1 product");
+  await expect(shop.getByRole("link", { name: "Shemaghs" })).toHaveAttribute(
+    "href",
+    "/shop?collection=shemaghs",
+  );
+});
+
+test("hero preset supplies luxury subtitles and editable ornament layers", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/", { waitUntil: "domcontentloaded", timeout: 60_000 });
+
+  const firstSlide = page
+    .locator('section[aria-label="Featured collection"]')
+    .locator("article")
+    .first();
+  await expect(firstSlide.locator('[data-banner-layer="title"]')).toHaveText("AL-IKHWAAN SET");
+  await expect(firstSlide.locator('[data-banner-layer="body"]')).toHaveText("LIL-MUSLIMEEN");
+  await expect(firstSlide.locator('[data-banner-layer^="ornament-"]')).toHaveCount(3);
+  await expect(firstSlide.locator('[data-banner-layer="foreground"] img')).toHaveCSS(
+    "filter",
+    /drop-shadow/,
+  );
+});
+
 test("storefront motion respects reduced-motion preferences", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/shop", { waitUntil: "domcontentloaded", timeout: 60_000 });
@@ -432,6 +471,16 @@ test("storefront motion respects reduced-motion preferences", async ({ page }) =
   await expect
     .poll(() => firstCard.evaluate((element) => getComputedStyle(element).opacity))
     .toBe("1");
+
+  await page.goto("/products/khadija-niqab", {
+    waitUntil: "domcontentloaded",
+    timeout: 60_000,
+  });
+  const conversionButton = page.locator(".conversion-nudge").last();
+  await conversionButton.evaluate((element) => element.removeAttribute("disabled"));
+  await expect
+    .poll(() => conversionButton.evaluate((element) => getComputedStyle(element).animationName))
+    .toBe("none");
 });
 
 test("account, tracking lookup, and admin entry render", async ({ page }) => {

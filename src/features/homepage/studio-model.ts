@@ -122,6 +122,129 @@ function imageLayer(
   };
 }
 
+const LUXURY_HERO_TEMPLATE_VERSION = 2;
+
+function defaultHeroSubtitle(slide: HeroSlide, index: number) {
+  if (slide.body.trim()) return slide.body;
+  if (index === 0 || /ikhwaan/i.test(slide.title)) return "LIL-MUSLIMEEN";
+  if (index === 1 || /salihaat|akhwat/i.test(slide.title)) return "LIL MUSLIMAAT";
+  return "";
+}
+
+function heroOrnamentLayer(
+  id: string,
+  name: string,
+  style: Partial<BannerLayerStyle>,
+): BannerLayer {
+  return {
+    id,
+    name,
+    type: "shape",
+    style: baseStyle({
+      backgroundColor: "#ffffff",
+      opacity: 76,
+      locked: true,
+      ...style,
+    }),
+  };
+}
+
+function originalHeroCaptionLayers(slide: HeroSlide, index: number, color: string) {
+  const title = textLayer(
+    "title",
+    "Title",
+    slide.title,
+    {
+      x: 2,
+      y: 77,
+      width: 96,
+      height: 8,
+      fontFamily: "instrument",
+      fontSize: 46,
+      fontWeight: 400,
+      lineHeight: 1,
+      textAlign: "center",
+      whiteSpace: "nowrap",
+      color,
+    },
+    "h1",
+  );
+  title.mobileStyle = { x: 2, y: 77, width: 96, height: 8, fontSize: 46, textAlign: "center" };
+
+  const subtitle = textLayer("body", "Subtitle", defaultHeroSubtitle(slide, index), {
+    x: 20,
+    y: 84.8,
+    width: 60,
+    height: 3.4,
+    fontFamily: "instrument",
+    fontSize: 15,
+    fontWeight: 400,
+    lineHeight: 1,
+    textAlign: "center",
+    textTransform: "uppercase",
+    whiteSpace: "nowrap",
+    color,
+  });
+  subtitle.mobileStyle = {
+    x: 20,
+    y: 84.8,
+    width: 60,
+    height: 3.4,
+    fontSize: 15,
+    textAlign: "center",
+  };
+
+  const ornamentLeft = heroOrnamentLayer("ornament-left", "Left ornament", {
+    x: 19,
+    y: 88.65,
+    width: 25,
+    height: 0.16,
+  });
+  ornamentLeft.mobileStyle = { x: 19, y: 88.65, width: 25, height: 0.16 };
+  const ornamentRight = heroOrnamentLayer("ornament-right", "Right ornament", {
+    x: 56,
+    y: 88.65,
+    width: 25,
+    height: 0.16,
+  });
+  ornamentRight.mobileStyle = { x: 56, y: 88.65, width: 25, height: 0.16 };
+  const ornamentDiamond = heroOrnamentLayer("ornament-diamond", "Centre ornament", {
+    x: 49,
+    y: 88.05,
+    width: 2,
+    height: 1.2,
+    rotation: 45,
+    backgroundColor: "#ffffff00",
+    borderColor: "#ffffff",
+    borderWidth: 1,
+  });
+  ornamentDiamond.mobileStyle = { x: 49, y: 88.05, width: 2, height: 1.2, rotation: 45 };
+
+  const button = buttonLayer(
+    "button",
+    slide.buttonLabel || "Shop the collection",
+    slide.buttonUrl,
+    {
+      x: 28,
+      y: 93,
+      width: 44,
+      height: 3,
+      color,
+      backgroundColor: "#00000000",
+      borderWidth: 0,
+      fontSize: 11,
+      fontWeight: 600,
+      textAlign: "center",
+      textDecoration: "underline",
+      paddingX: 0,
+      paddingY: 0,
+    },
+  );
+  button.mobileStyle = { x: 28, y: 93, width: 44, height: 3, fontSize: 11, textAlign: "center" };
+
+  return [title, subtitle, ornamentLeft, ornamentRight, ornamentDiamond, button];
+}
+
 function defaultFills(
   color: string,
   image: string,
@@ -169,17 +292,11 @@ export function sceneFromHero(slide: HeroSlide, index = 0): BannerScene {
   const light = (slide.textTone ?? "light") === "light";
   const color = light ? "#ffffff" : "#000000";
   if (original) {
-    const mobileWidth = 390;
     const mobileHeight = 649;
-    const titleFrame =
-      index === 0
-        ? { left: 37, top: 121, width: 316 }
-        : index === 1
-          ? { left: 41, top: 100, width: 319 }
-          : { left: 30, top: 110, width: 330 };
     const gradient = { ...DEFAULT_HERO_GRADIENT, ...slide.gradient };
     return {
       version: 1,
+      templateVersion: LUXURY_HERO_TEMPLATE_VERSION,
       name: slide.title || `Hero ${index + 1}`,
       height: 820,
       mobileHeight,
@@ -234,79 +351,12 @@ export function sceneFromHero(slide: HeroSlide, index = 0): BannerScene {
           objectFit: "contain",
           objectPosition: "center bottom",
         }),
-        textLayer(
-          "title",
-          "Title",
-          slide.title,
-          {
-            x: (titleFrame.left / mobileWidth) * 100,
-            y: (titleFrame.top / mobileHeight) * 100,
-            width: (titleFrame.width / mobileWidth) * 100,
-            height: 8.1,
-            fontFamily: "instrument",
-            fontSize: 52,
-            fontWeight: 400,
-            lineHeight: 1,
-            textAlign: "center",
-            whiteSpace: "nowrap",
-            color,
-          },
-          "h1",
-        ),
-        textLayer("body", "Subtitle", slide.body, {
-          x: (titleFrame.left / mobileWidth) * 100,
-          y: ((titleFrame.top + 58) / mobileHeight) * 100,
-          width: (titleFrame.width / mobileWidth) * 100,
-          height: 5,
-          fontFamily: "schibsted",
-          fontSize: 14,
-          fontWeight: 500,
-          lineHeight: 1.2,
-          textAlign: "center",
-          color,
-        }),
-        buttonLayer("button", slide.buttonLabel || "Shop the collection", slide.buttonUrl, {
-          x: (25 / mobileWidth) * 100,
-          y: (614 / mobileHeight) * 100,
-          width: 42,
-          height: 2.6,
-          color,
-          backgroundColor: "#00000000",
-          borderWidth: 0,
-          textAlign: "left",
-          textDecoration: "underline",
-          paddingX: 0,
-          paddingY: 0,
-        }),
-      ].map((layer) => {
-        if (layer.id === "foreground") {
-          return {
-            ...layer,
-            mobileStyle: { x: 0, y: 0, width: 100, height: 100 },
-          };
-        }
-        if (layer.id === "title" || layer.id === "body") {
-          return {
-            ...layer,
-            mobileStyle: {
-              x: (titleFrame.left / mobileWidth) * 100,
-              y: ((titleFrame.top + (layer.id === "body" ? 58 : 0)) / mobileHeight) * 100,
-              width: (titleFrame.width / mobileWidth) * 100,
-              height: layer.style.height,
-              fontSize: layer.id === "title" ? 52 : 14,
-            },
-          };
-        }
-        return {
-          ...layer,
-          mobileStyle: {
-            x: (25 / mobileWidth) * 100,
-            y: (614 / mobileHeight) * 100,
-            width: 42,
-            height: 2.6,
-          },
-        };
-      }),
+        ...originalHeroCaptionLayers(slide, index, color),
+      ].map((layer) =>
+        layer.id === "foreground"
+          ? { ...layer, mobileStyle: { x: 0, y: 0, width: 100, height: 100 } }
+          : layer,
+      ),
     };
   }
   const align = slide.textAlign ?? "left";
@@ -751,17 +801,53 @@ export function ensureHomepageScenes(data: HomepageData): HomepageData {
   const next = ensureCustomBannerScenes(data);
   next.content = next.content.map((item) => {
     if (item.type === "Hero") {
-      item.props.slides = item.props.slides.map((slide, index) => ({
-        ...slide,
-        scene:
-          (slide.layout ?? item.props.layout ?? "original") === "original"
-            ? restoreOriginalHeroScene(slide.scene ?? sceneFromHero(slide, index))
-            : (slide.scene ?? sceneFromHero(slide, index)),
-      }));
+      item.props.slides = item.props.slides.map((slide, index) => {
+        const withSubtitle = { ...slide, body: defaultHeroSubtitle(slide, index) };
+        const sourceScene = withSubtitle.scene ?? sceneFromHero(withSubtitle, index);
+        return {
+          ...withSubtitle,
+          scene:
+            (withSubtitle.layout ?? item.props.layout ?? "original") === "original"
+              ? upgradeOriginalHeroScene(restoreOriginalHeroScene(sourceScene), withSubtitle, index)
+              : sourceScene,
+        };
+      });
     }
     return item;
   });
   return next;
+}
+
+function upgradeOriginalHeroScene(
+  scene: BannerScene,
+  slide: HeroSlide,
+  index: number,
+): BannerScene {
+  if ((scene.templateVersion ?? 0) >= LUXURY_HERO_TEMPLATE_VERSION) return scene;
+  const foreground = scene.layers.find((layer) => layer.id === "foreground");
+  const currentTitle = scene.layers.find((layer) => layer.id === "title")?.text?.trim();
+  const currentSubtitle = scene.layers.find((layer) => layer.id === "body")?.text?.trim();
+  const currentButton = scene.layers.find((layer) => layer.id === "button");
+  const migratedSlide = {
+    ...slide,
+    title: currentTitle || slide.title,
+    body: currentSubtitle || defaultHeroSubtitle(slide, index),
+    buttonLabel: currentButton?.text || slide.buttonLabel,
+    buttonUrl: currentButton?.href || slide.buttonUrl,
+  };
+  return {
+    ...scene,
+    templateVersion: LUXURY_HERO_TEMPLATE_VERSION,
+    name: migratedSlide.title || scene.name,
+    layers: [
+      ...(foreground ? [foreground] : []),
+      ...originalHeroCaptionLayers(
+        migratedSlide,
+        index,
+        (scene.layers.find((layer) => layer.id === "title")?.style.color as string) || "#ffffff",
+      ),
+    ],
+  };
 }
 
 function restoreOriginalHeroScene(scene: BannerScene): BannerScene {

@@ -646,6 +646,10 @@ export function BannerSceneView({
                         : style.objectPosition || "center",
                     transform: `scale(${clamp(style.cropZoom ?? 100, 100, 300) / 100})`,
                     transformOrigin: "center",
+                    filter:
+                      scene.coordinateMode === "original-hero" && layer.id === "foreground"
+                        ? "drop-shadow(18px 12px 20px rgba(50, 14, 20, 0.26))"
+                        : undefined,
                   }}
                 />
                 {cropping ? <span className="studio-crop-overlay" aria-hidden="true" /> : null}

@@ -11,9 +11,10 @@ import {
 import { StoreProductCard } from "@/components/store/product-card";
 import { merchandiseProducts, useStoreProducts } from "@/data/store";
 import { useCatalogPresentation } from "@/services/catalogPresentation";
+import { productCountLabel } from "@/lib/catalog-copy";
 import { BannerSceneView } from "./banner-scene";
 import { normalizeHomepageData } from "./default-data";
-import { ensureCustomBannerScenes } from "./studio-model";
+import { ensureHomepageScenes } from "./studio-model";
 import { useStudioBannerSession } from "./studio-session-context";
 import type {
   CollectionBannersProps,
@@ -610,7 +611,9 @@ export function HomepageProductGrid({
               {title}
             </h2>
           </div>
-          <p className="hidden text-xs text-black/50 md:block">{visible.length} products</p>
+          <p className="hidden text-xs text-black/50 md:block">
+            {productCountLabel(visible.length)}
+          </p>
         </div>
         {showFilters === "yes" ? (
           <div
@@ -1129,10 +1132,7 @@ export function HomepageRenderer({
   data: HomepageData;
   editMode?: boolean;
 }) {
-  const normalizedData = useMemo(
-    () => ensureCustomBannerScenes(normalizeHomepageData(data)),
-    [data],
-  );
+  const normalizedData = useMemo(() => ensureHomepageScenes(normalizeHomepageData(data)), [data]);
   return (
     <div style={{ backgroundColor: normalizedData.root?.props?.backgroundColor || "#ffffff" }}>
       {(normalizedData.content ?? []).map((item) => {

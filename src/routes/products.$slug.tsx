@@ -181,7 +181,7 @@ function ProductPage() {
             type="button"
             onClick={addToCart}
             disabled={!isCartReady || product.inStock === false}
-            className="brand-mango-bg h-10 shrink-0 px-5 text-[10px] font-bold uppercase disabled:cursor-not-allowed disabled:bg-black/10 disabled:bg-none md:px-8"
+            className={`brand-mango-bg h-10 shrink-0 px-5 text-[10px] font-bold uppercase disabled:cursor-not-allowed disabled:bg-black/10 disabled:bg-none md:px-8 ${added ? "" : "conversion-nudge"}`}
           >
             {product.inStock === false ? "Out of stock" : added ? "Added" : "Add to cart"}
           </button>
@@ -296,7 +296,7 @@ function ProductPage() {
               type="button"
               onClick={addToCart}
               disabled={!isCartReady || product.inStock === false}
-              className="brand-mango-bg h-12 rounded-md text-[11px] font-bold uppercase disabled:bg-black/10 disabled:bg-none"
+              className={`brand-mango-bg h-12 rounded-md text-[11px] font-bold uppercase disabled:bg-black/10 disabled:bg-none ${added ? "" : "conversion-nudge"}`}
             >
               {product.inStock === false ? "Out of stock" : added ? "Added to cart" : "Add to cart"}
             </button>

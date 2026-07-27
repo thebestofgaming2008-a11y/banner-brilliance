@@ -12,6 +12,7 @@ import {
 } from "@/services/catalogPresentation";
 import { listActiveProducts } from "@/services/productService";
 import { seo } from "@/lib/seo";
+import { productCountLabel } from "@/lib/catalog-copy";
 
 type ShopSearch = { collection?: string; filter?: string; q?: string };
 
@@ -312,7 +313,7 @@ function ShopPage() {
           <div className="mt-6 flex items-center justify-between text-[12px]">
             <label className="relative flex h-9 cursor-pointer items-center gap-2 rounded-md pr-2 font-bold transition-colors hover:text-[#C85F22] focus-within:ring-2 focus-within:ring-[#E2713F]/30">
               <SlidersHorizontal size={15} className="text-[#D9643C]" />
-              <span>{displayedProducts.length} products</span>
+              <span>{productCountLabel(displayedProducts.length)}</span>
               <ChevronDown size={13} aria-hidden="true" />
               <select
                 aria-label="Filter products by collection"
@@ -328,10 +329,17 @@ function ShopPage() {
                 ))}
               </select>
             </label>
-            <span className="flex items-center gap-1 font-bold text-[#C85F22]">
+            <a
+              href={
+                selectedCollection
+                  ? `/shop?collection=${encodeURIComponent(selectedCollection.slug)}`
+                  : "/shop"
+              }
+              className="flex items-center gap-1 font-bold text-[#C85F22] hover:text-[#A84624] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#D9643C]"
+            >
               {selectedCollection?.name || "All products"}
               <ChevronRight size={15} />
-            </span>
+            </a>
           </div>
           {displayedProducts.length ? (
             <div className="mt-8 grid grid-cols-2 gap-x-3 gap-y-12 md:grid-cols-4 md:gap-x-4 md:gap-y-16">

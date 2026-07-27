@@ -1,5 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ChevronRight, Minus, Plus, Search, ShoppingBag, Star, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Minus,
+  Plus,
+  Search,
+  ShoppingBag,
+  SlidersHorizontal,
+  Star,
+  X,
+} from "lucide-react";
 import {
   useEffect,
   useMemo,
@@ -21,6 +32,7 @@ import { useCatalogPresentation, type CatalogBanner } from "@/services/catalogPr
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, seo } from "@/lib/seo";
 import { STORE_LOGO_URL } from "@/lib/store-config";
 import { PromotionPopover } from "@/components/store/promotion-popover";
+import { productCountLabel } from "@/lib/catalog-copy";
 
 import makkahGloves from "@/assets/collection-banners/makkah-gloves.jpg";
 import sabrWatchBlack from "@/assets/collection-banners/sabr-watch-black.jpg";
@@ -62,6 +74,7 @@ export const Route = createFileRoute("/")({
 
 type Banner = {
   title: string;
+  subtitle: string;
   product: string;
   productAlt: string;
   titleX: number;
@@ -85,6 +98,7 @@ const FRAME_H = 649;
 const defaultHeroBanners: Banner[] = [
   {
     title: "AL-IKHWAAN SET",
+    subtitle: "LIL-MUSLIMEEN",
     product: heroShemaghFull,
     productAlt: "Red and white shemagh set",
     titleX: 37,
@@ -95,6 +109,7 @@ const defaultHeroBanners: Banner[] = [
   },
   {
     title: "AS-SALIHAAT SET",
+    subtitle: "LIL MUSLIMAAT",
     product: heroNiqabFull,
     productAlt: "Black niqab set",
     titleX: 41,
@@ -663,28 +678,28 @@ function HeroBanner({
           fetchPriority={isPriority ? "high" : "low"}
           decoding="async"
           className="absolute inset-x-0 bottom-0 z-10 mx-auto h-auto w-full"
+          style={{ filter: "drop-shadow(18px 12px 20px rgba(50, 14, 20, 0.26))" }}
         />
-        <h1
-          className="absolute z-20 m-0 text-center font-serif-display font-normal text-white"
-          style={{
-            left: `${(banner.titleX / FRAME_W) * 100}%`,
-            top: `${(banner.titleY / FRAME_H) * 100}%`,
-            width: `${(banner.titleW / FRAME_W) * 100}%`,
-            fontSize: `${(52 / FRAME_W) * 100}cqw`,
-            lineHeight: 1,
-            letterSpacing: "0",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {banner.title}
-        </h1>
-        <span
-          className="pointer-events-none absolute z-20 text-[12px] font-semibold uppercase leading-none tracking-normal text-white underline underline-offset-4"
-          style={{
-            left: `${(25 / FRAME_W) * 100}%`,
-            top: `${(614 / FRAME_H) * 100}%`,
-          }}
-        >
+        <div className="absolute inset-x-[2%] top-[77%] z-20 text-center text-white">
+          <h1
+            className="m-0 whitespace-nowrap font-serif-display font-normal leading-none"
+            style={{ fontSize: `${(46 / FRAME_W) * 100}cqw` }}
+          >
+            {banner.title}
+          </h1>
+          <p
+            className="mt-[1.5cqw] whitespace-nowrap font-serif-display font-normal uppercase leading-none"
+            style={{ fontSize: `${(15 / FRAME_W) * 100}cqw` }}
+          >
+            {banner.subtitle}
+          </p>
+          <div className="mx-auto mt-[2.2cqw] flex w-[62%] items-center justify-center gap-[6%]">
+            <span className="h-px flex-1 bg-white/75" />
+            <span className="block h-[1.2cqw] w-[1.2cqw] rotate-45 border border-white/80" />
+            <span className="h-px flex-1 bg-white/75" />
+          </div>
+        </div>
+        <span className="pointer-events-none absolute inset-x-[28%] top-[93%] z-20 text-center text-[11px] font-semibold uppercase leading-none text-white underline underline-offset-4">
           Shop the collection
         </span>
       </div>
@@ -1341,31 +1356,54 @@ function KufiCollection() {
 function ShopAllProducts() {
   const { products: catalog } = useStoreProducts();
   const { taxonomy } = useCatalogPresentation();
-  const filters = useMemo(() => {
+  const collectionRows = useMemo(() => {
     const seen = new Set<string>();
-    const managed = taxonomy
-      .filter((item) => item.is_active !== false && ["collection", "filter"].includes(item.type))
+    return taxonomy
+      .filter((item) => item.type === "collection" && item.is_active !== false)
       .filter((item) => {
-        const key = `${item.type}:${item.slug}`;
+        const key = item.slug.toLowerCase();
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
-      })
-      .map((item) => ({ key: `${item.type}:${item.slug}`, ...item }));
-    return [{ key: "all", slug: "all", name: "All", type: "all" }, ...managed];
+      });
   }, [taxonomy]);
-  const [activeFilter, setActiveFilter] = useState("all");
-  const selectedFilter = filters.find((filter) => filter.key === activeFilter) ?? filters[0];
-  const visibleProducts =
-    selectedFilter.type === "all"
-      ? merchandiseProducts(catalog)
-      : selectedFilter.type === "filter"
-        ? catalog.filter((product) => product.filterTags?.includes(selectedFilter.slug))
-        : catalog.filter(
-            (product) =>
-              product.collection.toLowerCase() === selectedFilter.name.toLowerCase() ||
-              product.collection.toLowerCase().replace(/\s+/g, "-") === selectedFilter.slug,
-          );
+  const filterRows = useMemo(
+    () => taxonomy.filter((item) => item.type === "filter" && item.is_active !== false),
+    [taxonomy],
+  );
+  const [activeCollection, setActiveCollection] = useState("all");
+  const [activeTag, setActiveTag] = useState("");
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState("featured");
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const selectedCollection = collectionRows.find((item) => item.slug === activeCollection);
+  const visibleProducts = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    const filtered = catalog.filter((product) => {
+      const collectionSlug =
+        product.collectionSlug || product.collection.toLowerCase().replace(/\s+/g, "-");
+      const matchesCollection =
+        activeCollection === "all" ||
+        collectionSlug.toLowerCase() === activeCollection.toLowerCase();
+      const matchesTag =
+        !activeTag ||
+        (product.filterTags ?? []).some((tag) => tag.toLowerCase() === activeTag.toLowerCase());
+      const matchesQuery =
+        !term ||
+        [product.name, product.collection, product.description]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(term);
+      return matchesCollection && matchesTag && matchesQuery;
+    });
+    const sorted = [...filtered].sort((a, b) => {
+      if (sort === "price-low") return a.price - b.price;
+      if (sort === "price-high") return b.price - a.price;
+      return 0;
+    });
+    return sort === "featured" ? merchandiseProducts(sorted) : sorted;
+  }, [activeCollection, activeTag, catalog, query, sort]);
 
   useEffect(() => {
     const hashFilters: Record<string, CollectionName> = {
@@ -1379,12 +1417,12 @@ function ShopAllProducts() {
     const applyHashFilter = () => {
       const nextFilter = hashFilters[window.location.hash];
       if (!nextFilter) return;
-      const match = filters.find(
-        (filter) => filter.type === "collection" && filter.name === nextFilter,
+      const match = collectionRows.find(
+        (filter) => filter.name.toLowerCase() === nextFilter.toLowerCase(),
       );
       if (!match) return;
 
-      setActiveFilter(match.key);
+      setActiveCollection(match.slug);
       window.requestAnimationFrame(() =>
         document.getElementById("shop-all")?.scrollIntoView({ behavior: "smooth" }),
       );
@@ -1393,41 +1431,142 @@ function ShopAllProducts() {
     applyHashFilter();
     window.addEventListener("hashchange", applyHashFilter);
     return () => window.removeEventListener("hashchange", applyHashFilter);
-  }, [filters]);
+  }, [collectionRows]);
+
+  const scrollTabs = (direction: number) =>
+    tabsRef.current?.scrollBy({ left: direction * 220, behavior: "smooth" });
 
   return (
     <section id="shop-all" className="scroll-mt-[76px] bg-white px-[22px] py-16 md:px-8 md:py-24">
       <div className="mx-auto max-w-[1180px]">
-        <div className="flex items-end justify-between gap-6" data-reveal>
+        <div data-reveal>
           <div>
             <p className="section-kicker text-black/50">Browse the store</p>
             <h2 className="section-heading mt-2 text-[34px] text-black md:text-[52px]">SHOP ALL</h2>
           </div>
-          <p className="hidden text-[12px] text-black/50 md:block">
-            {visibleProducts.length} products
-          </p>
         </div>
 
-        <div
-          className="no-scrollbar -mx-[22px] mt-7 flex gap-6 overflow-x-auto border-b border-black/10 px-[22px] md:mx-0 md:px-0"
-          role="tablist"
-          aria-label="Filter products"
-        >
-          {filters.map((filter) => (
+        <div className="mt-7 grid gap-4 border-b border-black/10 pb-6">
+          <div className="relative grid min-w-0 grid-cols-[36px_minmax(0,1fr)_36px] items-center gap-2">
             <button
-              key={filter.key}
               type="button"
-              role="tab"
-              aria-selected={selectedFilter.key === filter.key}
-              onClick={() => setActiveFilter(filter.key)}
-              className={`relative shrink-0 pb-3 text-[11px] font-bold uppercase transition-colors ${selectedFilter.key === filter.key ? "text-black" : "text-black/40"}`}
+              aria-label="Previous collections"
+              onClick={() => scrollTabs(-1)}
+              className="shop-scroll-button brand-mango-bg grid h-9 w-9 place-items-center rounded-full text-white"
             >
-              {filter.name}
-              {selectedFilter.key === filter.key ? (
-                <span className="brand-mango-bg absolute inset-x-0 bottom-0 h-0.5" />
-              ) : null}
+              <ChevronLeft size={17} />
             </button>
-          ))}
+            <div
+              ref={tabsRef}
+              className="no-scrollbar flex h-9 snap-x snap-mandatory items-center gap-6 overflow-x-auto scroll-smooth px-1 touch-pan-x"
+              role="tablist"
+              aria-label="Homepage product collections"
+            >
+              {[{ slug: "all", name: "All" }, ...collectionRows].map((item) => (
+                <button
+                  key={item.slug}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeCollection === item.slug}
+                  onClick={() => setActiveCollection(item.slug)}
+                  className={`shop-collection-tab relative flex h-9 shrink-0 snap-start items-center text-[11px] font-bold uppercase ${activeCollection === item.slug ? "text-black" : "text-black/40"}`}
+                >
+                  {item.name}
+                  {activeCollection === item.slug ? (
+                    <span className="brand-mango-bg absolute inset-x-0 bottom-0 h-0.5" />
+                  ) : null}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              aria-label="More collections"
+              onClick={() => scrollTabs(1)}
+              className="shop-scroll-button brand-mango-bg grid h-9 w-9 place-items-center rounded-full text-white"
+            >
+              <ChevronRight size={17} />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
+            <label className="store-toolbar-control flex h-11 min-w-0 items-center gap-2 rounded-md border border-black/15 px-3">
+              <Search size={16} className="shrink-0 text-[#D9643C]" />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search products"
+                className="min-w-0 flex-1 bg-transparent text-[13px] outline-none"
+              />
+            </label>
+            <label className="store-toolbar-control flex h-11 min-w-[118px] items-center gap-2 rounded-md border border-black/15 px-3">
+              <SlidersHorizontal size={15} className="shrink-0 text-[#D9643C]" />
+              <select
+                value={sort}
+                onChange={(event) => setSort(event.target.value)}
+                aria-label="Sort homepage products"
+                className="min-w-0 flex-1 bg-transparent text-[10px] font-bold uppercase outline-none"
+              >
+                <option value="featured">Featured</option>
+                <option value="price-low">Price low</option>
+                <option value="price-high">Price high</option>
+              </select>
+            </label>
+          </div>
+
+          {filterRows.length ? (
+            <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1 touch-pan-x">
+              <button
+                type="button"
+                onClick={() => setActiveTag("")}
+                className={`store-filter-chip shrink-0 rounded-md border px-3 py-2 text-[10px] font-bold uppercase ${!activeTag ? "border-black bg-black text-white" : "border-black/15"}`}
+              >
+                Any label
+              </button>
+              {filterRows.map((filter) => (
+                <button
+                  key={filter.slug}
+                  type="button"
+                  onClick={() => setActiveTag(filter.slug === activeTag ? "" : filter.slug)}
+                  className={`store-filter-chip shrink-0 rounded-md border px-3 py-2 text-[10px] font-bold uppercase ${activeTag === filter.slug ? "border-black bg-black text-white" : "border-black/15"}`}
+                >
+                  {filter.name}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-6 flex items-center justify-between text-[12px]">
+          <label className="relative flex h-9 cursor-pointer items-center gap-2 rounded-md pr-2 font-bold">
+            <SlidersHorizontal size={15} className="text-[#D9643C]" />
+            <span>{productCountLabel(visibleProducts.length)}</span>
+            <ChevronDown size={13} aria-hidden="true" />
+            <select
+              aria-label="Filter homepage products by collection"
+              value={activeCollection}
+              onChange={(event) => setActiveCollection(event.target.value)}
+              className="absolute inset-0 cursor-pointer opacity-0"
+            >
+              <option value="all">All products</option>
+              {collectionRows.map((item) => (
+                <option key={item.slug} value={item.slug}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <a
+            href={
+              selectedCollection
+                ? `/shop?collection=${encodeURIComponent(selectedCollection.slug)}`
+                : "/shop"
+            }
+            className="flex items-center gap-1 font-bold text-[#C85F22]"
+          >
+            {selectedCollection?.name || "All products"}
+            <ChevronRight size={15} />
+          </a>
         </div>
 
         <div className="mt-8 grid grid-cols-2 gap-x-3 gap-y-11 md:grid-cols-4 md:gap-x-4 md:gap-y-14">
