@@ -96,10 +96,8 @@ const LEGACY_BACKUP_KEYS = [
 const ALL_BACKUP_KEYS = [LOCAL_BACKUP_KEY, ...LEGACY_BACKUP_KEYS];
 const HISTORY_LIMIT = 80;
 const ADVANCED_LAYOUT_TOOLS = false;
-const RESPONSIVE_GEOMETRY_KEYS = ["x", "y", "width", "height", "rotation"] as const;
 
 type LocalBackup = { revision?: number; savedAt?: string; data?: HomepageData };
-type ResponsiveGeometryKey = (typeof RESPONSIVE_GEOMETRY_KEYS)[number];
 
 type CropSnapshot =
   | {
@@ -262,22 +260,19 @@ function patchLayerForViewport(
     return { ...layer, mobileStyle: { ...(layer.mobileStyle ?? {}), ...patch } };
   }
 
-  const mobileGeometryPatch: Partial<Pick<BannerLayerStyle, ResponsiveGeometryKey>> = {};
-  RESPONSIVE_GEOMETRY_KEYS.forEach((key) => {
-    const nextValue = patch[key];
-    if (typeof nextValue !== "number") return;
-    const desktopValue = layer.style[key];
-    const mobileValue = layer.mobileStyle?.[key] ?? desktopValue;
-    mobileGeometryPatch[key] = mobileValue + (nextValue - desktopValue);
+  // Desktop is the base style. Preserve any mobile values that currently inherit
+  // from it before changing the base, so editing one viewport cannot move or restyle
+  // the other viewport.
+  const mobileStyle: Partial<BannerLayerStyle> = { ...(layer.mobileStyle ?? {}) };
+  (Object.keys(patch) as Array<keyof BannerLayerStyle>).forEach((key) => {
+    if (patch[key] === undefined || Object.hasOwn(mobileStyle, key)) return;
+    Object.assign(mobileStyle, { [key]: layer.style[key] });
   });
 
   return {
     ...layer,
     style: { ...layer.style, ...patch },
-    mobileStyle:
-      Object.keys(mobileGeometryPatch).length > 0
-        ? { ...(layer.mobileStyle ?? {}), ...mobileGeometryPatch }
-        : layer.mobileStyle,
+    mobileStyle,
   };
 }
 
@@ -1111,11 +1106,7 @@ export function HomepageVisualEditor({
       if (patch.textAlign) {
         slide.scene.layers = slide.scene.layers.map((layer) =>
           layer.type === "text" || layer.type === "button"
-            ? {
-                ...layer,
-                style: { ...layer.style, textAlign: patch.textAlign },
-                mobileStyle: { ...(layer.mobileStyle ?? {}), textAlign: patch.textAlign },
-              }
+            ? patchLayerForViewport(layer, { textAlign: patch.textAlign }, viewport)
             : layer,
         );
       }

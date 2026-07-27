@@ -238,7 +238,7 @@ test.describe("fixed-template homepage studio", () => {
     );
   });
 
-  test("drags hero text with center guides and changes its own alignment", async ({ page }) => {
+  test("keeps desktop and mobile hero layout edits independent", async ({ page }) => {
     const frame = storefront(page);
     const title = frame.locator('[data-editor-active="true"] [data-banner-layer="title"]');
     const scene = frame.locator('[data-editor-active="true"]');
@@ -289,10 +289,19 @@ test.describe("fixed-template homepage studio", () => {
       x: Number.parseFloat(element.style.left),
       y: Number.parseFloat(element.style.top),
     }));
-    expect(mobileEnd.x - mobileStart.x).toBeCloseTo(desktopEnd.x - desktopStart.x, 3);
-    expect(mobileEnd.y - mobileStart.y).toBeCloseTo(desktopEnd.y - desktopStart.y, 3);
+    expect(mobileEnd.x).toBeCloseTo(mobileStart.x, 3);
+    expect(mobileEnd.y).toBeCloseTo(mobileStart.y, 3);
     await page.getByRole("button", { name: "Align text left" }).click();
     await expect(mobileTitle).toHaveCSS("text-align", "left");
+
+    await page.getByRole("button", { name: "Desktop viewport", exact: true }).click();
+    await expect(title).toHaveCSS("text-align", "right");
+    const desktopAfterMobileEdit = await title.evaluate((element) => ({
+      x: Number.parseFloat(element.style.left),
+      y: Number.parseFloat(element.style.top),
+    }));
+    expect(desktopAfterMobileEdit.x).toBeCloseTo(desktopEnd.x, 3);
+    expect(desktopAfterMobileEdit.y).toBeCloseTo(desktopEnd.y, 3);
   });
 
   test("edits the fixed hero and renders true mobile responsive styles", async ({ page }) => {
