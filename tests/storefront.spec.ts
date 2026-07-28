@@ -462,6 +462,38 @@ test("hero preset supplies a responsive conversion lockup", async ({ page }) => 
   );
 });
 
+test("hero captions stay inside phone, tablet, zoomed, and desktop viewports", async ({ page }) => {
+  const errors = watchPageErrors(page);
+  for (const width of [360, 768, 1023, 1024, 1280, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`/?responsive-audit=${width}`, {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    });
+
+    const scene = page
+      .locator('section[aria-label="Featured collection"] article')
+      .first()
+      .locator(".homepage-banner-scene");
+    await expect(scene).toHaveAttribute(
+      "data-scene-viewport",
+      width <= 1023 ? "mobile" : "desktop",
+    );
+    const sceneBox = await scene.boundingBox();
+    expect(sceneBox).not.toBeNull();
+    for (const id of ["title", "body", "button"] as const) {
+      const layerBox = await scene.locator(`[data-banner-layer="${id}"]`).boundingBox();
+      expect(layerBox).not.toBeNull();
+      expect(layerBox!.x).toBeGreaterThanOrEqual(sceneBox!.x - 1);
+      expect(layerBox!.x + layerBox!.width).toBeLessThanOrEqual(sceneBox!.x + sceneBox!.width + 1);
+    }
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+    ).toBeTruthy();
+  }
+  expect(errors).toEqual([]);
+});
+
 test("storefront motion respects reduced-motion preferences", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/shop", { waitUntil: "domcontentloaded", timeout: 60_000 });

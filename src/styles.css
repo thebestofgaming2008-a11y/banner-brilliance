@@ -807,7 +807,7 @@
     font-size: 11px;
   }
 
-  @media (min-width: 768px) {
+  @media (min-width: 1024px) {
     .hero-mobile-legibility-scrim {
       display: none;
     }
@@ -1118,7 +1118,7 @@
   height: var(--homepage-scene-height);
 }
 
-@media (max-width: 639px) {
+@media (max-width: 1023px) {
   .homepage-scene-hero {
     height: var(--homepage-scene-mobile-height);
   }

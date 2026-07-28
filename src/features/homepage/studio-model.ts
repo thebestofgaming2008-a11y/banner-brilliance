@@ -122,7 +122,141 @@ function imageLayer(
   };
 }
 
-const LUXURY_HERO_TEMPLATE_VERSION = 4;
+export const HOMEPAGE_MOBILE_MAX_WIDTH = 1023;
+const LUXURY_HERO_TEMPLATE_VERSION = 5;
+const ORIGINAL_HERO_DESKTOP_LEFT = -96;
+const ORIGINAL_HERO_DESKTOP_RIGHT = 196;
+
+function finiteOr(value: number | undefined, fallback: number) {
+  return Number.isFinite(value) ? Number(value) : fallback;
+}
+
+function clampNumber(value: number | undefined, fallback: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, finiteOr(value, fallback)));
+}
+
+function constrainOriginalHeroLayer(
+  layer: BannerLayer,
+  canonical: BannerLayer,
+  viewport: "desktop" | "mobile",
+): BannerLayerStyle {
+  const source =
+    viewport === "mobile" ? { ...layer.style, ...(layer.mobileStyle ?? {}) } : { ...layer.style };
+  const fallback =
+    viewport === "mobile"
+      ? { ...canonical.style, ...(canonical.mobileStyle ?? {}) }
+      : canonical.style;
+  const caption = layer.id === "title" || layer.id === "body" || layer.id === "button";
+  const foreground = layer.id === "foreground";
+
+  let width = clampNumber(source.width, fallback.width, caption ? 5 : 10, foreground ? 250 : 160);
+  let height = clampNumber(source.height, fallback.height, caption ? 1 : 10, 250);
+  let x = finiteOr(source.x, fallback.x);
+  let y = finiteOr(source.y, fallback.y);
+
+  if (viewport === "mobile" && caption) {
+    width = Math.min(100, width);
+    height = Math.min(100, height);
+    x = clampNumber(x, fallback.x, 0, Math.max(0, 100 - width));
+    y = clampNumber(y, fallback.y, 0, Math.max(0, 100 - height));
+  } else if (viewport === "mobile" && foreground) {
+    width = Math.max(100, width);
+    height = Math.max(100, height);
+    x = clampNumber(x, fallback.x, 100 - width, 0);
+    y = clampNumber(y, fallback.y, 100 - height, 0);
+  } else if (caption) {
+    x = clampNumber(x, fallback.x, ORIGINAL_HERO_DESKTOP_LEFT, ORIGINAL_HERO_DESKTOP_RIGHT - width);
+    y = clampNumber(y, fallback.y, 0, Math.max(0, 100 - height));
+  } else {
+    x = clampNumber(x, fallback.x, -100, 200);
+    y = clampNumber(y, fallback.y, -100, 200);
+  }
+
+  return {
+    ...fallback,
+    ...source,
+    x,
+    y,
+    width,
+    height,
+    rotation: clampNumber(source.rotation, fallback.rotation, -360, 360),
+    opacity: clampNumber(source.opacity, fallback.opacity, 0, 100),
+    fontSize:
+      source.fontSize === undefined
+        ? fallback.fontSize
+        : clampNumber(source.fontSize, fallback.fontSize ?? 16, 6, 160),
+    cropX:
+      source.cropX === undefined
+        ? fallback.cropX
+        : clampNumber(source.cropX, fallback.cropX ?? 0, -50, 50),
+    cropY:
+      source.cropY === undefined
+        ? fallback.cropY
+        : clampNumber(source.cropY, fallback.cropY ?? 0, -50, 50),
+    cropZoom:
+      source.cropZoom === undefined
+        ? fallback.cropZoom
+        : clampNumber(source.cropZoom, fallback.cropZoom ?? 100, 100, 300),
+  };
+}
+
+export function constrainOriginalHeroLayerForViewport(
+  layer: BannerLayer,
+  canonical: BannerLayer,
+  viewport: "desktop" | "mobile",
+): BannerLayer {
+  const constrained = constrainOriginalHeroLayer(layer, canonical, viewport);
+  return viewport === "mobile"
+    ? { ...layer, mobileStyle: { ...(layer.mobileStyle ?? {}), ...constrained } }
+    : { ...layer, style: constrained };
+}
+
+export function originalHeroSceneIssues(scene: BannerScene) {
+  const issues: string[] = [];
+  if (scene.coordinateMode !== "original-hero") {
+    issues.push("uses an unsupported coordinate system");
+    return issues;
+  }
+  if ((scene.templateVersion ?? 0) < LUXURY_HERO_TEMPLATE_VERSION) {
+    issues.push("needs its responsive layout refreshed");
+  }
+
+  for (const id of ["title", "body", "button", "foreground"] as const) {
+    const layer = scene.layers.find((entry) => entry.id === id);
+    if (!layer) {
+      issues.push(`is missing its ${id} layer`);
+      continue;
+    }
+    const mobile = { ...layer.style, ...(layer.mobileStyle ?? {}) };
+    const values = [mobile.x, mobile.y, mobile.width, mobile.height];
+    if (!values.every(Number.isFinite)) {
+      issues.push(`has invalid mobile ${id} geometry`);
+      continue;
+    }
+    if (id === "foreground") {
+      if (
+        mobile.width < 100 ||
+        mobile.height < 100 ||
+        mobile.x > 0 ||
+        mobile.y > 0 ||
+        mobile.x + mobile.width < 100 ||
+        mobile.y + mobile.height < 100
+      ) {
+        issues.push("has a mobile product image frame that does not cover the hero");
+      }
+    } else if (
+      mobile.width <= 0 ||
+      mobile.height <= 0 ||
+      mobile.x < 0 ||
+      mobile.y < 0 ||
+      mobile.x + mobile.width > 100 ||
+      mobile.y + mobile.height > 100
+    ) {
+      issues.push(`has a mobile ${id} outside the hero`);
+    }
+  }
+  return issues;
+}
 
 function defaultHeroSubtitle(slide: HeroSlide, index: number) {
   if (slide.body.trim()) return slide.body;
@@ -801,7 +935,6 @@ function upgradeOriginalHeroScene(
   slide: HeroSlide,
   index: number,
 ): BannerScene {
-  if ((scene.templateVersion ?? 0) >= LUXURY_HERO_TEMPLATE_VERSION) return scene;
   const foreground = scene.layers.find((layer) => layer.id === "foreground");
   const currentTitle = scene.layers.find((layer) => layer.id === "title")?.text?.trim();
   const currentSubtitle = scene.layers.find((layer) => layer.id === "body")?.text?.trim();
@@ -815,11 +948,32 @@ function upgradeOriginalHeroScene(
     buttonUrl: currentButton?.href || slide.buttonUrl,
   };
   const canonical = sceneFromHero(migratedSlide, index);
+  if ((scene.templateVersion ?? 0) < LUXURY_HERO_TEMPLATE_VERSION) {
+    return {
+      ...canonical,
+      fills: scene.fills,
+      templateVersion: LUXURY_HERO_TEMPLATE_VERSION,
+      name: migratedSlide.title || scene.name,
+    };
+  }
+
+  const safeLayers = canonical.layers.map((canonicalLayer) => {
+    const existing = scene.layers.find((layer) => layer.id === canonicalLayer.id);
+    if (!existing) return canonicalLayer;
+    const withDesktop = constrainOriginalHeroLayerForViewport(
+      { ...canonicalLayer, ...existing },
+      canonicalLayer,
+      "desktop",
+    );
+    return constrainOriginalHeroLayerForViewport(withDesktop, canonicalLayer, "mobile");
+  });
+
   return {
-    ...canonical,
-    fills: scene.fills,
+    ...scene,
+    coordinateMode: "original-hero",
     templateVersion: LUXURY_HERO_TEMPLATE_VERSION,
     name: migratedSlide.title || scene.name,
+    layers: safeLayers,
   };
 }
 

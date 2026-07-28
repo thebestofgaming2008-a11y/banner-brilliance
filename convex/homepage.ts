@@ -6,6 +6,7 @@ const PAGE_KEY = "home";
 const MAX_DOCUMENT_BYTES = 750_000;
 const MAX_COMPONENTS = 40;
 const MAX_VERSIONS = 15;
+const MIN_SAFE_HERO_TEMPLATE_VERSION = 5;
 const ALLOWED_COMPONENTS = new Set(["Hero", "CollectionFeature", "PromoBanner"]);
 const LEGACY_HOMEPAGE_PLACEMENTS = [
   "homepage_hero",
@@ -66,6 +67,80 @@ function validateValue(value: unknown, path: string, depth = 0): void {
   }
 }
 
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function finiteGeometry(style: Record<string, unknown>) {
+  const x = Number(style.x);
+  const y = Number(style.y);
+  const width = Number(style.width);
+  const height = Number(style.height);
+  if (![x, y, width, height].every(Number.isFinite)) return null;
+  return { x, y, width, height };
+}
+
+function validateHeroResponsiveGeometry(component: unknown, sectionIndex: number) {
+  const props = objectValue(objectValue(component)?.props);
+  const slides = props?.slides;
+  if (!Array.isArray(slides) || slides.length < 1 || slides.length > 12) {
+    throw new Error(`Homepage hero ${sectionIndex + 1} must contain between 1 and 12 slides.`);
+  }
+
+  slides.forEach((slideValue, slideIndex) => {
+    const scene = objectValue(objectValue(slideValue)?.scene);
+    if (
+      !scene ||
+      scene.coordinateMode !== "original-hero" ||
+      Number(scene.templateVersion ?? 0) < MIN_SAFE_HERO_TEMPLATE_VERSION
+    ) {
+      throw new Error(`Hero slide ${slideIndex + 1} needs its responsive layout refreshed.`);
+    }
+    const layers = scene.layers;
+    if (!Array.isArray(layers)) {
+      throw new Error(`Hero slide ${slideIndex + 1} is missing its layers.`);
+    }
+
+    for (const id of ["title", "body", "button", "foreground"]) {
+      const layer = layers.map(objectValue).find((entry) => entry && String(entry.id ?? "") === id);
+      const desktopStyle = objectValue(layer?.style);
+      const mobileOverride = objectValue(layer?.mobileStyle) ?? {};
+      if (!layer || !desktopStyle) {
+        throw new Error(`Hero slide ${slideIndex + 1} is missing its ${id} layer.`);
+      }
+      const mobile = finiteGeometry({ ...desktopStyle, ...mobileOverride });
+      if (!mobile) {
+        throw new Error(`Hero slide ${slideIndex + 1} has invalid mobile ${id} geometry.`);
+      }
+      if (id === "foreground") {
+        if (
+          mobile.width < 100 ||
+          mobile.height < 100 ||
+          mobile.x > 0 ||
+          mobile.y > 0 ||
+          mobile.x + mobile.width < 100 ||
+          mobile.y + mobile.height < 100
+        ) {
+          throw new Error(
+            `Hero slide ${slideIndex + 1} product image must cover the mobile hero frame.`,
+          );
+        }
+      } else if (
+        mobile.width <= 0 ||
+        mobile.height <= 0 ||
+        mobile.x < 0 ||
+        mobile.y < 0 ||
+        mobile.x + mobile.width > 100 ||
+        mobile.y + mobile.height > 100
+      ) {
+        throw new Error(`Hero slide ${slideIndex + 1} has mobile ${id} outside the hero.`);
+      }
+    }
+  });
+}
+
 function validateHomepageData(data: unknown) {
   const encoded = JSON.stringify(data);
   if (encoded.length > MAX_DOCUMENT_BYTES) {
@@ -86,6 +161,7 @@ function validateHomepageData(data: unknown) {
     if (!id || id.length > 120 || ids.has(id)) {
       throw new Error(`Homepage section ${index + 1} needs a unique ID.`);
     }
+    if (component.type === "Hero") validateHeroResponsiveGeometry(component, index);
     ids.add(id);
   }
   validateValue(data, "homepage");

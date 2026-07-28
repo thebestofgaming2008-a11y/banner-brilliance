@@ -15,6 +15,7 @@ import type {
   HomepageViewport,
 } from "./types";
 import { useStudioBannerSession, useStudioViewport } from "./studio-session-context";
+import { HOMEPAGE_MOBILE_MAX_WIDTH } from "./studio-model";
 
 type SceneViewport = HomepageViewport | "auto";
 
@@ -107,17 +108,31 @@ function resolveLayerStyle(layer: BannerLayer, viewport: HomepageViewport): Bann
   return viewport === "mobile" ? { ...layer.style, ...(layer.mobileStyle ?? {}) } : layer.style;
 }
 
-function layerCss(style: BannerLayerStyle, scene: BannerScene, layer: BannerLayer): CSSProperties {
+function layerCss(
+  style: BannerLayerStyle,
+  scene: BannerScene,
+  layer: BannerLayer,
+  viewport: HomepageViewport,
+  protectOriginalHeroEdges: boolean,
+): CSSProperties {
   const borderWidth = clamp(style.borderWidth ?? 0, 0, 40);
   const borderAlign = style.borderAlign || "inside";
   const textAutoResize = layer.type === "text" ? (style.textAutoResize ?? "none") : "none";
   const scalesWithOriginalFrame =
     scene.coordinateMode === "original-hero" && (layer.id === "title" || layer.id === "body");
+  const originalHeroCaption =
+    scene.coordinateMode === "original-hero" &&
+    viewport === "desktop" &&
+    protectOriginalHeroEdges &&
+    (layer.id === "title" || layer.id === "body" || layer.id === "button");
+  const safeWidth = clamp(style.width, 0.5, 250);
+  const safeLeft = clamp(style.x, -100, 200);
   return {
-    left: `${clamp(style.x, -100, 200)}%`,
+    left: originalHeroCaption
+      ? `clamp(calc(clamp(24px, 3.5vw, 50px) - (100vw - 100%) * 0.5), ${safeLeft}%, calc(100vw - clamp(24px, 3.5vw, 50px) - (100vw - 100%) * 0.5 - ${safeWidth}%))`
+      : `${safeLeft}%`,
     top: `${clamp(style.y, -100, 200)}%`,
-    width:
-      textAutoResize === "width-and-height" ? "max-content" : `${clamp(style.width, 0.5, 250)}%`,
+    width: textAutoResize === "width-and-height" ? "max-content" : `${safeWidth}%`,
     height: textAutoResize === "none" ? `${clamp(style.height, 0.5, 250)}%` : "auto",
     maxWidth: textAutoResize === "width-and-height" ? "none" : undefined,
     transform: `rotate(${clamp(style.rotation, -360, 360)}deg) scaleX(${style.flipX ? -1 : 1}) scaleY(${style.flipY ? -1 : 1})`,
@@ -165,7 +180,7 @@ function useSceneViewport(viewport: SceneViewport) {
   const [automatic, setAutomatic] = useState<HomepageViewport>("desktop");
   useEffect(() => {
     if (viewport !== "auto") return;
-    const media = window.matchMedia("(max-width: 639px)");
+    const media = window.matchMedia(`(max-width: ${HOMEPAGE_MOBILE_MAX_WIDTH}px)`);
     const update = () => setAutomatic(media.matches ? "mobile" : "desktop");
     update();
     media.addEventListener("change", update);
@@ -549,7 +564,7 @@ export function BannerSceneView({
             "data-selected": selected || undefined,
             className: `homepage-banner-layer absolute z-10 box-border m-0 overflow-visible ${fixedBannerTypography} ${selected ? "is-selected" : ""}`,
             style: {
-              ...layerCss(style, scene, layer),
+              ...layerCss(style, scene, layer, resolvedViewport, !studio),
               ...fixedBannerTextStyle,
               zIndex: index + 1,
               pointerEvents: studio && !layerEditable ? ("none" as const) : ("auto" as const),

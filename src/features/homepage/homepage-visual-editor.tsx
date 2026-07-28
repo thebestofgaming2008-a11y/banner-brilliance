@@ -63,10 +63,13 @@ import {
   createLayer,
   createStandaloneBanner,
   createStudioId,
+  constrainOriginalHeroLayerForViewport,
   ensureHomepageScenes,
   getScene,
+  HOMEPAGE_MOBILE_MAX_WIDTH,
   listStudioBanners,
   migratePresetBannerScene,
+  originalHeroSceneIssues,
   sceneFromCollectionFeature,
   sceneFromHero,
   sceneFromPromo,
@@ -195,7 +198,19 @@ function safeHomepageLink(value: string | undefined) {
 function homepagePublishIssues(data: HomepageData, products: StoreProduct[]) {
   const issues: string[] = [];
   data.content.forEach((item, index) => {
-    if (item.type === "Hero") return;
+    if (item.type === "Hero") {
+      item.props.slides.forEach((slide, slideIndex) => {
+        const scene = slide.scene;
+        if (!scene) {
+          issues.push(`Hero slide ${slideIndex + 1} needs its responsive layout restored.`);
+          return;
+        }
+        originalHeroSceneIssues(scene).forEach((issue) =>
+          issues.push(`Hero slide ${slideIndex + 1} ${issue}.`),
+        );
+      });
+      return;
+    }
     if (item.type !== "CollectionFeature" && item.type !== "PromoBanner") return;
     const label = item.props.title.trim() || `Banner ${index}`;
     const image = item.type === "CollectionFeature" ? item.props.image : item.props.backgroundImage;
@@ -456,6 +471,12 @@ export function HomepageVisualEditor({
   const [historyState, setHistoryState] = useState({ past: 0, future: 0 });
   const lastHistoryAt = useRef(0);
   const operation = useRef<Promise<unknown>>(Promise.resolve());
+
+  useEffect(() => {
+    if (window.innerWidth > HOMEPAGE_MOBILE_MAX_WIDTH) return;
+    setViewport("mobile");
+    setZoom(82);
+  }, []);
 
   const banners = useMemo(() => (data ? listStudioBanners(data) : []), [data]);
   const selectedRef =
@@ -723,7 +744,15 @@ export function HomepageVisualEditor({
         (current) => ({
           ...current,
           layers: current.layers.map((layer) =>
-            layer.id === id ? patchLayerForViewport(layer, patch, viewport) : layer,
+            layer.id === id
+              ? current.coordinateMode === "original-hero"
+                ? constrainOriginalHeroLayerForViewport(
+                    patchLayerForViewport(layer, patch, viewport),
+                    layer,
+                    viewport,
+                  )
+                : patchLayerForViewport(layer, patch, viewport)
+              : layer,
           ),
         }),
         true,

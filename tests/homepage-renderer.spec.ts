@@ -461,7 +461,7 @@ test("published banner scenes preserve responsive layers, fills, and links", asy
     "/shop?collection=scene",
   );
 
-  const mobile = (page.viewportSize()?.width ?? 1280) <= 639;
+  const mobile = (page.viewportSize()?.width ?? 1280) <= 1023;
   await expect(scene).toHaveAttribute("data-scene-viewport", mobile ? "mobile" : "desktop");
   await expect(title).toHaveCSS("font-size", mobile ? "42px" : "76px");
   const sceneBox = await scene.boundingBox();
@@ -485,7 +485,7 @@ test("published banner scenes preserve responsive layers, fills, and links", asy
     "href",
     "/shop?collection=honey",
   );
-  const posterIsMobile = (page.viewportSize()?.width ?? 1280) <= 639;
+  const posterIsMobile = (page.viewportSize()?.width ?? 1280) <= 1023;
   await expect(posterScene).toHaveAttribute(
     "data-scene-viewport",
     posterIsMobile ? "mobile" : "desktop",
