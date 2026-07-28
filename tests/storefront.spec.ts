@@ -481,6 +481,15 @@ test("hero captions stay inside phone, tablet, zoomed, and desktop viewports", a
     );
     const sceneBox = await scene.boundingBox();
     expect(sceneBox).not.toBeNull();
+    const scrim = scene.locator(".hero-mobile-legibility-scrim");
+    if (width <= 1023) {
+      const scrimBox = await scrim.boundingBox();
+      expect(scrimBox).not.toBeNull();
+      expect(scrimBox!.x).toBeCloseTo(sceneBox!.x, 0);
+      expect(scrimBox!.width).toBeCloseTo(sceneBox!.width, 0);
+    } else {
+      await expect(scrim).toBeHidden();
+    }
     for (const id of ["title", "body", "button"] as const) {
       const layerBox = await scene.locator(`[data-banner-layer="${id}"]`).boundingBox();
       expect(layerBox).not.toBeNull();

@@ -358,6 +358,10 @@ export function BannerSceneView({
         ),
       )}
 
+      {scene.coordinateMode === "original-hero" ? (
+        <span className="hero-mobile-legibility-scrim" aria-hidden="true" />
+      ) : null}
+
       <div
         className={
           scene.coordinateMode === "original-hero"
@@ -386,9 +390,6 @@ export function BannerSceneView({
               : { pointerEvents: "none" }
         }
       >
-        {scene.coordinateMode === "original-hero" ? (
-          <span className="hero-mobile-legibility-scrim" aria-hidden="true" />
-        ) : null}
         {scene.layers.map((layer, index) => {
           const style = resolveLayerStyle(layer, resolvedViewport);
           const layerEditable =
