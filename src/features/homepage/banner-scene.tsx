@@ -369,7 +369,7 @@ export function BannerSceneView({
       <div
         className={
           scene.coordinateMode === "original-hero"
-            ? "homepage-banner-coordinate-root absolute left-1/2 top-0 h-full"
+            ? "homepage-banner-coordinate-root absolute left-1/2 top-0 z-[2] h-full"
             : "homepage-banner-coordinate-root absolute inset-0"
         }
         data-banner-coordinate-root

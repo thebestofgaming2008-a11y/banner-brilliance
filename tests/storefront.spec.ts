@@ -487,6 +487,13 @@ test("hero captions stay inside phone, tablet, zoomed, and desktop viewports", a
       expect(scrimBox).not.toBeNull();
       expect(scrimBox!.x).toBeCloseTo(sceneBox!.x, 0);
       expect(scrimBox!.width).toBeCloseTo(sceneBox!.width, 0);
+      const [scrimZIndex, coordinateRootZIndex] = await Promise.all([
+        scrim.evaluate((element) => Number.parseInt(window.getComputedStyle(element).zIndex, 10)),
+        scene
+          .locator("[data-banner-coordinate-root]")
+          .evaluate((element) => Number.parseInt(window.getComputedStyle(element).zIndex, 10)),
+      ]);
+      expect(coordinateRootZIndex).toBeGreaterThan(scrimZIndex);
     } else {
       await expect(scrim).toBeHidden();
     }
