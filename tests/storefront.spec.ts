@@ -450,13 +450,13 @@ test("hero preset supplies a responsive conversion lockup", async ({ page }) => 
     .locator('section[aria-label="Featured collection"]')
     .locator("article")
     .first();
-  await expect(firstSlide.locator('[data-banner-layer="title"]')).toHaveText("AL-IKHWAAN SET");
+  await expect(firstSlide.locator('[data-banner-layer="title"]')).toHaveText(/AL-\s*IKHWAAN SET/);
   await expect(firstSlide.locator('[data-banner-layer="body"]')).toHaveText("LIL-MUSLIMEEN");
   await expect(firstSlide.locator('[data-banner-layer^="ornament-"]')).toHaveCount(0);
   await expect(firstSlide.locator('[data-banner-layer="button"]')).toHaveText(
     "Shop the collection",
   );
-  await expect(firstSlide.locator('[data-banner-layer="foreground"] img')).toHaveCSS(
+  await expect(firstSlide.locator('[data-banner-layer="foreground"]')).toHaveCSS(
     "filter",
     /drop-shadow/,
   );

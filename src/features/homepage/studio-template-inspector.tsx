@@ -19,6 +19,7 @@ import { useMemo, useState } from "react";
 import type { StoreProduct } from "@/data/store";
 import type { AdminCategory } from "@/services/adminService";
 import { HomepageImageInput } from "./homepage-image-field";
+import { HERO_PRODUCT_SHADOW } from "./shadow-effects";
 import type { StudioBannerRef } from "./studio-model";
 import type {
   BannerFill,
@@ -359,6 +360,109 @@ function LayerFrameControls({
   );
 }
 
+function LayerShadowControls({
+  layer,
+  style,
+  onPatchLayer,
+}: {
+  layer: BannerLayer;
+  style: BannerLayerStyle;
+  onPatchLayer: (id: string, patch: Partial<BannerLayerStyle>) => void;
+}) {
+  const imageDefaults =
+    layer.id === "foreground"
+      ? HERO_PRODUCT_SHADOW
+      : {
+          shadowX: 10,
+          shadowY: 10,
+          shadowBlur: 24,
+          shadowColor: "#000000",
+          shadowOpacity: 30,
+        };
+  const defaults =
+    layer.type === "image"
+      ? imageDefaults
+      : {
+          shadowX: 2,
+          shadowY: 3,
+          shadowBlur: 8,
+          shadowColor: "#000000",
+          shadowOpacity: 45,
+        };
+  const active = (style.shadowBlur ?? 0) > 0 && (style.shadowOpacity ?? 100) > 0;
+  const patch = (next: Partial<BannerLayerStyle>) => onPatchLayer(layer.id, next);
+
+  return (
+    <>
+      <div className="studio-template-segment" role="group" aria-label="Layer shadow">
+        <button
+          type="button"
+          className={!active ? "is-active" : ""}
+          onClick={() => patch({ shadowOpacity: 0 })}
+        >
+          Off
+        </button>
+        <button
+          type="button"
+          className={active ? "is-active" : ""}
+          onClick={() =>
+            patch({
+              effectType: "drop-shadow",
+              shadowX: style.shadowX ?? defaults.shadowX,
+              shadowY: style.shadowY ?? defaults.shadowY,
+              shadowBlur: Math.max(1, style.shadowBlur ?? defaults.shadowBlur),
+              shadowColor: colourInputValue(style.shadowColor, defaults.shadowColor),
+              shadowOpacity:
+                (style.shadowOpacity ?? 0) > 0 ? style.shadowOpacity : defaults.shadowOpacity,
+            })
+          }
+        >
+          On
+        </button>
+      </div>
+      {active ? (
+        <>
+          <div className="studio-template-responsive-values">
+            <NumberField
+              label="Shadow X"
+              value={style.shadowX ?? defaults.shadowX}
+              min={-100}
+              max={100}
+              onChange={(shadowX) => patch({ shadowX })}
+            />
+            <NumberField
+              label="Shadow Y"
+              value={style.shadowY ?? defaults.shadowY}
+              min={-100}
+              max={100}
+              onChange={(shadowY) => patch({ shadowY })}
+            />
+            <NumberField
+              label="Shadow blur"
+              value={style.shadowBlur ?? defaults.shadowBlur}
+              min={0}
+              max={150}
+              onChange={(shadowBlur) => patch({ shadowBlur })}
+            />
+            <NumberField
+              label="Shadow opacity"
+              value={style.shadowOpacity ?? defaults.shadowOpacity}
+              min={0}
+              max={100}
+              onChange={(shadowOpacity) => patch({ shadowOpacity })}
+            />
+          </div>
+          <ColourField
+            label="Shadow colour"
+            value={colourInputValue(style.shadowColor, defaults.shadowColor)}
+            onChange={(shadowColor) => patch({ shadowColor })}
+          />
+        </>
+      ) : null}
+    </>
+  );
+}
+
 function HeroTemplate({
   slide,
   selectedLayer,
@@ -549,6 +653,21 @@ function HeroTemplate({
           </>
         )}
       </section>
+
+      {selectedLayer &&
+      selectedStyle &&
+      (selectedLayer.type === "image" ||
+        selectedLayer.type === "text" ||
+        selectedLayer.type === "button") ? (
+        <section className="studio-template-section">
+          <h3>Shadow</h3>
+          <LayerShadowControls
+            layer={selectedLayer}
+            style={selectedStyle}
+            onPatchLayer={onPatchLayer}
+          />
+        </section>
+      ) : null}
 
       <section className="studio-template-section">
         <h3>Product image</h3>
@@ -875,6 +994,20 @@ function BannerTemplate({
         <section className="studio-template-section">
           <h3>Image frame</h3>
           <LayerFrameControls
+            layer={selectedLayer}
+            style={selectedStyle}
+            onPatchLayer={onPatchLayer}
+          />
+        </section>
+      ) : null}
+      {selectedLayer &&
+      selectedStyle &&
+      (selectedLayer.type === "image" ||
+        selectedLayer.type === "text" ||
+        selectedLayer.type === "button") ? (
+        <section className="studio-template-section">
+          <h3>Shadow</h3>
+          <LayerShadowControls
             layer={selectedLayer}
             style={selectedStyle}
             onPatchLayer={onPatchLayer}

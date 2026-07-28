@@ -67,6 +67,7 @@ export type BannerLayerStyle = {
   shadowY?: number;
   shadowBlur?: number;
   shadowColor?: string;
+  shadowOpacity?: number;
   blur?: number;
   effectType?: "drop-shadow" | "layer-blur";
   objectFit?: "cover" | "contain" | "fill";

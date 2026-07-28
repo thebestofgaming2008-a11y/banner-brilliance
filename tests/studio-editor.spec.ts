@@ -344,6 +344,51 @@ test.describe("fixed-template homepage studio", () => {
     await page.getByRole("button", { name: "Done", exact: true }).click();
   });
 
+  test("edits persistent silhouette and text shadows", async ({ page }) => {
+    const frame = storefront(page);
+    const scene = frame.locator('[data-editor-active="true"]');
+    const image = scene.locator('[data-banner-layer="foreground"]');
+    const title = scene.locator('[data-banner-layer="title"]');
+    const inspector = page.getByRole("complementary", { name: "Banner settings" });
+
+    await image.click({ force: true });
+    await expect(inspector.getByRole("heading", { name: "Shadow", exact: true })).toBeVisible();
+    await expect(inspector.getByLabel("Shadow X", { exact: true })).toHaveValue("18");
+    await expect(inspector.getByLabel("Shadow Y", { exact: true })).toHaveValue("12");
+    await expect(inspector.getByLabel("Shadow blur", { exact: true })).toHaveValue("20");
+    await expect(inspector.getByLabel("Shadow opacity", { exact: true })).toHaveValue("42");
+    await expect
+      .poll(() => image.evaluate((element) => element.style.filter))
+      .toContain("drop-shadow(rgba(50, 14, 20, 0.42) 18px 12px 20px)");
+
+    await inspector.getByLabel("Shadow opacity", { exact: true }).fill("55");
+    await expect
+      .poll(() => image.evaluate((element) => element.style.filter))
+      .toContain("rgba(50, 14, 20, 0.55)");
+
+    await title.click({ force: true });
+    const shadowToggle = inspector.getByRole("group", { name: "Layer shadow" });
+    await shadowToggle.getByRole("button", { name: "On", exact: true }).click();
+    await inspector.getByLabel("Shadow X", { exact: true }).fill("3");
+    await inspector.getByLabel("Shadow Y", { exact: true }).fill("4");
+    await inspector.getByLabel("Shadow blur", { exact: true }).fill("9");
+    await inspector.getByLabel("Shadow opacity", { exact: true }).fill("60");
+    await inspector.getByLabel("Shadow colour", { exact: true }).fill("#112233");
+    await expect
+      .poll(() => title.evaluate((element) => element.style.textShadow))
+      .toContain("rgba(17, 34, 51, 0.6) 3px 4px 9px");
+
+    await page.getByRole("button", { name: "Mobile viewport", exact: true }).click();
+    const mobileFrame = storefront(page, "mobile");
+    const mobileImage = mobileFrame.locator(
+      '[data-editor-active="true"] [data-banner-layer="foreground"]',
+    );
+    await mobileImage.click({ force: true });
+    await inspector.getByLabel("Shadow X", { exact: true }).fill("6");
+    await page.getByRole("button", { name: "Desktop viewport", exact: true }).click();
+    await expect(inspector.getByLabel("Shadow X", { exact: true })).toHaveValue("18");
+  });
+
   test("navigates, reorders and adds heroes from the right panel", async ({ page }) => {
     await expect(page.getByText("Slide 1 of 2", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Next hero" }).click();

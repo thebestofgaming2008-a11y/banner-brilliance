@@ -678,7 +678,7 @@ function HeroBanner({
           fetchPriority={isPriority ? "high" : "low"}
           decoding="async"
           className="absolute inset-x-0 bottom-0 z-10 mx-auto h-auto w-full"
-          style={{ filter: "drop-shadow(18px 12px 20px rgba(50, 14, 20, 0.26))" }}
+          style={{ filter: "drop-shadow(18px 12px 20px rgba(50, 14, 20, 0.42))" }}
         />
       </div>
       <span className="hero-mobile-legibility-scrim" aria-hidden="true" />

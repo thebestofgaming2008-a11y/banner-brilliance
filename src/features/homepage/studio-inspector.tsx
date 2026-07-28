@@ -1507,6 +1507,7 @@ function LayerInspector({
                 shadowBlur: Math.max(16, style.shadowBlur ?? 0),
                 shadowY: style.shadowY ?? 8,
                 shadowColor: style.shadowColor || "#00000055",
+                shadowOpacity: style.shadowOpacity ?? 34,
               })
             }
           >
@@ -1557,6 +1558,14 @@ function LayerInspector({
                 max={150}
                 suffix="px"
                 onChange={(shadowBlur) => patch({ shadowBlur })}
+              />
+              <NumberField
+                label="Opacity"
+                value={style.shadowOpacity ?? 34}
+                min={0}
+                max={100}
+                suffix="%"
+                onChange={(shadowOpacity) => patch({ shadowOpacity })}
               />
             </div>
             <PaintRow

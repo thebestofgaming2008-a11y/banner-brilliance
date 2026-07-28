@@ -14,6 +14,7 @@ import type {
   BannerScene,
   HomepageViewport,
 } from "./types";
+import { layerShadowValue } from "./shadow-effects";
 import { useStudioBannerSession, useStudioViewport } from "./studio-session-context";
 import { HOMEPAGE_MOBILE_MAX_WIDTH } from "./studio-model";
 
@@ -127,6 +128,11 @@ function layerCss(
     (layer.id === "title" || layer.id === "body" || layer.id === "button");
   const safeWidth = clamp(style.width, 0.5, 250);
   const safeLeft = clamp(style.x, -100, 200);
+  const shadow = layerShadowValue(style);
+  const filters = [
+    layer.type === "image" && shadow ? `drop-shadow(${shadow})` : "",
+    (style.blur ?? 0) > 0 ? `blur(${clamp(style.blur ?? 0, 0, 40)}px)` : "",
+  ].filter(Boolean);
   return {
     left: originalHeroCaption
       ? `clamp(calc(clamp(24px, 3.5vw, 50px) - (100vw - 100%) * 0.5), ${safeLeft}%, calc(100vw - clamp(24px, 3.5vw, 50px) - (100vw - 100%) * 0.5 - ${safeWidth}%))`
@@ -164,11 +170,9 @@ function layerCss(
     textDecoration: style.textDecoration || "none",
     textUnderlineOffset: style.textDecoration === "underline" ? "4px" : undefined,
     whiteSpace: textAutoResize === "width-and-height" ? "nowrap" : style.whiteSpace || "pre-wrap",
-    boxShadow:
-      (style.shadowBlur ?? 0) > 0
-        ? `${style.shadowX ?? 0}px ${style.shadowY ?? 8}px ${style.shadowBlur}px ${style.shadowColor ?? "#00000055"}`
-        : undefined,
-    filter: (style.blur ?? 0) > 0 ? `blur(${clamp(style.blur ?? 0, 0, 40)}px)` : undefined,
+    boxShadow: layer.type === "shape" ? shadow : undefined,
+    textShadow: layer.type === "text" || layer.type === "button" ? shadow : undefined,
+    filter: filters.length ? filters.join(" ") : undefined,
     objectFit: style.objectFit || "contain",
     objectPosition: style.objectPosition || "center",
     mixBlendMode: style.blendMode || "normal",
@@ -596,7 +600,7 @@ export function BannerSceneView({
               <div
                 key={layer.id}
                 {...commonProps}
-                className={`${commonProps.className} overflow-hidden ${cropping ? "is-cropping" : ""}`}
+                className={`${commonProps.className} ${cropping ? "is-cropping" : ""}`}
                 onPointerDown={(event) => {
                   if (!cropping || !cropChange) {
                     startLayerDrag(event);
@@ -644,34 +648,32 @@ export function BannerSceneView({
                   });
                 }}
               >
-                <img
-                  src={layer.src}
-                  alt={layer.alt || ""}
-                  draggable={false}
-                  loading={interactive ? "lazy" : "eager"}
-                  className="pointer-events-none absolute inset-0 h-full w-full max-w-none"
-                  style={{
-                    inset: fixedHoneyPreset ? "-1px" : undefined,
-                    width: fixedHoneyPreset ? "calc(100% + 2px)" : undefined,
-                    height: fixedHoneyPreset ? "calc(100% + 2px)" : undefined,
-                    objectFit: style.objectFit || "contain",
-                    objectPosition:
-                      style.cropX !== undefined || style.cropY !== undefined
-                        ? `${clamp(50 + (style.cropX ?? 0), 0, 100)}% ${clamp(
-                            50 + (style.cropY ?? 0),
-                            0,
-                            100,
-                          )}%`
-                        : style.objectPosition || "center",
-                    transform: `scale(${clamp(style.cropZoom ?? 100, 100, 300) / 100})`,
-                    transformOrigin: "center",
-                    filter:
-                      scene.coordinateMode === "original-hero" && layer.id === "foreground"
-                        ? "drop-shadow(18px 12px 20px rgba(50, 14, 20, 0.26))"
-                        : undefined,
-                  }}
-                />
-                {cropping ? <span className="studio-crop-overlay" aria-hidden="true" /> : null}
+                <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                  <img
+                    src={layer.src}
+                    alt={layer.alt || ""}
+                    draggable={false}
+                    loading={interactive ? "lazy" : "eager"}
+                    className="absolute inset-0 h-full w-full max-w-none"
+                    style={{
+                      inset: fixedHoneyPreset ? "-1px" : undefined,
+                      width: fixedHoneyPreset ? "calc(100% + 2px)" : undefined,
+                      height: fixedHoneyPreset ? "calc(100% + 2px)" : undefined,
+                      objectFit: style.objectFit || "contain",
+                      objectPosition:
+                        style.cropX !== undefined || style.cropY !== undefined
+                          ? `${clamp(50 + (style.cropX ?? 0), 0, 100)}% ${clamp(
+                              50 + (style.cropY ?? 0),
+                              0,
+                              100,
+                            )}%`
+                          : style.objectPosition || "center",
+                      transform: `scale(${clamp(style.cropZoom ?? 100, 100, 300) / 100})`,
+                      transformOrigin: "center",
+                    }}
+                  />
+                  {cropping ? <span className="studio-crop-overlay" aria-hidden="true" /> : null}
+                </div>
               </div>
             ) : studio && layerEditable ? (
               <div

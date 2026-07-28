@@ -1,4 +1,5 @@
 import { DEFAULT_HERO_GRADIENT } from "./brand";
+import { HERO_PRODUCT_SHADOW } from "./shadow-effects";
 import type {
   BannerFill,
   BannerLayer,
@@ -462,6 +463,7 @@ export function sceneFromHero(slide: HeroSlide, index = 0): BannerScene {
           height: 100,
           objectFit: "contain",
           objectPosition: "center bottom",
+          ...HERO_PRODUCT_SHADOW,
         }),
         ...originalHeroCaptionLayers(slide, index, color),
       ].map((layer) =>
