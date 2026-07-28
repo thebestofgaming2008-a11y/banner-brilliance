@@ -122,7 +122,7 @@ function imageLayer(
   };
 }
 
-const LUXURY_HERO_TEMPLATE_VERSION = 3;
+const LUXURY_HERO_TEMPLATE_VERSION = 4;
 
 function defaultHeroSubtitle(slide: HeroSlide, index: number) {
   if (slide.body.trim()) return slide.body;
@@ -803,37 +803,23 @@ function upgradeOriginalHeroScene(
 ): BannerScene {
   if ((scene.templateVersion ?? 0) >= LUXURY_HERO_TEMPLATE_VERSION) return scene;
   const foreground = scene.layers.find((layer) => layer.id === "foreground");
-  const migratedForeground = foreground
-    ? {
-        ...foreground,
-        style: {
-          ...foreground.style,
-          x: 8,
-        },
-      }
-    : null;
   const currentTitle = scene.layers.find((layer) => layer.id === "title")?.text?.trim();
   const currentSubtitle = scene.layers.find((layer) => layer.id === "body")?.text?.trim();
   const currentButton = scene.layers.find((layer) => layer.id === "button");
   const migratedSlide = {
     ...slide,
+    foregroundImage: foreground?.src || slide.foregroundImage,
     title: currentTitle || slide.title,
     body: currentSubtitle || defaultHeroSubtitle(slide, index),
     buttonLabel: currentButton?.text || slide.buttonLabel,
     buttonUrl: currentButton?.href || slide.buttonUrl,
   };
+  const canonical = sceneFromHero(migratedSlide, index);
   return {
-    ...scene,
+    ...canonical,
+    fills: scene.fills,
     templateVersion: LUXURY_HERO_TEMPLATE_VERSION,
     name: migratedSlide.title || scene.name,
-    layers: [
-      ...(migratedForeground ? [migratedForeground] : []),
-      ...originalHeroCaptionLayers(
-        migratedSlide,
-        index,
-        (scene.layers.find((layer) => layer.id === "title")?.style.color as string) || "#ffffff",
-      ),
-    ],
   };
 }
 

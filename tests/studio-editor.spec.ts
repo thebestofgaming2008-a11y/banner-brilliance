@@ -304,6 +304,21 @@ test.describe("fixed-template homepage studio", () => {
     expect(desktopAfterMobileEdit.y).toBeCloseTo(desktopEnd.y, 3);
   });
 
+  test("repairs legacy mobile hero layers into the visible canvas", async ({ page }) => {
+    await page.getByRole("button", { name: "Mobile viewport", exact: true }).click();
+    const frame = storefront(page, "mobile");
+    const scene = frame.locator('[data-editor-active="true"]');
+    const sceneBox = await scene.boundingBox();
+    expect(sceneBox).not.toBeNull();
+
+    for (const id of ["title", "body", "button"] as const) {
+      const layerBox = await scene.locator(`[data-banner-layer="${id}"]`).boundingBox();
+      expect(layerBox).not.toBeNull();
+      expect(layerBox!.x).toBeGreaterThanOrEqual(sceneBox!.x - 1);
+      expect(layerBox!.x + layerBox!.width).toBeLessThanOrEqual(sceneBox!.x + sceneBox!.width + 1);
+    }
+  });
+
   test("edits the fixed hero and renders true mobile responsive styles", async ({ page }) => {
     const inspector = page.getByRole("complementary", { name: "Banner settings" });
     const activeScene = storefront(page).locator('[data-editor-active="true"]');
