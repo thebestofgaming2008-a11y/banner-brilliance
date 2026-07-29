@@ -1,10 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MessageCircle } from "lucide-react";
+import { Instagram, Mail, MapPin, MessageCircle } from "lucide-react";
 import { useState } from "react";
 
 import { StorePage } from "@/components/store/store-chrome";
 import { useStoreReveal } from "@/hooks/use-store-reveal";
-import { STORE_WHATSAPP_DISPLAY, whatsappUrl } from "@/lib/store-config";
+import {
+  STORE_INSTAGRAM_HANDLE,
+  STORE_INSTAGRAM_URL,
+  STORE_LOCATION,
+  STORE_SUPPORT_EMAIL,
+  STORE_WHATSAPP_DISPLAY,
+  STORE_WHATSAPP_INQUIRY_MESSAGE,
+  whatsappUrl,
+} from "@/lib/store-config";
 import { seo } from "@/lib/seo";
 
 export const Route = createFileRoute("/pages/contact")({
@@ -41,13 +49,46 @@ function ContactPage() {
                 <div>
                   <p className="text-[12px] font-semibold">WhatsApp support</p>
                   <a
-                    href={whatsappUrl("Assalamu alaikum. I need help with Fawzaan Store.")}
+                    href={whatsappUrl(STORE_WHATSAPP_INQUIRY_MESSAGE)}
                     target="_blank"
                     rel="noreferrer"
                     className="mt-1 block text-[13px] text-black/55 underline underline-offset-4"
                   >
                     {STORE_WHATSAPP_DISPLAY}
                   </a>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <Instagram size={19} />
+                <div>
+                  <p className="text-[12px] font-semibold">Instagram</p>
+                  <a
+                    href={STORE_INSTAGRAM_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 block text-[13px] text-black/55 underline underline-offset-4"
+                  >
+                    {STORE_INSTAGRAM_HANDLE}
+                  </a>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <Mail size={19} />
+                <div>
+                  <p className="text-[12px] font-semibold">Email</p>
+                  <a
+                    href={`mailto:${STORE_SUPPORT_EMAIL}`}
+                    className="mt-1 block text-[13px] text-black/55 underline underline-offset-4"
+                  >
+                    {STORE_SUPPORT_EMAIL}
+                  </a>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <MapPin size={19} />
+                <div>
+                  <p className="text-[12px] font-semibold">Location</p>
+                  <p className="mt-1 text-[13px] leading-5 text-black/55">{STORE_LOCATION}</p>
                 </div>
               </div>
             </div>
@@ -74,7 +115,7 @@ function ContactPage() {
                   event.preventDefault();
                   const form = new FormData(event.currentTarget);
                   const message = [
-                    "Assalamu alaikum. I need help with Fawzaan Store.",
+                    STORE_WHATSAPP_INQUIRY_MESSAGE,
                     "",
                     `Name: ${String(form.get("name") ?? "")}`,
                     `Email: ${String(form.get("email") ?? "")}`,

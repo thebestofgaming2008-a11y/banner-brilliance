@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { StorePage } from "@/components/store/store-chrome";
-import { STORE_WHATSAPP_DISPLAY, whatsappUrl } from "@/lib/store-config";
+import {
+  STORE_WHATSAPP_DISPLAY,
+  STORE_WHATSAPP_INQUIRY_MESSAGE,
+  whatsappUrl,
+} from "@/lib/store-config";
 import { seo } from "@/lib/seo";
 
 export const Route = createFileRoute("/terms")({
@@ -19,14 +23,14 @@ function TermsPage() {
       <main className="mx-auto max-w-3xl px-5 md:px-8 py-16 md:py-24">
         <p className="eyebrow text-gold-deep mb-3">Legal</p>
         <h1 className="font-display text-4xl md:text-5xl mb-2">Terms & Conditions</h1>
-        <p className="text-sm text-ink/60 mb-10">Last updated: June 27, 2026</p>
+        <p className="text-sm text-ink/60 mb-10">Last updated: July 29, 2026</p>
 
         <div className="space-y-6 text-[15px] leading-relaxed">
           <section>
             <h2 className="font-display text-2xl mt-8 mb-3">1. Acceptance of Terms</h2>
             <p>
-              By accessing or using fawzaan.store, you agree to be bound by these Terms & Conditions
-              and our Privacy Policy. If you do not agree, please do not use the site.
+              By browsing this site, you accept our store policies. While we review product details
+              before launch, prices and item stock can change.
             </p>
           </section>
 
@@ -85,8 +89,8 @@ function TermsPage() {
           <section>
             <h2 className="font-display text-2xl mt-8 mb-3">7. Intellectual Property</h2>
             <p>
-              All content on this site — logos, images, text, designs — is the property of Fawzaan
-              Store and protected by copyright and trademark laws. You may not reproduce,
+              All content on this site, including logos, images, text, and designs, is the property
+              of Fawzaan Store and protected by copyright and trademark laws. You may not reproduce,
               distribute, or use any content without written permission.
             </p>
           </section>
@@ -115,7 +119,7 @@ function TermsPage() {
             <p>
               Questions? Contact Fawzaan on{" "}
               <a
-                href={whatsappUrl("Assalamu alaikum. I have a question about the Fawzaan terms.")}
+                href={whatsappUrl(STORE_WHATSAPP_INQUIRY_MESSAGE)}
                 target="_blank"
                 rel="noreferrer"
                 className="text-gold-deep underline"

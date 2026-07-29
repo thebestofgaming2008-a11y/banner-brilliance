@@ -456,10 +456,32 @@ test("hero preset supplies a responsive conversion lockup", async ({ page }) => 
   await expect(firstSlide.locator('[data-banner-layer="button"]')).toHaveText(
     "Shop the collection",
   );
+  await expect
+    .poll(() =>
+      firstSlide
+        .locator('[data-banner-layer="foreground"] img')
+        .evaluate((image: HTMLImageElement) => image.naturalWidth),
+    )
+    .toBe(940);
+  await expect
+    .poll(() =>
+      page
+        .locator('section[aria-label="Featured collection"] article')
+        .nth(1)
+        .locator('[data-banner-layer="foreground"] img')
+        .evaluate((image: HTMLImageElement) => image.naturalWidth),
+    )
+    .toBe(688);
   await expect(firstSlide.locator('[data-banner-layer="foreground"]')).toHaveCSS(
     "filter",
     /drop-shadow/,
   );
+
+  const watchBanner = page.locator("#watch-collection .collection-banner img");
+  await watchBanner.scrollIntoViewIfNeeded();
+  await expect
+    .poll(() => watchBanner.evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBe(1400);
 });
 
 test("hero captions stay inside phone, tablet, zoomed, and desktop viewports", async ({ page }) => {
@@ -582,6 +604,38 @@ test("support and policy pages match the live checkout model", async ({ page }) 
   }
   await page.goto("/pages/contact");
   await expect(page.getByText("+91 91529 99764")).toBeVisible();
+  await expect(page.getByRole("link", { name: "@fawzaan.store" })).toHaveAttribute(
+    "href",
+    "https://www.instagram.com/fawzaan.store/",
+  );
+  await expect(page.getByRole("link", { name: "faizk4511@gmail.com" })).toHaveAttribute(
+    "href",
+    "mailto:faizk4511@gmail.com",
+  );
+  await expect(page.getByText("Kurla West, Mumbai, Maharashtra 400070")).toBeVisible();
+  const whatsappHref = await page
+    .getByRole("link", { name: "+91 91529 99764" })
+    .getAttribute("href");
+  expect(decodeURIComponent(whatsappHref ?? "")).toContain("السلام عليكم ورحمة الله وبركاته");
+  expect(decodeURIComponent(whatsappHref ?? "")).toContain(
+    "I want to inquire about something related to Fawzaan Store.",
+  );
+
+  await page.goto("/pages/returns");
+  await expect(
+    page.getByText("Eligible unused items must be returned within 5 days of delivery."),
+  ).toBeVisible();
+  await expect(
+    page.getByText("A straightforward return process for eligible unused items."),
+  ).toHaveCount(0);
+
+  await page.goto("/pages/privacy");
+  await expect(page.getByText(/your data is never sold/i)).toBeVisible();
+
+  await page.goto("/terms");
+  await expect(
+    page.getByText(/By browsing this site, you accept our store policies/i),
+  ).toBeVisible();
   expect(errors).toEqual([]);
 });
 

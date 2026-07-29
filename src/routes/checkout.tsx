@@ -657,7 +657,7 @@ function CheckoutPage() {
             </button>
           </section>
 
-          <aside className="h-fit bg-cream p-6 lg:sticky lg:top-24">
+          <aside className="min-w-0 h-fit bg-cream p-6 lg:sticky lg:top-24">
             <h2 className="font-display text-xl">Order summary</h2>
             <ul className="mt-4 max-h-72 space-y-3 overflow-y-auto pr-1">
               {items.map((item) => (

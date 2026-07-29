@@ -35,7 +35,7 @@ import { PromotionPopover } from "@/components/store/promotion-popover";
 import { productCountLabel } from "@/lib/catalog-copy";
 
 import makkahGloves from "@/assets/collection-banners/makkah-gloves.jpg";
-import sabrWatchBlack from "@/assets/collection-banners/sabr-watch-black.jpg";
+import sabrWatchFeature from "@/assets/collection-banners/sabr-watch-feature.webp";
 import heroNiqabFull from "@/assets/hero-products/hero-niqab-full.webp";
 import heroShemaghFull from "@/assets/hero-products/hero-shemagh-full.webp";
 import honeyAcacia from "@/assets/product-photos/honey-kashmir-acacia.jpg";
@@ -1725,11 +1725,11 @@ function WatchCollection() {
           data-reveal
         >
           <img
-            src={sabrWatchBlack}
+            src={sabrWatchFeature}
             alt=""
             aria-hidden
             loading="lazy"
-            className="absolute inset-0 h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full object-cover object-[center_50%] md:object-[center_52%]"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 p-6 md:p-8">

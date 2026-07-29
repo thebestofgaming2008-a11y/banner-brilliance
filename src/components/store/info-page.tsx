@@ -12,7 +12,7 @@ export function InfoPage({
 }: {
   eyebrow: string;
   title: string;
-  intro: string;
+  intro?: string;
   sections: InfoSection[];
   children?: React.ReactNode;
 }) {
@@ -23,7 +23,9 @@ export function InfoPage({
         <div className="mx-auto max-w-[960px]" data-store-reveal>
           <p className="section-kicker text-black/55">{eyebrow}</p>
           <h1 className="section-heading mt-3 text-[44px] md:text-[68px]">{title}</h1>
-          <p className="mt-5 max-w-2xl text-[14px] leading-6 text-black/65">{intro}</p>
+          {intro ? (
+            <p className="mt-5 max-w-2xl text-[14px] leading-6 text-black/65">{intro}</p>
+          ) : null}
         </div>
       </section>
       <section className="px-[22px] py-12 md:px-8 md:py-20">

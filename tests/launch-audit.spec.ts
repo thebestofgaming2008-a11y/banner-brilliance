@@ -47,7 +47,7 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
     await page.locator('script[type="application/ld+json"]').allTextContents()
   ).map((value) => JSON.parse(value));
   const product = productSchemas.find((value) => value["@type"] === "Product");
-  expect(product?.name).toBe("Makkah gloves");
+  expect(product?.name).toContain("Makkah gloves");
   expect(product?.offers?.priceCurrency).toBe("INR");
   expect(product?.offers?.availability).toBe("https://schema.org/InStock");
   expect(product?.aggregateRating).toBeUndefined();

@@ -15,7 +15,7 @@ function PrivacyPage() {
     <InfoPage
       eyebrow="Legal"
       title="PRIVACY"
-      intro="How Fawzaan handles information when you browse and shop."
+      intro="We collect strictly what is necessary to deliver your orders and offer helpful support. We are committed to protecting your privacy—your data is never sold, and you remain in complete control to delete it anytime."
       sections={[
         {
           title: "Information we collect",
