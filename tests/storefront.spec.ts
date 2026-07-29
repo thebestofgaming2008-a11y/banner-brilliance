@@ -462,7 +462,7 @@ test("hero preset supplies a responsive conversion lockup", async ({ page }) => 
         .locator('[data-banner-layer="foreground"] img')
         .evaluate((image: HTMLImageElement) => image.naturalWidth),
     )
-    .toBe(940);
+    .toBe(1200);
   await expect
     .poll(() =>
       page
@@ -471,17 +471,28 @@ test("hero preset supplies a responsive conversion lockup", async ({ page }) => 
         .locator('[data-banner-layer="foreground"] img')
         .evaluate((image: HTMLImageElement) => image.naturalWidth),
     )
-    .toBe(688);
+    .toBe(1200);
   await expect(firstSlide.locator('[data-banner-layer="foreground"]')).toHaveCSS(
     "filter",
     /drop-shadow/,
   );
 
+  const essentialImages = page.locator("#essentials .collection-banner > img");
+  await essentialImages.first().scrollIntoViewIfNeeded();
+  await expect(essentialImages).toHaveCount(2);
+  await expect
+    .poll(() =>
+      essentialImages.evaluateAll((images: HTMLImageElement[]) =>
+        images.map((image) => image.naturalWidth),
+      ),
+    )
+    .toEqual([1672, 1536]);
+
   const watchBanner = page.locator("#watch-collection .collection-banner img");
   await watchBanner.scrollIntoViewIfNeeded();
   await expect
     .poll(() => watchBanner.evaluate((image: HTMLImageElement) => image.naturalWidth))
-    .toBe(1400);
+    .toBe(1023);
 });
 
 test("hero captions stay inside phone, tablet, zoomed, and desktop viewports", async ({ page }) => {
