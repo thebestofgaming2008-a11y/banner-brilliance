@@ -23,7 +23,7 @@ function TermsPage() {
       <main className="mx-auto max-w-3xl px-5 md:px-8 py-16 md:py-24">
         <p className="eyebrow text-gold-deep mb-3">Legal</p>
         <h1 className="font-display text-4xl md:text-5xl mb-2">Terms & Conditions</h1>
-        <p className="text-sm text-ink/60 mb-10">Last updated: July 29, 2026</p>
+        <p className="text-sm text-ink/60 mb-10">Last updated: July 30, 2026</p>
 
         <div className="space-y-6 text-[15px] leading-relaxed">
           <section>
@@ -78,39 +78,42 @@ function TermsPage() {
           <section>
             <h2 className="font-display text-2xl mt-8 mb-3">6. Returns & Refunds</h2>
             <p>
-              Returns are governed by our{" "}
+              Our{" "}
               <a href="/pages/returns" className="text-gold-deep underline">
                 Return & Refund Policy
-              </a>
-              . By purchasing, you agree to those terms.
+              </a>{" "}
+              explains which items may be returned and how to request a return. After an eligible
+              return is received and inspected, an approved refund is sent to the original payment
+              method. Delivery charges are refunded only when the item arrived damaged, faulty, or
+              different from what was ordered.
             </p>
           </section>
 
           <section>
-            <h2 className="font-display text-2xl mt-8 mb-3">7. Intellectual Property</h2>
+            <h2 className="font-display text-2xl mt-8 mb-3">7. Website Content</h2>
             <p>
-              All content on this site, including logos, images, text, and designs, is the property
-              of Fawzaan Store and protected by copyright and trademark laws. You may not reproduce,
-              distribute, or use any content without written permission.
+              Original photos, product descriptions, graphics, and branding created for this website
+              may not be copied or reused without permission. This does not claim or imply that the
+              Fawzaan Store name or logo is a registered trademark.
             </p>
           </section>
 
           <section>
-            <h2 className="font-display text-2xl mt-8 mb-3">8. Limitation of Liability</h2>
+            <h2 className="font-display text-2xl mt-8 mb-3">8. Service Responsibility</h2>
             <p>
-              To the fullest extent permitted by law, Fawzaan Store shall not be liable for any
-              indirect, incidental, special, or consequential damages arising out of or in
-              connection with your use of the site or products purchased. Our total liability shall
-              not exceed the amount paid for the product in question.
+              We take reasonable care to keep product, price, stock, and order information accurate
+              and to keep the store available. We are not responsible for delays or interruptions
+              outside our reasonable control, or for loss caused by misuse of the website or a
+              product. Nothing in these terms removes or reduces a consumer right or remedy that
+              cannot legally be excluded.
             </p>
           </section>
 
           <section>
-            <h2 className="font-display text-2xl mt-8 mb-3">9. Governing Law</h2>
+            <h2 className="font-display text-2xl mt-8 mb-3">9. Applicable Law</h2>
             <p>
-              These terms are governed by and construed in accordance with the laws of the
-              jurisdiction in which Fawzaan Store is registered, without regard to conflict of law
-              principles.
+              These terms are interpreted under the laws applicable in India. Any consumer rights
+              and remedies available under applicable law remain unaffected.
             </p>
           </section>
 

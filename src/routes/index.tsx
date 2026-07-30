@@ -34,7 +34,6 @@ import { STORE_LOGO_URL } from "@/lib/store-config";
 import { PromotionPopover } from "@/components/store/promotion-popover";
 import { productCountLabel } from "@/lib/catalog-copy";
 
-import makkahGloves from "@/assets/collection-banners/makkah-gloves.jpg";
 import heroNiqabFull from "@/assets/hero-products/hero-niqab-full.webp";
 import heroShemaghFull from "@/assets/hero-products/hero-shemagh-full.webp";
 import honeyAcacia from "@/assets/product-photos/honey-kashmir-acacia.jpg";
@@ -281,14 +280,16 @@ const collectionBanners = [
     title: "MAKKAH GLOVES",
     eyebrow: "Coming next",
     copy: "Gold artwork cases in staple colours.",
-    image: makkahGloves,
+    image: "/homepage/makkah-gloves.jpg",
+    imageClassName: "object-center",
     href: "/shop?collection=Gloves",
   },
   {
     title: "KASHMIR HONEY",
     eyebrow: "Harvest edit",
     copy: "Raw floral honey from Kashmir.",
-    image: honeyMulti,
+    image: "/homepage/honey.jpg",
+    imageClassName: "object-center",
     href: "/shop?collection=Honey",
   },
 ];
@@ -1014,12 +1015,12 @@ function CollectionBanners() {
           </h2>
         </div>
 
-        <div className="mt-8 flex flex-col gap-4 md:mt-12 md:gap-6">
+        <div className="mx-auto mt-8 grid max-w-[920px] gap-4 md:mt-12 md:grid-cols-2 md:gap-5">
           {collectionBanners.map((banner, index) => (
             <a
               key={banner.title}
               href={banner.href}
-              className="collection-banner group relative block min-h-[520px] overflow-hidden bg-black text-white md:min-h-[560px]"
+              className="collection-banner group relative block aspect-[9/16] overflow-hidden bg-black text-white"
               data-reveal
             >
               <img
@@ -1027,15 +1028,13 @@ function CollectionBanners() {
                 alt=""
                 aria-hidden
                 loading={index === 0 ? "eager" : "lazy"}
-                className={`absolute inset-0 h-full w-full object-cover ${
-                  banner.title === "MAKKAH GLOVES" ? "object-center" : "object-center"
-                }`}
+                className={`absolute inset-0 h-full w-full object-cover ${banner.imageClassName}`}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/76 via-black/18 to-black/5 md:bg-gradient-to-r md:from-black/68 md:via-black/20 md:to-transparent" />
-              <div className="relative z-10 flex min-h-[520px] items-end p-6 md:min-h-[560px] md:items-center md:p-10">
-                <div className="max-w-[420px]">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/78 via-black/10 to-transparent" />
+              <div className="relative z-10 flex h-full items-end p-6 md:p-8">
+                <div className="max-w-[360px]">
                   <p className="section-kicker text-white/72">{banner.eyebrow}</p>
-                  <h3 className="banner-heading mt-3 text-[44px] md:text-[68px]">{banner.title}</h3>
+                  <h3 className="banner-heading mt-3 text-[42px] md:text-[50px]">{banner.title}</h3>
                   <p className="commerce-copy mt-4 max-w-[280px] text-white/76">{banner.copy}</p>
                   <span className="mt-7 inline-flex h-11 items-center bg-white px-5 text-[10px] font-bold uppercase tracking-normal text-black">
                     Shop collection

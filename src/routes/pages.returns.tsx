@@ -49,7 +49,8 @@ function ReturnsPage() {
         {
           title: "Refunds",
           paragraphs: [
-            "Approved refunds are issued to the original payment method after inspection. Original shipping charges are not refundable unless the item arrived faulty.",
+            "After we receive and inspect the returned item, we will tell you whether the refund is approved. An approved refund is sent back to the same payment method used for the order. Your bank or payment provider may need additional time to show it.",
+            "The original delivery charge is refunded only when the item arrived damaged, faulty, or different from what was ordered. This policy does not reduce any rights you have under applicable consumer law.",
           ],
         },
       ]}

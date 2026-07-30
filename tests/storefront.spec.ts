@@ -432,7 +432,11 @@ test("homepage shop controls filter, pluralize, and link to the selected collect
   await expect(shop.getByPlaceholder("Search products")).toBeVisible();
   await expect(shop.getByLabel("Sort homepage products")).toBeVisible();
 
-  await shop.getByRole("tab", { name: "Shemaghs", exact: true }).click();
+  const shemaghsTab = shop.getByRole("tab", { name: "Shemaghs", exact: true });
+  await expect(async () => {
+    await shemaghsTab.click();
+    await expect(shemaghsTab).toHaveAttribute("aria-selected", "true");
+  }).toPass({ timeout: 30_000 });
   await expect(
     shop.getByLabel("Filter homepage products by collection").locator("xpath=..").locator("span"),
   ).toHaveText("1 product");
@@ -476,6 +480,26 @@ test("hero preset supplies a responsive conversion lockup", async ({ page }) => 
     "filter",
     /drop-shadow/,
   );
+
+  const collectionBannerImages = page.locator("#catalog .collection-banner > img");
+  await collectionBannerImages.first().scrollIntoViewIfNeeded();
+  await expect(collectionBannerImages).toHaveCount(2);
+  await expect
+    .poll(() =>
+      collectionBannerImages.evaluateAll((images: HTMLImageElement[]) =>
+        images.map((image) => [image.naturalWidth, image.naturalHeight]),
+      ),
+    )
+    .toEqual([
+      [578, 1280],
+      [578, 1280],
+    ]);
+  const collectionBannerBox = await page
+    .locator("#catalog .collection-banner")
+    .first()
+    .boundingBox();
+  expect(collectionBannerBox).not.toBeNull();
+  expect(collectionBannerBox!.height).toBeGreaterThan(collectionBannerBox!.width);
 
   const essentialImages = page.locator("#essentials .collection-banner > img");
   await essentialImages.first().scrollIntoViewIfNeeded();
@@ -636,6 +660,7 @@ test("support and policy pages match the live checkout model", async ({ page }) 
   await expect(
     page.getByText("Eligible unused items must be returned within 5 days of delivery."),
   ).toBeVisible();
+  await expect(page.getByText(/same payment method used for the order/i)).toBeVisible();
   await expect(
     page.getByText("A straightforward return process for eligible unused items."),
   ).toHaveCount(0);
@@ -647,6 +672,13 @@ test("support and policy pages match the live checkout model", async ({ page }) 
   await expect(
     page.getByText(/By browsing this site, you accept our store policies/i),
   ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "7. Website Content" })).toBeVisible();
+  await expect(page.getByText(/does not claim.*registered trademark/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "8. Service Responsibility" })).toBeVisible();
+  await expect(
+    page.getByText(/consumer right or remedy.*cannot legally be excluded/i),
+  ).toBeVisible();
+  await expect(page.getByText(/trademark laws/i)).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
