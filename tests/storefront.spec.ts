@@ -425,6 +425,7 @@ test("homepage shop controls filter, pluralize, and link to the selected collect
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/", { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await expect(page.getByText("© 2026 Fawzaan Store. All rights reserved.")).toBeVisible();
 
   const shop = page.locator("#shop-all");
   await expect(shop.getByRole("button", { name: "Previous collections" })).toBeVisible();

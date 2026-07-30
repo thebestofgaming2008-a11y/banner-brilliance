@@ -1834,7 +1834,7 @@ function Footer() {
         </div>
       </div>
       <div className="mx-auto mt-12 flex max-w-[1120px] flex-col gap-2 border-t border-white/15 pt-6 text-[10px] uppercase text-white/40 md:flex-row md:items-center md:justify-between">
-        <p>© 2026 Fawzaan. All rights reserved.</p>
+        <p>© 2026 Fawzaan Store. All rights reserved.</p>
       </div>
     </footer>
   );

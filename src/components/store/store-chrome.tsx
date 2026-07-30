@@ -2,6 +2,7 @@ import {
   ChevronRight,
   LayoutDashboard,
   Minus,
+  Pencil,
   Plus,
   Search,
   ShoppingBag,
@@ -77,15 +78,25 @@ export function StoreHeader() {
           </a>
           <div className="flex items-center gap-2">
             {isAdmin ? (
-              <a
-                href="/admin?tab=homepage"
-                aria-label="Open homepage editor"
-                title="Open homepage editor"
-                className="inline-flex h-9 items-center gap-1.5 px-1.5 text-[10px] font-bold uppercase text-[#B95720] transition-opacity hover:opacity-65 sm:px-2"
-              >
-                <LayoutDashboard size={15} />
-                <span>Edit</span>
-              </a>
+              <div className="flex items-center">
+                <a
+                  href="/admin"
+                  aria-label="Open admin dashboard"
+                  title="Open admin dashboard"
+                  className="grid h-9 w-9 place-items-center text-[#B95720] transition-opacity hover:opacity-65"
+                >
+                  <LayoutDashboard size={16} />
+                </a>
+                <a
+                  href="/admin?tab=homepage"
+                  aria-label="Open homepage editor"
+                  title="Open homepage editor"
+                  className="inline-flex h-9 w-9 items-center justify-center gap-1.5 text-[10px] font-bold uppercase text-[#B95720] transition-opacity hover:opacity-65 sm:w-auto sm:px-2"
+                >
+                  <Pencil size={15} />
+                  <span className="hidden sm:inline">Edit</span>
+                </a>
+              </div>
             ) : null}
             <ChromeButton label="Open cart" onClick={() => setDrawer("cart")}>
               <span className="relative">
@@ -386,7 +397,7 @@ export function StoreFooter() {
         </div>
       </div>
       <div className="mx-auto mt-12 max-w-[1280px] border-t border-white/15 pt-6 text-[10px] uppercase text-white/40">
-        <p>© 2026 Fawzaan. All rights reserved.</p>
+        <p>© 2026 Fawzaan Store. All rights reserved.</p>
       </div>
     </footer>
   );
