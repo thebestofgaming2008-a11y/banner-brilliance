@@ -484,6 +484,7 @@ test("hero preset supplies a responsive conversion lockup", async ({ page }) => 
   const collectionBannerImages = page.locator("#catalog .collection-banner > img");
   await collectionBannerImages.first().scrollIntoViewIfNeeded();
   await expect(collectionBannerImages).toHaveCount(2);
+  await expect(collectionBannerImages.first()).toHaveAttribute("src", "/homepage/honey.jpg");
   await expect
     .poll(() =>
       collectionBannerImages.evaluateAll((images: HTMLImageElement[]) =>

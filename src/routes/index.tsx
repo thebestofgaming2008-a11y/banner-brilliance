@@ -277,20 +277,20 @@ const collectionTiles = [
 
 const collectionBanners = [
   {
-    title: "MAKKAH GLOVES",
-    eyebrow: "Coming next",
-    copy: "Gold artwork cases in staple colours.",
-    image: "/homepage/makkah-gloves.jpg",
-    imageClassName: "object-center",
-    href: "/shop?collection=Gloves",
-  },
-  {
     title: "KASHMIR HONEY",
     eyebrow: "Harvest edit",
     copy: "Raw floral honey from Kashmir.",
     image: "/homepage/honey.jpg",
     imageClassName: "object-center",
     href: "/shop?collection=Honey",
+  },
+  {
+    title: "MAKKAH GLOVES",
+    eyebrow: "Coming next",
+    copy: "Gold artwork cases in staple colours.",
+    image: "/homepage/makkah-gloves.jpg",
+    imageClassName: "object-center",
+    href: "/shop?collection=Gloves",
   },
 ];
 
@@ -1006,16 +1006,9 @@ function HeroSlider() {
 
 function CollectionBanners() {
   return (
-    <section id="catalog" className="bg-white px-[18px] py-10 md:px-8 md:py-18">
+    <section id="catalog" className="bg-white px-[18px] py-6 md:px-8 md:py-10">
       <div className="mx-auto max-w-[1120px]">
-        <div className="mx-auto max-w-[640px] text-center" data-reveal>
-          <p className="section-kicker text-black/50">Shop more collections</p>
-          <h2 className="section-heading mt-2 text-[34px] text-black md:text-[52px]">
-            EXPLORE EDITS
-          </h2>
-        </div>
-
-        <div className="mx-auto mt-8 grid max-w-[920px] gap-4 md:mt-12 md:grid-cols-2 md:gap-5">
+        <div className="mx-auto grid max-w-[920px] gap-4 md:grid-cols-2 md:gap-5">
           {collectionBanners.map((banner, index) => (
             <a
               key={banner.title}
