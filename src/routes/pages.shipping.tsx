@@ -16,7 +16,6 @@ function ShippingPage() {
     <InfoPage
       eyebrow="Customer care"
       title="SHIPPING"
-      intro="Clear delivery expectations from dispatch to your door."
       sections={[
         {
           title: "Processing times",

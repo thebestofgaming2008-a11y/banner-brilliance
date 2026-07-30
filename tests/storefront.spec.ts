@@ -639,6 +639,11 @@ test("support and policy pages match the live checkout model", async ({ page }) 
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
     ).toBeTruthy();
   }
+  await page.goto("/pages/shipping");
+  await expect(
+    page.getByText("Clear delivery expectations from dispatch to your door."),
+  ).toHaveCount(0);
+
   await page.goto("/pages/contact");
   await expect(page.getByText("+91 91529 99764")).toBeVisible();
   await expect(page.getByRole("link", { name: "@fawzaan.store" })).toHaveAttribute(
