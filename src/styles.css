@@ -856,30 +856,31 @@
     transition-delay: calc(var(--collection-index, 0) * 70ms);
   }
 
-  .collection-story__image {
+  .shopify-collection-tile__image {
     backface-visibility: hidden;
-    transform: translate3d(var(--collection-shift, 0), 0, 0) scale(1.035);
+    transform: scale(1.015);
     transition:
       transform 900ms cubic-bezier(0.16, 1, 0.3, 1),
-      filter 700ms ease;
+      filter 500ms ease;
     will-change: transform;
   }
 
-  .collection-story__shade {
-    background:
-      linear-gradient(to top, rgb(0 0 0 / 0.68) 0%, rgb(0 0 0 / 0.16) 31%, transparent 62%),
-      linear-gradient(to bottom, rgb(0 0 0 / 0.12), transparent 30%);
+  .shopify-collection-tile__shade {
+    background: linear-gradient(
+      to top,
+      rgb(0 0 0 / 0.62) 0%,
+      rgb(0 0 0 / 0.12) 38%,
+      transparent 66%
+    );
     transition: background-color 500ms ease;
   }
 
-  .collection-story__title,
-  .collection-story__arrow {
+  .shopify-collection-tile__title,
+  .shopify-collection-tile__link {
     transform: translate3d(0, 0, 0);
     transition:
       transform 500ms cubic-bezier(0.16, 1, 0.3, 1),
-      background-color 300ms ease,
-      color 300ms ease,
-      border-color 300ms ease;
+      opacity 300ms ease;
   }
 
   .product-card__media img,
@@ -964,20 +965,14 @@
       transform: scale(1.025);
     }
 
-    .collection-story:hover .collection-story__image {
-      filter: saturate(1.04) contrast(1.015);
-      transform: translate3d(var(--collection-shift, 0), 0, 0) scale(1.075);
+    .shopify-collection-tile:hover .shopify-collection-tile__image {
+      filter: saturate(1.03) contrast(1.01);
+      transform: scale(1.045);
     }
 
-    .collection-story:hover .collection-story__title {
+    .shopify-collection-tile:hover .shopify-collection-tile__title,
+    .shopify-collection-tile:hover .shopify-collection-tile__link {
       transform: translate3d(0, -3px, 0);
-    }
-
-    .collection-story:hover .collection-story__arrow {
-      border-color: rgb(255 255 255 / 0.7);
-      background: #fff;
-      color: #111;
-      transform: translate3d(3px, 0, 0);
     }
 
     .collection-banner:hover span {
@@ -1135,9 +1130,9 @@
     .collection-banner,
     .collection-banner > img,
     .collection-banner span,
-    .collection-story__image,
-    .collection-story__title,
-    .collection-story__arrow,
+    .shopify-collection-tile__image,
+    .shopify-collection-tile__title,
+    .shopify-collection-tile__link,
     .admin-tab-content,
     .admin-mobile-nav-backdrop,
     .admin-mobile-nav-panel,

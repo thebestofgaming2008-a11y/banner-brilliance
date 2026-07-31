@@ -1185,10 +1185,6 @@ function BestSellers() {
 }
 
 function PostShopClose() {
-  const railRef = useRef<HTMLDivElement>(null);
-  const [canScrollBack, setCanScrollBack] = useState(false);
-  const [canScrollForward, setCanScrollForward] = useState(true);
-  const [scrollProgress, setScrollProgress] = useState(0);
   const collectionLinks = [
     {
       title: "Shemaghs",
@@ -1234,124 +1230,39 @@ function PostShopClose() {
     },
   ];
 
-  useEffect(() => {
-    const rail = railRef.current;
-    if (!rail) return;
-    let animationFrame = 0;
-
-    const updateControls = () => {
-      const maxScroll = Math.max(rail.scrollWidth - rail.clientWidth, 1);
-      const progress = Math.min(Math.max(rail.scrollLeft / maxScroll, 0), 1);
-      setCanScrollBack(rail.scrollLeft > 8);
-      setCanScrollForward(rail.scrollLeft < maxScroll - 8);
-      setScrollProgress(progress);
-
-      const railCenter = rail.getBoundingClientRect().left + rail.clientWidth / 2;
-      rail.querySelectorAll<HTMLElement>("[data-collection-card]").forEach((card) => {
-        const bounds = card.getBoundingClientRect();
-        const cardCenter = bounds.left + bounds.width / 2;
-        const shift = Math.max(-18, Math.min(18, (railCenter - cardCenter) * 0.035));
-        card.style.setProperty("--collection-shift", `${shift}px`);
-      });
-    };
-
-    const scheduleUpdate = () => {
-      window.cancelAnimationFrame(animationFrame);
-      animationFrame = window.requestAnimationFrame(updateControls);
-    };
-
-    updateControls();
-    rail.addEventListener("scroll", scheduleUpdate, { passive: true });
-    const observer = new ResizeObserver(scheduleUpdate);
-    observer.observe(rail);
-    return () => {
-      window.cancelAnimationFrame(animationFrame);
-      rail.removeEventListener("scroll", scheduleUpdate);
-      observer.disconnect();
-    };
-  }, []);
-
-  const moveRail = (direction: number) => {
-    const rail = railRef.current;
-    if (!rail) return;
-    rail.scrollBy({
-      left: direction * Math.max(rail.clientWidth * 0.78, 300),
-      behavior: "smooth",
-    });
-  };
-
   return (
-    <section
-      id="collections-after-shop"
-      className="overflow-hidden border-t border-black/10 bg-[#f4f4f2]"
-    >
-      <div className="relative mx-auto max-w-[1320px] py-8 md:px-8 md:py-20">
-        <div
-          ref={railRef}
-          className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth px-[18px] pb-1 touch-pan-x md:gap-4 md:px-0"
-          aria-label="Shop collections"
-        >
-          {collectionLinks.map((collection, index) => (
-            <a
-              key={collection.title}
-              href={collection.href}
-              className="collection-story group relative aspect-[4/5] w-[82vw] max-w-[360px] shrink-0 snap-start overflow-hidden bg-[#dededb] text-white md:w-[calc((100%_-_2rem)/3)] md:max-w-none"
-              data-collection-card
-              data-reveal="collection"
-              style={{ "--collection-index": index } as CSSProperties}
-            >
-              <img
-                src={collection.image}
-                alt={collection.alt}
-                loading="lazy"
-                className={`collection-story__image absolute inset-[-2%] h-[104%] w-[104%] object-cover ${collection.imageClassName}`}
-              />
-              <div className="collection-story__shade absolute inset-0" />
-              <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-5 md:p-7">
-                <h3 className="collection-story__title text-[29px] font-bold uppercase leading-none md:text-[35px]">
-                  {collection.title}
-                </h3>
-                <span
-                  className="collection-story__arrow grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/30 bg-black/15 text-white backdrop-blur-md"
-                  aria-hidden
-                >
-                  <ChevronRight size={18} />
-                </span>
-              </div>
-            </a>
-          ))}
-        </div>
-
-        <div className="mx-[18px] mt-6 h-px overflow-hidden bg-black/15 md:mx-0 md:mt-8">
-          <div
-            className="h-full origin-left bg-black transition-transform duration-300 ease-out"
-            style={{ transform: `scaleX(${Math.max(scrollProgress, 0.08)})` }}
-            role="progressbar"
-            aria-label="Collection scroll position"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(scrollProgress * 100)}
-          />
-        </div>
-
-        <button
-          type="button"
-          aria-label="Previous collections"
-          disabled={!canScrollBack}
-          onClick={() => moveRail(-1)}
-          className="absolute left-11 top-[47%] hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white text-black shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 hover:bg-black hover:text-white disabled:pointer-events-none disabled:opacity-0 md:grid"
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <button
-          type="button"
-          aria-label="More collections"
-          disabled={!canScrollForward}
-          onClick={() => moveRail(1)}
-          className="absolute right-11 top-[47%] hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white text-black shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 hover:bg-black hover:text-white disabled:pointer-events-none disabled:opacity-0 md:grid"
-        >
-          <ChevronRight size={18} />
-        </button>
+    <section id="collections-after-shop" className="border-t border-black/10 bg-white">
+      <div
+        className="mx-auto grid max-w-[1600px] grid-cols-2 gap-px bg-white md:grid-cols-3 md:gap-3 md:px-6 md:py-6"
+        aria-label="Shop collections"
+      >
+        {collectionLinks.map((collection, index) => (
+          <a
+            key={collection.title}
+            href={collection.href}
+            className="shopify-collection-tile group relative aspect-[4/5] overflow-hidden bg-[#e9e9e6] text-white md:aspect-[5/6]"
+            data-collection-card
+            data-reveal="collection"
+            style={{ "--collection-index": index } as CSSProperties}
+          >
+            <img
+              src={collection.image}
+              alt={collection.alt}
+              loading="lazy"
+              decoding="async"
+              className={`shopify-collection-tile__image absolute inset-0 h-full w-full object-cover ${collection.imageClassName}`}
+            />
+            <div className="shopify-collection-tile__shade absolute inset-0" />
+            <div className="absolute inset-x-0 bottom-0 p-4 md:p-7">
+              <h3 className="shopify-collection-tile__title text-[18px] font-bold uppercase leading-tight md:text-[26px] xl:text-[30px]">
+                {collection.title}
+              </h3>
+              <span className="shopify-collection-tile__link mt-2 inline-flex border-b border-white/70 pb-0.5 text-[9px] font-bold uppercase tracking-normal md:text-[10px]">
+                Shop
+              </span>
+            </div>
+          </a>
+        ))}
       </div>
     </section>
   );
