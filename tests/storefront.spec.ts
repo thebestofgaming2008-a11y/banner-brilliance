@@ -181,6 +181,32 @@ test("product feature rows use readable Poppins typography", async ({ page }) =>
   await expect(reviewsHeading).toHaveCSS("font-weight", "700");
 });
 
+test("acacia honey consistently presents the unheated product fact", async ({ page }) => {
+  const catalogResponse = await page.request.get("/api/catalog/products");
+  expect(catalogResponse.ok()).toBeTruthy();
+  const catalog = (await catalogResponse.json()) as Array<{
+    slug: string;
+    short_description?: string;
+    description?: string;
+    highlights?: string[];
+  }>;
+  const product = catalog.find((item) => item.slug === "kashmir-acacia-honey");
+  expect(product).toBeTruthy();
+  expect(product!.highlights).toContain("Unheated");
+  expect(
+    [product!.short_description, product!.description, ...(product!.highlights ?? [])]
+      .filter(Boolean)
+      .join(" "),
+  ).not.toMatch(/slow to crystallise/i);
+
+  await page.goto("/products/kashmir-acacia-honey", {
+    waitUntil: "domcontentloaded",
+    timeout: 60_000,
+  });
+  await expect(page.getByText("Unheated", { exact: true })).toBeVisible();
+  await expect(page.getByText(/slow to crystallise/i)).toHaveCount(0);
+});
+
 test("product choices remain attached to the cart line", async ({ page }) => {
   const catalogResponse = await page.request.get("/api/catalog/products");
   const catalog = (await catalogResponse.json()) as Array<{

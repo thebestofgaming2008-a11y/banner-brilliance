@@ -175,14 +175,8 @@ export const storeProducts: StoreProduct[] = [
     rating: 0,
     reviews: 0,
     images: [honeyAcacia],
-    description:
-      "Light and delicately floral acacia honey with a clean finish and slow crystallisation.",
-    details: [
-      "Acacia blossom harvest",
-      "Raw and unblended",
-      "500 g glass jar",
-      "Light floral profile",
-    ],
+    description: "Light and delicately floral acacia honey, kept unheated for a clean finish.",
+    details: ["Acacia blossom harvest", "Raw and unblended", "500 g glass jar", "Unheated"],
     badge: "New",
   },
   {

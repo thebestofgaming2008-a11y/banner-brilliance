@@ -112,9 +112,9 @@ const starterProducts = [
   {
     slug: "kashmir-acacia-honey",
     name: "Kashmir Acacia Honey 500g",
-    short_description: "Light, floral Kashmiri acacia. Slow to crystallise.",
+    short_description: "Light, floral Kashmiri acacia. Unheated.",
     description:
-      "Delicate acacia honey from Kashmir, light golden in colour, gentle on the palate, and slow to crystallise.",
+      "Delicate acacia honey from Kashmir, light golden in colour, gentle on the palate, and kept unheated.",
     price_inr: 900,
     category: "Honey",
     category_id: "honey",
@@ -460,6 +460,56 @@ export const ensureKhadijaNiqabDetails = mutation({
       highlights,
       color_options: colorOptions,
       size_options: sizeOptions,
+    };
+  },
+});
+
+export const ensureAcaciaHoneyDetails = mutation({
+  args: { token: v.optional(v.string()) },
+  returns: v.object({
+    updated: v.boolean(),
+    short_description: v.string(),
+    description: v.string(),
+    highlights: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const setupToken = process.env.ADMIN_UPLOAD_TOKEN;
+    if (!setupToken || args.token !== setupToken) await requireAdmin(ctx);
+
+    const product = await ctx.db
+      .query("products")
+      .withIndex("by_slug", (q) => q.eq("slug", "kashmir-acacia-honey"))
+      .first();
+    if (!product) throw new Error("Kashmir Acacia Honey product was not found.");
+
+    const shortDescription = "Light, floral Kashmiri acacia. Unheated.";
+    const description =
+      "Delicate acacia honey from Kashmir, light golden in colour, gentle on the palate, and kept unheated.";
+    const highlights = [
+      "Kashmir acacia origin",
+      "100% pure — no adulteration",
+      "Unheated",
+      "500g glass jar",
+    ];
+    const changed =
+      product.short_description !== shortDescription ||
+      product.description !== description ||
+      JSON.stringify(product.highlights ?? []) !== JSON.stringify(highlights);
+
+    if (changed) {
+      await ctx.db.patch(product._id, {
+        short_description: shortDescription,
+        description,
+        highlights,
+        updated_at: nowIso(),
+      });
+    }
+
+    return {
+      updated: changed,
+      short_description: shortDescription,
+      description,
+      highlights,
     };
   },
 });

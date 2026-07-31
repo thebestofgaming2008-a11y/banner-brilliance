@@ -207,13 +207,13 @@ export const catalog: Product[] = [
     reviews: 0,
     images: [honeyAcacia],
     sizes: ["500g"],
-    short: "Light, floral Kashmiri acacia. Slow to crystallise.",
+    short: "Light, floral Kashmiri acacia. Unheated.",
     description:
-      "Delicate acacia honey from Kashmir — light golden in colour, gentle on the palate, and slow to crystallise. Pure and unfiltered.",
+      "Delicate acacia honey from Kashmir — light golden in colour, gentle on the palate, and kept unheated.",
     features: [
       "Kashmir acacia origin",
       "100% pure — no adulteration",
-      "Slow to crystallise",
+      "Unheated",
       "500g glass jar",
     ],
     materials: "Raw acacia honey.",
