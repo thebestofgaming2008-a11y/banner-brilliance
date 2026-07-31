@@ -1,11 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  BadgeCheck,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  MessageCircle,
   Minus,
   Plus,
   Search,
+  ShieldCheck,
   ShoppingBag,
   SlidersHorizontal,
   Star,
@@ -1177,62 +1180,76 @@ function BestSellers() {
   );
 }
 
-function ModestEssentials() {
-  const edits = [
+function PostShopClose() {
+  const assurances = [
     {
-      title: "FOR THE BROTHERS",
-      eyebrow: "Shemaghs and kufis",
-      copy: "Shemaghs, kufis, and daily embroidered staples.",
-      image: "/homepage/shemagh.jpg",
-      imageClassName: "object-[68%_center]",
-      href: "/shop?collection=Shemaghs",
+      title: "Considered quality",
+      copy: "Every item is reviewed before it joins the Fawzaan collection.",
+      icon: BadgeCheck,
     },
     {
-      title: "FOR THE SISTERS",
-      eyebrow: "Niqab essentials",
-      copy: "Soft chiffon, clean drape, everyday coverage.",
-      image: "/homepage/niqab.jpg",
-      imageClassName: "object-[69%_center]",
-      href: "/shop?collection=Niqabs",
+      title: "Direct support",
+      copy: "Real help with products and orders through WhatsApp.",
+      icon: MessageCircle,
+    },
+    {
+      title: "Secure checkout",
+      copy: "Protected payments with clear order confirmation.",
+      icon: ShieldCheck,
     },
   ];
 
   return (
-    <section id="essentials" className="scroll-mt-[76px] bg-white px-[18px] py-14 md:px-8 md:py-24">
-      <div className="mx-auto max-w-[1120px]">
-        <div className="mx-auto max-w-[650px] text-center" data-reveal>
-          <p className="section-kicker text-black/50">Fawzaan essentials</p>
-          <h2 className="section-heading mt-2 text-[34px] text-black md:text-[52px]">
-            DAILY ESSENTIALS
-          </h2>
+    <section id="our-story" className="border-t border-black/10 bg-white">
+      <div className="mx-auto max-w-[1180px] px-[22px] py-14 md:px-8 md:py-24">
+        <div className="grid overflow-hidden bg-[#f3f3f1] md:grid-cols-[1.08fr_0.92fr]">
+          <div className="relative aspect-[5/4] min-h-0 overflow-hidden md:aspect-auto md:min-h-[600px]">
+            <img
+              src={shemaghManBack}
+              alt="White shemagh with detailed red embroidery"
+              loading="lazy"
+              className="h-full w-full object-cover object-[center_38%]"
+            />
+          </div>
+          <div className="flex items-center px-6 py-10 sm:px-10 md:px-12 md:py-16 lg:px-16">
+            <div className="max-w-[430px]" data-reveal>
+              <p className="section-kicker text-[#C85F22]">Fawzaan Store</p>
+              <h2 className="section-heading mt-4 text-[36px] leading-[1.02] text-black md:text-[50px]">
+                MODEST ESSENTIALS, CHOSEN WITH PURPOSE
+              </h2>
+              <p className="commerce-copy mt-6 max-w-[390px] text-[15px] leading-7 text-black/62">
+                A focused collection of everyday pieces shaped by faith, heritage, and practical
+                wear. No endless catalogue, just useful products selected with care.
+              </p>
+              <a
+                href="/about"
+                className="mt-8 inline-flex h-12 items-center gap-2 bg-black px-6 text-[11px] font-bold uppercase text-white transition-colors duration-300 hover:bg-[#D9643C]"
+              >
+                Our story <ChevronRight size={15} />
+              </a>
+            </div>
+          </div>
         </div>
 
-        <div className="mt-9 grid gap-4 md:mt-12 md:grid-cols-2 md:gap-5">
-          {edits.map((edit) => (
-            <a
-              key={edit.title}
-              href={edit.href}
-              className="collection-banner group relative min-h-[520px] overflow-hidden bg-black text-white md:min-h-[650px]"
-              data-reveal
-            >
-              <img
-                src={edit.image}
-                alt=""
-                aria-hidden
-                loading="lazy"
-                className={`absolute inset-0 h-full w-full object-cover ${edit.imageClassName}`}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/78 via-black/20 to-transparent" />
-              <div className="absolute inset-x-0 bottom-0 p-6 md:p-8">
-                <p className="section-kicker text-white/72">{edit.eyebrow}</p>
-                <h3 className="banner-heading mt-3 text-[42px] md:text-[62px]">{edit.title}</h3>
-                <p className="commerce-copy mt-4 max-w-[280px] text-white/76">{edit.copy}</p>
-                <span className="mt-7 inline-flex h-11 items-center bg-white px-5 text-[10px] font-bold uppercase tracking-normal text-black">
-                  Shop edit
-                </span>
+        <div className="grid border-x border-b border-black/10 sm:grid-cols-3">
+          {assurances.map((assurance, index) => {
+            const Icon = assurance.icon;
+            return (
+              <div
+                key={assurance.title}
+                className={`flex gap-4 px-5 py-7 md:px-7 md:py-8 ${
+                  index ? "border-t border-black/10 sm:border-l sm:border-t-0" : ""
+                }`}
+                data-reveal
+              >
+                <Icon className="mt-0.5 shrink-0 text-[#D9643C]" size={21} strokeWidth={1.7} />
+                <div>
+                  <h3 className="text-[13px] font-bold uppercase text-black">{assurance.title}</h3>
+                  <p className="mt-2 text-[12px] leading-5 text-black/55">{assurance.copy}</p>
+                </div>
               </div>
-            </a>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
@@ -1652,121 +1669,6 @@ function ProductImageLibrary() {
   );
 }
 
-function HoneyFeature() {
-  const { products: catalog } = useStoreProducts();
-  const honeyProducts = catalog.filter((product) => product.collection === "Honey");
-
-  return (
-    <section id="honey" className="scroll-mt-[76px] bg-white px-[22px] py-16 md:px-8 md:py-24">
-      <div className="mx-auto max-w-[1180px]">
-        <a
-          href="/shop?collection=Honey"
-          className="collection-banner relative block min-h-[420px] overflow-hidden bg-black text-white md:min-h-[520px]"
-          data-reveal
-        >
-          <div className="absolute inset-0">
-            <img
-              src={honeyMulti}
-              alt=""
-              aria-hidden
-              loading="lazy"
-              className="h-full w-full object-cover md:object-[center_42%]"
-            />
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/76 via-black/15 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 p-6 md:p-9">
-            <p className="section-kicker text-white/72">The harvest</p>
-            <h2 className="banner-heading mt-2 text-[38px] md:text-[62px]">KASHMIR HONEY</h2>
-            <p className="commerce-copy mt-4 max-w-xs text-white/74">
-              Raw floral honey, selected by origin.
-            </p>
-          </div>
-        </a>
-
-        <div className="mt-10 grid min-h-[360px] grid-cols-2 gap-x-2 gap-y-10 md:grid-cols-3 md:gap-x-4">
-          {honeyProducts.map((product) => (
-            <ProductTile key={product.slug} product={product} />
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function WatchCollection() {
-  const { products: catalog } = useStoreProducts();
-  const { formatPrice } = useCurrency();
-  const watchOrder = [
-    "sabr-watch-green",
-    "sabr-watch-blue",
-    "sabr-watch-black",
-    "sabr-watch-white",
-  ];
-  const watches = watchOrder
-    .map((slug) => catalog.find((product) => product.slug === slug))
-    .filter((product): product is Product => Boolean(product));
-
-  return (
-    <section
-      id="watch-collection"
-      className="scroll-mt-[76px] bg-white px-[18px] py-12 md:px-8 md:py-20"
-    >
-      <div className="mx-auto grid max-w-[1120px] gap-5 md:grid-cols-[0.9fr_1.1fr]">
-        <a
-          href="/shop?collection=Watches"
-          className="collection-banner relative block min-h-[540px] overflow-hidden bg-black text-white md:min-h-[720px]"
-          data-reveal
-        >
-          <img
-            src="/homepage/sabr-watch-black.jpg"
-            alt=""
-            aria-hidden
-            loading="lazy"
-            className="absolute inset-0 h-full w-full object-cover object-center"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 p-6 md:p-8">
-            <p className="section-kicker text-white/70">Arabic dial watches</p>
-            <h2 className="banner-heading mt-3 text-[48px] md:text-[72px]">SABR WATCHES</h2>
-            <p className="commerce-copy mt-4 max-w-xs text-white/74">
-              Arabic numerals, brushed steel, clean daily polish.
-            </p>
-          </div>
-        </a>
-
-        <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 md:gap-4">
-          {watches.map((watch) => (
-            <a
-              key={watch.slug}
-              href={`/products/${watch.slug}`}
-              className="product-card group grid grid-cols-[112px_minmax(0,1fr)] items-center gap-3 border border-black/[0.07] bg-white p-2 min-[360px]:block md:p-3"
-              data-reveal
-            >
-              <div className="product-card__media aspect-square overflow-hidden bg-[#f4f1eb] min-[360px]:aspect-[4/5]">
-                <img
-                  src={watch.images[0]}
-                  alt={watch.name.replace(" Watch", "")}
-                  loading="lazy"
-                  className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-[1.018]"
-                />
-              </div>
-              <div className="py-2 text-left min-[360px]:pb-2 min-[360px]:pt-3 min-[360px]:text-center">
-                <p className="section-kicker text-black/45">SABR</p>
-                <h3 className="mt-1 text-[13px] leading-tight text-black md:text-[14px]">
-                  {watch.name.replace(" Watch", "")}
-                </h3>
-                <p className="mt-1 text-[12px] leading-tight text-black/55">
-                  {formatPrice(watch.price)}
-                </p>
-              </div>
-            </a>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function Footer() {
   return (
     <footer className="border-t-[6px] border-[#F18532] bg-black px-[22px] pb-7 pt-12 text-white md:px-8 md:pt-16">
@@ -1885,15 +1787,13 @@ export function LegacyHomepageContent({
       )}
       <CollectionBanners />
       <ShopAllProducts />
-      <ModestEssentials />
-      <WatchCollection />
-      <HoneyFeature />
       {customSections?.content.length ? (
         <HomepageRenderer data={customSections} editMode={editMode} />
       ) : null}
       <ManagedCollectionSections />
       <ManagedHomepageBanners />
       <ExploreBeyond />
+      <PostShopClose />
     </>
   );
 }
