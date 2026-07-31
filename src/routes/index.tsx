@@ -1,11 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  BadgeCheck,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  MessageCircle,
   Minus,
   Plus,
   Search,
+  ShieldCheck,
   ShoppingBag,
   SlidersHorizontal,
   Star,
@@ -55,6 +58,7 @@ import shemaghProfile from "@/assets/product-photos/shemagh-profile.jpg";
 import shemaghRearSide from "@/assets/product-photos/shemagh-rear-side.jpg";
 import shemaghRedFront from "@/assets/product-photos/shemagh-red-front.jpg";
 import shemaghRedFull from "@/assets/product-photos/shemagh-red-full.jpg";
+
 export const Route = createFileRoute("/")({
   head: () => {
     const metadata = seo({ title: DEFAULT_TITLE, description: DEFAULT_DESCRIPTION, path: "/" });
@@ -1177,103 +1181,76 @@ function BestSellers() {
 }
 
 function PostShopClose() {
-  const collectionLinks = [
+  const assurances = [
     {
-      title: "Kashmir honey",
-      image: "/homepage/honey.jpg",
-      href: "/shop?collection=Honey",
-      alt: "Client photograph of a Kashmir honey jar on red and white shemagh fabric",
-      imageClassName: "object-[50%_62%]",
-      mediaClassName: "bg-[#f4eee5]",
-      panelClassName: "bg-[#f3efe8] text-black",
+      title: "Considered quality",
+      copy: "Every item is reviewed before it joins the Fawzaan collection.",
+      icon: BadgeCheck,
     },
     {
-      title: "Shemaghs",
-      image: "/homepage/client-shemagh-original.jpg",
-      href: "/shop?collection=Shemaghs",
-      alt: "Client photograph of an ivory and red embroidered shemagh on a mannequin",
-      imageClassName: "object-[50%_44%]",
-      mediaClassName: "bg-white",
-      panelClassName: "bg-white text-black",
+      title: "Direct support",
+      copy: "Real help with products and orders through WhatsApp.",
+      icon: MessageCircle,
     },
     {
-      title: "Niqabs",
-      image: niqabBlackFront,
-      href: "/shop?collection=Niqabs",
-      alt: "Original catalog photograph of the black Khadija niqab",
-      imageClassName: "object-[50%_36%]",
-      mediaClassName: "bg-[#f1f1f1]",
-      panelClassName: "bg-[#111] text-white",
-    },
-    {
-      title: "Kufis",
-      image: kufiFront,
-      href: "/shop?collection=Kufis",
-      alt: "Original catalog photograph of a white woven kufi",
-      imageClassName: "object-[50%_34%]",
-      mediaClassName: "bg-white",
-      panelClassName: "bg-[#f5f5f3] text-black",
-    },
-    {
-      title: "Makkah gloves",
-      image: "/homepage/makkah-gloves.jpg",
-      href: "/shop?collection=Gloves",
-      alt: "Client photograph of black and white Makkah gloves in their packaging",
-      imageClassName: "object-[50%_48%]",
-      mediaClassName: "bg-[#f0f0ee]",
-      panelClassName: "bg-white text-black",
-    },
-    {
-      title: "Sabr watches",
-      image: "/homepage/client-sabr-watch-original.jpg",
-      href: "/shop?collection=Watches",
-      alt: "Client photograph of a green dial Sabr watch held over red shemagh fabric",
-      imageClassName: "object-[50%_51%]",
-      mediaClassName: "bg-[#111]",
-      panelClassName: "bg-[#111] text-white",
+      title: "Secure checkout",
+      copy: "Protected payments with clear order confirmation.",
+      icon: ShieldCheck,
     },
   ];
 
   return (
-    <section id="collections-after-shop" className="border-t border-black/10 bg-white">
-      <div className="mx-auto max-w-[1600px]" aria-label="Shop collections">
-        {collectionLinks.map((collection, index) => (
-          <a
-            key={collection.title}
-            href={collection.href}
-            className="collection-lookbook-row group grid border-b border-black/10 md:grid-cols-2"
-            data-collection-card
-          >
-            <div
-              className={`collection-lookbook-row__media relative min-h-[68svh] overflow-hidden md:min-h-[680px] ${
-                index % 2 ? "md:order-2" : ""
-              } ${collection.mediaClassName}`}
-            >
-              <img
-                src={collection.image}
-                alt={collection.alt}
-                loading="lazy"
-                decoding="async"
-                className={`collection-lookbook-row__image absolute inset-0 h-full w-full object-cover ${collection.imageClassName}`}
-              />
+    <section id="our-story" className="border-t border-black/10 bg-white">
+      <div className="mx-auto max-w-[1180px] px-[22px] py-14 md:px-8 md:py-24">
+        <div className="grid overflow-hidden bg-[#f3f3f1] md:grid-cols-[1.08fr_0.92fr]">
+          <div className="relative aspect-[5/4] min-h-0 overflow-hidden md:aspect-auto md:min-h-[600px]">
+            <img
+              src={shemaghManBack}
+              alt="White shemagh with detailed red embroidery"
+              loading="lazy"
+              className="h-full w-full object-cover object-[center_38%]"
+            />
+          </div>
+          <div className="flex items-center px-6 py-10 sm:px-10 md:px-12 md:py-16 lg:px-16">
+            <div className="max-w-[430px]" data-reveal>
+              <p className="section-kicker text-[#C85F22]">Fawzaan Store</p>
+              <h2 className="section-heading mt-4 text-[36px] leading-[1.02] text-black md:text-[50px]">
+                MODEST ESSENTIALS, CHOSEN WITH PURPOSE
+              </h2>
+              <p className="commerce-copy mt-6 max-w-[390px] text-[15px] leading-7 text-black/62">
+                A focused collection of everyday pieces shaped by faith, heritage, and practical
+                wear. No endless catalogue, just useful products selected with care.
+              </p>
+              <a
+                href="/about"
+                className="mt-8 inline-flex h-12 items-center gap-2 bg-black px-6 text-[11px] font-bold uppercase text-white transition-colors duration-300 hover:bg-[#D9643C]"
+              >
+                Our story <ChevronRight size={15} />
+              </a>
             </div>
-            <div
-              className={`collection-lookbook-row__content flex min-h-[176px] items-center px-6 py-10 md:min-h-[680px] md:px-[8vw] ${
-                index % 2 ? "md:order-1" : ""
-              } ${collection.panelClassName}`}
-            >
-              <div>
-                <h3 className="collection-lookbook-row__title text-[34px] font-bold uppercase leading-none md:text-[52px] xl:text-[64px]">
-                  {collection.title}
-                </h3>
-                <span className="collection-lookbook-row__link mt-6 inline-flex items-center gap-2 border-b border-current pb-1 text-[10px] font-bold uppercase tracking-normal">
-                  Shop collection
-                  <ChevronRight size={14} aria-hidden="true" />
-                </span>
+          </div>
+        </div>
+
+        <div className="grid border-x border-b border-black/10 sm:grid-cols-3">
+          {assurances.map((assurance, index) => {
+            const Icon = assurance.icon;
+            return (
+              <div
+                key={assurance.title}
+                className={`flex gap-4 px-5 py-7 md:px-7 md:py-8 ${
+                  index ? "border-t border-black/10 sm:border-l sm:border-t-0" : ""
+                }`}
+                data-reveal
+              >
+                <Icon className="mt-0.5 shrink-0 text-[#D9643C]" size={21} strokeWidth={1.7} />
+                <div>
+                  <h3 className="text-[13px] font-bold uppercase text-black">{assurance.title}</h3>
+                  <p className="mt-2 text-[12px] leading-5 text-black/55">{assurance.copy}</p>
+                </div>
               </div>
-            </div>
-          </a>
-        ))}
+            );
+          })}
+        </div>
       </div>
     </section>
   );
