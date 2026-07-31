@@ -88,11 +88,17 @@ type Product = StoreProduct & {
   tag?: "Bestseller" | "New" | "Limited";
 };
 
-type AfterShopVariant = "official" | "compact" | "editorial" | "rail";
+type AfterShopVariant =
+  "official" | "compact" | "editorial" | "rail" | "guided" | "mosaic" | "chapters";
 
 const AFTER_SHOP_VARIANT: AfterShopVariant = (() => {
   const variant = import.meta.env.VITE_HOMEPAGE_AFTER_SHOP_VARIANT;
-  return variant === "compact" || variant === "editorial" || variant === "rail"
+  return variant === "compact" ||
+    variant === "editorial" ||
+    variant === "rail" ||
+    variant === "guided" ||
+    variant === "mosaic" ||
+    variant === "chapters"
     ? variant
     : "official";
 })();
@@ -1702,81 +1708,114 @@ function HoneyFeature() {
   );
 }
 
-function AfterShopCollectionRail() {
-  const collections = [
-    {
-      title: "KASHMIR HONEY",
-      eyebrow: "The harvest",
-      image: honeyMulti,
-      imageClassName: "object-center",
-      href: "/shop?collection=Honey",
-    },
-    {
-      title: "MAKKAH GLOVES",
-      eyebrow: "Coming next",
-      image: "/homepage/makkah-gloves.jpg",
-      imageClassName: "object-center",
-      href: "/shop?collection=Gloves",
-    },
-    {
-      title: "YEMENI SHEMAGHS",
-      eyebrow: "For the brothers",
-      image: shemaghManBack,
-      imageClassName: "object-[62%_center]",
-      href: "/shop?collection=Shemaghs",
-    },
-    {
-      title: "KHADIJA NIQABS",
-      eyebrow: "For the sisters",
-      image: niqabBlackFront,
-      imageClassName: "object-[50%_30%]",
-      href: "/shop?collection=Niqabs",
-    },
-    {
-      title: "WOVEN KUFIS",
-      eyebrow: "Daily prayerwear",
-      image: kufiSide,
-      imageClassName: "object-[center_28%]",
-      href: "/shop?collection=Kufis",
-    },
-    {
-      title: "SABR WATCHES",
-      eyebrow: "Arabic dial watches",
-      image: "/homepage/sabr-watch-black.jpg",
-      imageClassName: "object-center",
-      href: "/shop?collection=Watches",
-    },
-  ];
+const afterShopCollections = [
+  {
+    title: "KASHMIR HONEY",
+    eyebrow: "The harvest",
+    image: honeyMulti,
+    imageClassName: "object-center",
+    href: "/shop?collection=Honey",
+  },
+  {
+    title: "MAKKAH GLOVES",
+    eyebrow: "Coming next",
+    image: "/homepage/makkah-gloves.jpg",
+    imageClassName: "object-center",
+    href: "/shop?collection=Gloves",
+  },
+  {
+    title: "YEMENI SHEMAGHS",
+    eyebrow: "For the brothers",
+    image: shemaghManBack,
+    imageClassName: "object-[62%_center]",
+    href: "/shop?collection=Shemaghs",
+  },
+  {
+    title: "KHADIJA NIQABS",
+    eyebrow: "For the sisters",
+    image: niqabBlackFront,
+    imageClassName: "object-[50%_30%]",
+    href: "/shop?collection=Niqabs",
+  },
+  {
+    title: "WOVEN KUFIS",
+    eyebrow: "Daily prayerwear",
+    image: kufiSide,
+    imageClassName: "object-[center_28%]",
+    href: "/shop?collection=Kufis",
+  },
+  {
+    title: "SABR WATCHES",
+    eyebrow: "Arabic dial watches",
+    image: "/homepage/sabr-watch-black.jpg",
+    imageClassName: "object-center",
+    href: "/shop?collection=Watches",
+  },
+] as const;
 
+type AfterShopCollection = (typeof afterShopCollections)[number];
+
+function AfterShopPoster({
+  collection,
+  className = "",
+  compact = false,
+}: {
+  collection: AfterShopCollection;
+  className?: string;
+  compact?: boolean;
+}) {
+  return (
+    <a
+      href={collection.href}
+      className={`collection-banner group relative block overflow-hidden bg-black text-white ${className}`}
+      data-reveal
+    >
+      <img
+        src={collection.image}
+        alt=""
+        aria-hidden
+        loading="lazy"
+        className={`absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.025] ${collection.imageClassName}`}
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+      <div
+        className={
+          compact
+            ? "absolute inset-x-0 bottom-0 p-4 md:p-5"
+            : "absolute inset-x-0 bottom-0 p-6 md:p-7"
+        }
+      >
+        <p className="section-kicker text-white/72">{collection.eyebrow}</p>
+        <h2
+          className={`banner-heading mt-3 ${compact ? "text-[21px] md:text-[22px]" : "text-[38px] md:text-[44px]"}`}
+        >
+          {collection.title}
+        </h2>
+        <span
+          className={
+            compact
+              ? "after-shop-poster__compact-link mt-4 inline-flex items-center gap-1.5 text-[9px] font-bold uppercase text-white"
+              : "mt-6 inline-flex h-10 items-center gap-2 bg-white px-4 text-[10px] font-bold uppercase text-black"
+          }
+        >
+          {compact ? "Explore" : "Shop collection"} <ChevronRight size={compact ? 12 : 14} />
+        </span>
+      </div>
+    </a>
+  );
+}
+
+function AfterShopCollectionRail() {
   return (
     <section id="after-shop-collections" className="bg-white py-12 md:py-20">
       <div className="mx-auto max-w-[1180px]">
         <div className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto px-[18px] pb-2 md:grid md:grid-cols-3 md:gap-5 md:overflow-visible md:px-8">
-          {collections.map((collection) => (
-            <a
+          {afterShopCollections.map((collection) => (
+            <AfterShopPoster
               key={collection.title}
-              href={collection.href}
-              className="collection-banner group relative block aspect-[4/5] w-[78vw] max-w-[330px] shrink-0 snap-start overflow-hidden bg-black text-white md:w-auto md:max-w-none"
-              data-reveal
-            >
-              <img
-                src={collection.image}
-                alt=""
-                aria-hidden
-                loading="lazy"
-                className={`absolute inset-0 h-full w-full object-cover ${collection.imageClassName}`}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/78 via-black/10 to-transparent" />
-              <div className="absolute inset-x-0 bottom-0 p-6 md:p-7">
-                <p className="section-kicker text-white/72">{collection.eyebrow}</p>
-                <h2 className="banner-heading mt-3 text-[38px] md:text-[44px]">
-                  {collection.title}
-                </h2>
-                <span className="mt-6 inline-flex h-10 items-center gap-2 bg-white px-4 text-[10px] font-bold uppercase text-black">
-                  Shop collection <ChevronRight size={14} />
-                </span>
-              </div>
-            </a>
+              collection={collection}
+              className="aspect-[4/5] w-[78vw] max-w-[330px] shrink-0 snap-start md:w-auto md:max-w-none"
+            />
           ))}
         </div>
       </div>
@@ -1784,7 +1823,185 @@ function AfterShopCollectionRail() {
   );
 }
 
+function AfterShopGuidedRail() {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const scrollSettleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(
+    () => () => {
+      if (scrollSettleRef.current) clearTimeout(scrollSettleRef.current);
+    },
+    [],
+  );
+
+  const scrollToIndex = (nextIndex: number) => {
+    const track = trackRef.current;
+    if (!track) return;
+
+    const index = Math.min(Math.max(nextIndex, 0), afterShopCollections.length - 1);
+    const card = track.children.item(index) as HTMLElement | null;
+    if (!card) return;
+
+    track.scrollTo({ left: card.offsetLeft - track.offsetLeft, behavior: "smooth" });
+    setActiveIndex(index);
+  };
+
+  const updateActiveCard = () => {
+    const track = trackRef.current;
+    if (!track) return;
+
+    let closestIndex = 0;
+    let closestDistance = Number.POSITIVE_INFINITY;
+
+    Array.from(track.children).forEach((child, index) => {
+      const card = child as HTMLElement;
+      const distance = Math.abs(card.offsetLeft - track.offsetLeft - track.scrollLeft);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = index;
+      }
+    });
+
+    setActiveIndex(closestIndex);
+  };
+
+  const scheduleActiveCardUpdate = () => {
+    if (scrollSettleRef.current) clearTimeout(scrollSettleRef.current);
+    scrollSettleRef.current = setTimeout(updateActiveCard, 120);
+  };
+
+  return (
+    <section id="after-shop-guided" className="after-shop-guided bg-white py-12 md:py-20">
+      <div className="mx-auto max-w-[1180px]">
+        <div className="after-shop-guided__toolbar px-[18px] md:px-8">
+          <p className="section-kicker text-black/56">Explore collections</p>
+          <div className="flex items-center gap-4">
+            <span className="after-shop-guided__counter" aria-live="polite">
+              {String(activeIndex + 1).padStart(2, "0")} /{" "}
+              {String(afterShopCollections.length).padStart(2, "0")}
+            </span>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                className="after-shop-guided__arrow"
+                onClick={() => scrollToIndex(activeIndex - 1)}
+                disabled={activeIndex === 0}
+                aria-label="Previous collection"
+              >
+                <ChevronLeft size={17} />
+              </button>
+              <button
+                type="button"
+                className="after-shop-guided__arrow"
+                onClick={() => scrollToIndex(activeIndex + 1)}
+                disabled={activeIndex === afterShopCollections.length - 1}
+                aria-label="Next collection"
+              >
+                <ChevronRight size={17} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div
+          ref={trackRef}
+          className="after-shop-guided__track no-scrollbar"
+          onScroll={scheduleActiveCardUpdate}
+        >
+          {afterShopCollections.map((collection) => (
+            <AfterShopPoster
+              key={collection.title}
+              collection={collection}
+              className="after-shop-guided__card aspect-[4/5] shrink-0 snap-start"
+            />
+          ))}
+        </div>
+
+        <div className="after-shop-guided__progress mx-[18px] md:mx-8" aria-hidden>
+          {afterShopCollections.map((collection, index) => (
+            <button
+              key={collection.title}
+              type="button"
+              className={index === activeIndex ? "is-active" : ""}
+              onClick={() => scrollToIndex(index)}
+              tabIndex={-1}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AfterShopMosaic() {
+  return (
+    <section id="after-shop-mosaic" className="after-shop-mosaic bg-white py-12 md:py-20">
+      <div className="mx-auto max-w-[1180px] px-[18px] md:px-8">
+        <div className="after-shop-mosaic__marker">
+          <p className="section-kicker text-black/56">Collections</p>
+          <span>06</span>
+        </div>
+        <div className="after-shop-mosaic__grid">
+          {afterShopCollections.map((collection, index) => (
+            <AfterShopPoster
+              key={collection.title}
+              collection={collection}
+              compact={index !== 0}
+              className={`after-shop-mosaic__card after-shop-mosaic__card--${index + 1}`}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AfterShopChapters() {
+  return (
+    <section id="after-shop-chapters" className="after-shop-chapters bg-white py-12 md:py-20">
+      <div className="mx-auto max-w-[1180px] px-[18px] md:px-8">
+        {afterShopCollections.map((collection, index) => (
+          <a
+            key={collection.title}
+            href={collection.href}
+            className="after-shop-chapters__chapter group"
+            data-reveal
+          >
+            <div className="after-shop-chapters__visual">
+              <img
+                src={collection.image}
+                alt=""
+                aria-hidden
+                loading="lazy"
+                className={`h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.025] ${collection.imageClassName}`}
+              />
+            </div>
+            <div className="after-shop-chapters__action">
+              <span className="after-shop-chapters__number">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <div>
+                <p className="section-kicker text-white/55">{collection.eyebrow}</p>
+                <h2 className="banner-heading mt-3 text-[34px] text-white md:text-[46px]">
+                  {collection.title}
+                </h2>
+              </div>
+              <span className="after-shop-chapters__link">
+                Shop collection <ChevronRight size={15} />
+              </span>
+            </div>
+          </a>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function AfterShopHomepage() {
+  if (AFTER_SHOP_VARIANT === "guided") return <AfterShopGuidedRail />;
+  if (AFTER_SHOP_VARIANT === "mosaic") return <AfterShopMosaic />;
+  if (AFTER_SHOP_VARIANT === "chapters") return <AfterShopChapters />;
   if (AFTER_SHOP_VARIANT === "rail") return <AfterShopCollectionRail />;
 
   if (AFTER_SHOP_VARIANT === "editorial") {
