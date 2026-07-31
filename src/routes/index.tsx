@@ -16,6 +16,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
@@ -55,6 +56,12 @@ import shemaghProfile from "@/assets/product-photos/shemagh-profile.jpg";
 import shemaghRearSide from "@/assets/product-photos/shemagh-rear-side.jpg";
 import shemaghRedFront from "@/assets/product-photos/shemagh-red-front.jpg";
 import shemaghRedFull from "@/assets/product-photos/shemagh-red-full.jpg";
+import glovesEditorial from "@/assets/collection-banners/makkah-gloves.jpg";
+import honeyEditorial from "@/assets/hero-honey.webp";
+import kufiEditorial from "@/assets/hero-kufi.jpg";
+import niqabEditorial from "@/assets/hero-niqab.jpg";
+import shemaghEditorial from "@/assets/collection-banners/shemagh-editorial.webp";
+import watchEditorial from "@/assets/collection-banners/sabr-watch-editorial.webp";
 
 export const Route = createFileRoute("/")({
   head: () => {
@@ -1181,41 +1188,48 @@ function PostShopClose() {
   const railRef = useRef<HTMLDivElement>(null);
   const [canScrollBack, setCanScrollBack] = useState(false);
   const [canScrollForward, setCanScrollForward] = useState(true);
+  const [scrollProgress, setScrollProgress] = useState(0);
   const collectionLinks = [
     {
       title: "Shemaghs",
-      image: "/homepage/shemagh.jpg",
+      image: shemaghEditorial,
       href: "/shop?collection=Shemaghs",
-      imageClassName: "object-[62%_center]",
+      alt: "Red shemagh presented in a warm studio portrait",
+      imageClassName: "object-[50%_center]",
     },
     {
       title: "Niqabs",
-      image: "/homepage/niqab.jpg",
+      image: niqabEditorial,
       href: "/shop?collection=Niqabs",
-      imageClassName: "object-[68%_center]",
+      alt: "Black niqab presented in a warm studio portrait",
+      imageClassName: "object-[50%_center]",
     },
     {
       title: "Kufis",
-      image: kufiSide,
+      image: kufiEditorial,
       href: "/shop?collection=Kufis",
-      imageClassName: "object-[center_25%]",
+      alt: "White kufi arranged on soft ivory fabric",
+      imageClassName: "object-center",
     },
     {
       title: "Gloves",
-      image: "/homepage/makkah-gloves.jpg",
+      image: glovesEditorial,
       href: "/shop?collection=Gloves",
+      alt: "Makkah gloves presented in six available colours",
       imageClassName: "object-center",
     },
     {
       title: "Honey",
-      image: "/homepage/honey.jpg",
+      image: honeyEditorial,
       href: "/shop?collection=Honey",
-      imageClassName: "object-center",
+      alt: "Golden honey jar in a warm natural still life",
+      imageClassName: "object-[54%_center]",
     },
     {
       title: "Sabr watches",
-      image: "/homepage/sabr-watch-black.jpg",
+      image: watchEditorial,
       href: "/shop?collection=Watches",
+      alt: "Green dial Sabr watch on black satin and shemagh fabric",
       imageClassName: "object-center",
     },
   ];
@@ -1223,18 +1237,36 @@ function PostShopClose() {
   useEffect(() => {
     const rail = railRef.current;
     if (!rail) return;
+    let animationFrame = 0;
 
     const updateControls = () => {
+      const maxScroll = Math.max(rail.scrollWidth - rail.clientWidth, 1);
+      const progress = Math.min(Math.max(rail.scrollLeft / maxScroll, 0), 1);
       setCanScrollBack(rail.scrollLeft > 8);
-      setCanScrollForward(rail.scrollLeft + rail.clientWidth < rail.scrollWidth - 8);
+      setCanScrollForward(rail.scrollLeft < maxScroll - 8);
+      setScrollProgress(progress);
+
+      const railCenter = rail.getBoundingClientRect().left + rail.clientWidth / 2;
+      rail.querySelectorAll<HTMLElement>("[data-collection-card]").forEach((card) => {
+        const bounds = card.getBoundingClientRect();
+        const cardCenter = bounds.left + bounds.width / 2;
+        const shift = Math.max(-18, Math.min(18, (railCenter - cardCenter) * 0.035));
+        card.style.setProperty("--collection-shift", `${shift}px`);
+      });
+    };
+
+    const scheduleUpdate = () => {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(updateControls);
     };
 
     updateControls();
-    rail.addEventListener("scroll", updateControls, { passive: true });
-    const observer = new ResizeObserver(updateControls);
+    rail.addEventListener("scroll", scheduleUpdate, { passive: true });
+    const observer = new ResizeObserver(scheduleUpdate);
     observer.observe(rail);
     return () => {
-      rail.removeEventListener("scroll", updateControls);
+      window.cancelAnimationFrame(animationFrame);
+      rail.removeEventListener("scroll", scheduleUpdate);
       observer.disconnect();
     };
   }, []);
@@ -1249,38 +1281,57 @@ function PostShopClose() {
   };
 
   return (
-    <section id="collections-after-shop" className="border-t border-black/10 bg-white">
-      <div className="relative mx-auto max-w-[1240px] py-8 md:px-8 md:py-16">
+    <section
+      id="collections-after-shop"
+      className="overflow-hidden border-t border-black/10 bg-[#f4f4f2]"
+    >
+      <div className="relative mx-auto max-w-[1320px] py-8 md:px-8 md:py-20">
         <div
           ref={railRef}
           className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth px-[18px] pb-1 touch-pan-x md:gap-4 md:px-0"
           aria-label="Shop collections"
         >
-          {collectionLinks.map((collection) => (
+          {collectionLinks.map((collection, index) => (
             <a
               key={collection.title}
               href={collection.href}
-              className="group relative aspect-[4/5] w-[80vw] max-w-[330px] shrink-0 snap-start overflow-hidden bg-[#ececea] text-white md:w-[calc(25%_-_0.75rem)] md:max-w-none"
-              data-reveal
+              className="collection-story group relative aspect-[4/5] w-[82vw] max-w-[360px] shrink-0 snap-start overflow-hidden bg-[#dededb] text-white md:w-[calc((100%_-_2rem)/3)] md:max-w-none"
+              data-collection-card
+              data-reveal="collection"
+              style={{ "--collection-index": index } as CSSProperties}
             >
               <img
                 src={collection.image}
-                alt=""
-                aria-hidden
+                alt={collection.alt}
                 loading="lazy"
-                className={`absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.025] ${collection.imageClassName}`}
+                className={`collection-story__image absolute inset-[-2%] h-[104%] w-[104%] object-cover ${collection.imageClassName}`}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/68 via-black/5 to-transparent" />
-              <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-5 md:p-6">
-                <h3 className="banner-heading text-[30px] leading-none md:text-[34px]">
+              <div className="collection-story__shade absolute inset-0" />
+              <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-5 md:p-7">
+                <h3 className="collection-story__title text-[29px] font-bold uppercase leading-none md:text-[35px]">
                   {collection.title}
                 </h3>
-                <span className="grid h-9 w-9 shrink-0 place-items-center bg-white text-black transition-colors duration-300 group-hover:bg-[#D9643C] group-hover:text-white">
-                  <ChevronRight size={17} />
+                <span
+                  className="collection-story__arrow grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/30 bg-black/15 text-white backdrop-blur-md"
+                  aria-hidden
+                >
+                  <ChevronRight size={18} />
                 </span>
               </div>
             </a>
           ))}
+        </div>
+
+        <div className="mx-[18px] mt-6 h-px overflow-hidden bg-black/15 md:mx-0 md:mt-8">
+          <div
+            className="h-full origin-left bg-black transition-transform duration-300 ease-out"
+            style={{ transform: `scaleX(${Math.max(scrollProgress, 0.08)})` }}
+            role="progressbar"
+            aria-label="Collection scroll position"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(scrollProgress * 100)}
+          />
         </div>
 
         <button
@@ -1288,7 +1339,7 @@ function PostShopClose() {
           aria-label="Previous collections"
           disabled={!canScrollBack}
           onClick={() => moveRail(-1)}
-          className="absolute left-11 top-1/2 hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white text-black shadow-[0_4px_18px_rgba(0,0,0,0.14)] transition-all duration-300 hover:bg-black hover:text-white disabled:pointer-events-none disabled:opacity-0 md:grid"
+          className="absolute left-11 top-[47%] hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white text-black shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 hover:bg-black hover:text-white disabled:pointer-events-none disabled:opacity-0 md:grid"
         >
           <ChevronLeft size={18} />
         </button>
@@ -1297,7 +1348,7 @@ function PostShopClose() {
           aria-label="More collections"
           disabled={!canScrollForward}
           onClick={() => moveRail(1)}
-          className="absolute right-11 top-1/2 hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white text-black shadow-[0_4px_18px_rgba(0,0,0,0.14)] transition-all duration-300 hover:bg-black hover:text-white disabled:pointer-events-none disabled:opacity-0 md:grid"
+          className="absolute right-11 top-[47%] hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white text-black shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 hover:bg-black hover:text-white disabled:pointer-events-none disabled:opacity-0 md:grid"
         >
           <ChevronRight size={18} />
         </button>
