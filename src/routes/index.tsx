@@ -1,14 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
-  BadgeCheck,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  MessageCircle,
   Minus,
   Plus,
   Search,
-  ShieldCheck,
   ShoppingBag,
   SlidersHorizontal,
   Star,
@@ -1181,6 +1178,9 @@ function BestSellers() {
 }
 
 function PostShopClose() {
+  const railRef = useRef<HTMLDivElement>(null);
+  const [canScrollBack, setCanScrollBack] = useState(false);
+  const [canScrollForward, setCanScrollForward] = useState(true);
   const collectionLinks = [
     {
       title: "Shemaghs",
@@ -1201,42 +1201,66 @@ function PostShopClose() {
       imageClassName: "object-[center_25%]",
     },
     {
+      title: "Gloves",
+      image: "/homepage/makkah-gloves.jpg",
+      href: "/shop?collection=Gloves",
+      imageClassName: "object-center",
+    },
+    {
+      title: "Honey",
+      image: "/homepage/honey.jpg",
+      href: "/shop?collection=Honey",
+      imageClassName: "object-center",
+    },
+    {
       title: "Sabr watches",
       image: "/homepage/sabr-watch-black.jpg",
       href: "/shop?collection=Watches",
       imageClassName: "object-center",
     },
   ];
-  const assurances = [
-    { title: "Quality checked", icon: BadgeCheck },
-    { title: "WhatsApp support", icon: MessageCircle },
-    { title: "Secure checkout", icon: ShieldCheck },
-  ];
+
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+
+    const updateControls = () => {
+      setCanScrollBack(rail.scrollLeft > 8);
+      setCanScrollForward(rail.scrollLeft + rail.clientWidth < rail.scrollWidth - 8);
+    };
+
+    updateControls();
+    rail.addEventListener("scroll", updateControls, { passive: true });
+    const observer = new ResizeObserver(updateControls);
+    observer.observe(rail);
+    return () => {
+      rail.removeEventListener("scroll", updateControls);
+      observer.disconnect();
+    };
+  }, []);
+
+  const moveRail = (direction: number) => {
+    const rail = railRef.current;
+    if (!rail) return;
+    rail.scrollBy({
+      left: direction * Math.max(rail.clientWidth * 0.78, 300),
+      behavior: "smooth",
+    });
+  };
 
   return (
     <section id="collections-after-shop" className="border-t border-black/10 bg-white">
-      <div className="mx-auto max-w-[1180px] px-[22px] py-14 md:px-8 md:py-24">
-        <div className="flex items-end justify-between gap-5" data-reveal>
-          <div>
-            <p className="section-kicker text-black/45">Keep exploring</p>
-            <h2 className="section-heading mt-2 text-[32px] text-black md:text-[46px]">
-              COLLECTIONS
-            </h2>
-          </div>
-          <a
-            href="/shop"
-            className="mb-1 inline-flex items-center gap-1 text-[11px] font-bold uppercase text-black"
-          >
-            View all <ChevronRight size={14} />
-          </a>
-        </div>
-
-        <div className="no-scrollbar -mx-[22px] mt-8 flex snap-x snap-mandatory gap-3 overflow-x-auto px-[22px] pb-2 md:mx-0 md:grid md:grid-cols-4 md:gap-4 md:overflow-visible md:px-0">
+      <div className="relative mx-auto max-w-[1240px] py-8 md:px-8 md:py-16">
+        <div
+          ref={railRef}
+          className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth px-[18px] pb-1 touch-pan-x md:gap-4 md:px-0"
+          aria-label="Shop collections"
+        >
           {collectionLinks.map((collection) => (
             <a
               key={collection.title}
               href={collection.href}
-              className="group relative aspect-[4/5] w-[76vw] max-w-[320px] shrink-0 snap-start overflow-hidden bg-[#ececea] text-white md:w-auto md:max-w-none"
+              className="group relative aspect-[4/5] w-[80vw] max-w-[330px] shrink-0 snap-start overflow-hidden bg-[#ececea] text-white md:w-[calc(25%_-_0.75rem)] md:max-w-none"
               data-reveal
             >
               <img
@@ -1259,24 +1283,24 @@ function PostShopClose() {
           ))}
         </div>
 
-        <div className="mt-10 grid grid-cols-3 border-y border-black/10 md:mt-14">
-          {assurances.map((assurance, index) => {
-            const Icon = assurance.icon;
-            return (
-              <div
-                key={assurance.title}
-                className={`flex min-w-0 flex-col items-center justify-center gap-2 px-2 py-5 text-center sm:flex-row sm:gap-3 md:py-6 ${
-                  index ? "border-l border-black/10" : ""
-                }`}
-              >
-                <Icon className="shrink-0 text-[#D9643C]" size={18} strokeWidth={1.7} />
-                <p className="text-[9px] font-bold uppercase leading-4 text-black sm:text-[11px]">
-                  {assurance.title}
-                </p>
-              </div>
-            );
-          })}
-        </div>
+        <button
+          type="button"
+          aria-label="Previous collections"
+          disabled={!canScrollBack}
+          onClick={() => moveRail(-1)}
+          className="absolute left-11 top-1/2 hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white text-black shadow-[0_4px_18px_rgba(0,0,0,0.14)] transition-all duration-300 hover:bg-black hover:text-white disabled:pointer-events-none disabled:opacity-0 md:grid"
+        >
+          <ChevronLeft size={18} />
+        </button>
+        <button
+          type="button"
+          aria-label="More collections"
+          disabled={!canScrollForward}
+          onClick={() => moveRail(1)}
+          className="absolute right-11 top-1/2 hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white text-black shadow-[0_4px_18px_rgba(0,0,0,0.14)] transition-all duration-300 hover:bg-black hover:text-white disabled:pointer-events-none disabled:opacity-0 md:grid"
+        >
+          <ChevronRight size={18} />
+        </button>
       </div>
     </section>
   );
