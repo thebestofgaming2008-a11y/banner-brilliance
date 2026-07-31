@@ -1181,72 +1181,98 @@ function BestSellers() {
 }
 
 function PostShopClose() {
+  const collectionLinks = [
+    {
+      title: "Shemaghs",
+      image: "/homepage/shemagh.jpg",
+      href: "/shop?collection=Shemaghs",
+      imageClassName: "object-[62%_center]",
+    },
+    {
+      title: "Niqabs",
+      image: "/homepage/niqab.jpg",
+      href: "/shop?collection=Niqabs",
+      imageClassName: "object-[68%_center]",
+    },
+    {
+      title: "Kufis",
+      image: kufiSide,
+      href: "/shop?collection=Kufis",
+      imageClassName: "object-[center_25%]",
+    },
+    {
+      title: "Sabr watches",
+      image: "/homepage/sabr-watch-black.jpg",
+      href: "/shop?collection=Watches",
+      imageClassName: "object-center",
+    },
+  ];
   const assurances = [
-    {
-      title: "Considered quality",
-      copy: "Every item is reviewed before it joins the Fawzaan collection.",
-      icon: BadgeCheck,
-    },
-    {
-      title: "Direct support",
-      copy: "Real help with products and orders through WhatsApp.",
-      icon: MessageCircle,
-    },
-    {
-      title: "Secure checkout",
-      copy: "Protected payments with clear order confirmation.",
-      icon: ShieldCheck,
-    },
+    { title: "Quality checked", icon: BadgeCheck },
+    { title: "WhatsApp support", icon: MessageCircle },
+    { title: "Secure checkout", icon: ShieldCheck },
   ];
 
   return (
-    <section id="our-story" className="border-t border-black/10 bg-white">
+    <section id="collections-after-shop" className="border-t border-black/10 bg-white">
       <div className="mx-auto max-w-[1180px] px-[22px] py-14 md:px-8 md:py-24">
-        <div className="grid overflow-hidden bg-[#f3f3f1] md:grid-cols-[1.08fr_0.92fr]">
-          <div className="relative aspect-[5/4] min-h-0 overflow-hidden md:aspect-auto md:min-h-[600px]">
-            <img
-              src={shemaghManBack}
-              alt="White shemagh with detailed red embroidery"
-              loading="lazy"
-              className="h-full w-full object-cover object-[center_38%]"
-            />
+        <div className="flex items-end justify-between gap-5" data-reveal>
+          <div>
+            <p className="section-kicker text-black/45">Keep exploring</p>
+            <h2 className="section-heading mt-2 text-[32px] text-black md:text-[46px]">
+              COLLECTIONS
+            </h2>
           </div>
-          <div className="flex items-center px-6 py-10 sm:px-10 md:px-12 md:py-16 lg:px-16">
-            <div className="max-w-[430px]" data-reveal>
-              <p className="section-kicker text-[#C85F22]">Fawzaan Store</p>
-              <h2 className="section-heading mt-4 text-[36px] leading-[1.02] text-black md:text-[50px]">
-                MODEST ESSENTIALS, CHOSEN WITH PURPOSE
-              </h2>
-              <p className="commerce-copy mt-6 max-w-[390px] text-[15px] leading-7 text-black/62">
-                A focused collection of everyday pieces shaped by faith, heritage, and practical
-                wear. No endless catalogue, just useful products selected with care.
-              </p>
-              <a
-                href="/about"
-                className="mt-8 inline-flex h-12 items-center gap-2 bg-black px-6 text-[11px] font-bold uppercase text-white transition-colors duration-300 hover:bg-[#D9643C]"
-              >
-                Our story <ChevronRight size={15} />
-              </a>
-            </div>
-          </div>
+          <a
+            href="/shop"
+            className="mb-1 inline-flex items-center gap-1 text-[11px] font-bold uppercase text-black"
+          >
+            View all <ChevronRight size={14} />
+          </a>
         </div>
 
-        <div className="grid border-x border-b border-black/10 sm:grid-cols-3">
+        <div className="no-scrollbar -mx-[22px] mt-8 flex snap-x snap-mandatory gap-3 overflow-x-auto px-[22px] pb-2 md:mx-0 md:grid md:grid-cols-4 md:gap-4 md:overflow-visible md:px-0">
+          {collectionLinks.map((collection) => (
+            <a
+              key={collection.title}
+              href={collection.href}
+              className="group relative aspect-[4/5] w-[76vw] max-w-[320px] shrink-0 snap-start overflow-hidden bg-[#ececea] text-white md:w-auto md:max-w-none"
+              data-reveal
+            >
+              <img
+                src={collection.image}
+                alt=""
+                aria-hidden
+                loading="lazy"
+                className={`absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.025] ${collection.imageClassName}`}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/68 via-black/5 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-5 md:p-6">
+                <h3 className="banner-heading text-[30px] leading-none md:text-[34px]">
+                  {collection.title}
+                </h3>
+                <span className="grid h-9 w-9 shrink-0 place-items-center bg-white text-black transition-colors duration-300 group-hover:bg-[#D9643C] group-hover:text-white">
+                  <ChevronRight size={17} />
+                </span>
+              </div>
+            </a>
+          ))}
+        </div>
+
+        <div className="mt-10 grid grid-cols-3 border-y border-black/10 md:mt-14">
           {assurances.map((assurance, index) => {
             const Icon = assurance.icon;
             return (
               <div
                 key={assurance.title}
-                className={`flex gap-4 px-5 py-7 md:px-7 md:py-8 ${
-                  index ? "border-t border-black/10 sm:border-l sm:border-t-0" : ""
+                className={`flex min-w-0 flex-col items-center justify-center gap-2 px-2 py-5 text-center sm:flex-row sm:gap-3 md:py-6 ${
+                  index ? "border-l border-black/10" : ""
                 }`}
-                data-reveal
               >
-                <Icon className="mt-0.5 shrink-0 text-[#D9643C]" size={21} strokeWidth={1.7} />
-                <div>
-                  <h3 className="text-[13px] font-bold uppercase text-black">{assurance.title}</h3>
-                  <p className="mt-2 text-[12px] leading-5 text-black/55">{assurance.copy}</p>
-                </div>
+                <Icon className="shrink-0 text-[#D9643C]" size={18} strokeWidth={1.7} />
+                <p className="text-[9px] font-bold uppercase leading-4 text-black sm:text-[11px]">
+                  {assurance.title}
+                </p>
               </div>
             );
           })}
