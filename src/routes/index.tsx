@@ -16,6 +16,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
@@ -89,7 +90,16 @@ type Product = StoreProduct & {
 };
 
 type AfterShopVariant =
-  "official" | "compact" | "editorial" | "rail" | "guided" | "mosaic" | "chapters";
+  | "official"
+  | "compact"
+  | "editorial"
+  | "rail"
+  | "guided"
+  | "mosaic"
+  | "chapters"
+  | "spotlight"
+  | "stacked"
+  | "lookbook";
 
 const AFTER_SHOP_VARIANT: AfterShopVariant = (() => {
   const variant = import.meta.env.VITE_HOMEPAGE_AFTER_SHOP_VARIANT;
@@ -98,7 +108,10 @@ const AFTER_SHOP_VARIANT: AfterShopVariant = (() => {
     variant === "rail" ||
     variant === "guided" ||
     variant === "mosaic" ||
-    variant === "chapters"
+    variant === "chapters" ||
+    variant === "spotlight" ||
+    variant === "stacked" ||
+    variant === "lookbook"
     ? variant
     : "official";
 })();
@@ -1998,7 +2011,171 @@ function AfterShopChapters() {
   );
 }
 
+function AfterShopSpotlight() {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const activeCollection = afterShopCollections[activeIndex];
+  const spotlightImagePositions = [
+    "object-center",
+    "object-center",
+    "object-[62%_20%]",
+    "object-[50%_24%]",
+    "object-[center_24%]",
+    "object-center",
+  ];
+
+  return (
+    <section id="after-shop-spotlight" className="after-shop-spotlight bg-white py-12 md:py-20">
+      <div className="mx-auto max-w-[1180px] px-[18px] md:px-8">
+        <div className="after-shop-spotlight__marker">
+          <p className="section-kicker text-black/56">Collection spotlight</p>
+          <span>{String(activeIndex + 1).padStart(2, "0")} / 06</span>
+        </div>
+
+        <div className="after-shop-spotlight__stage">
+          <a
+            href={activeCollection.href}
+            className="after-shop-spotlight__visual group"
+            aria-label={`Shop ${activeCollection.title}`}
+          >
+            <img
+              key={activeCollection.image}
+              src={activeCollection.image}
+              alt=""
+              aria-hidden
+              className={`after-shop-spotlight__image h-full w-full object-cover ${spotlightImagePositions[activeIndex]}`}
+            />
+          </a>
+          <div className="after-shop-spotlight__content" aria-live="polite">
+            <span className="after-shop-spotlight__number">
+              {String(activeIndex + 1).padStart(2, "0")}
+            </span>
+            <div>
+              <p className="section-kicker text-white/55">{activeCollection.eyebrow}</p>
+              <h2 className="banner-heading mt-3 text-[38px] text-white md:text-[52px]">
+                {activeCollection.title}
+              </h2>
+            </div>
+            <a href={activeCollection.href} className="after-shop-spotlight__link">
+              Shop collection <ChevronRight size={15} />
+            </a>
+          </div>
+        </div>
+
+        <div
+          className="after-shop-spotlight__selector no-scrollbar"
+          aria-label="Choose a collection"
+        >
+          {afterShopCollections.map((collection, index) => (
+            <button
+              key={collection.title}
+              type="button"
+              className={index === activeIndex ? "is-active" : ""}
+              onClick={() => setActiveIndex(index)}
+              aria-pressed={index === activeIndex}
+            >
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              {collection.title}
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AfterShopStacked() {
+  return (
+    <section id="after-shop-stacked" className="after-shop-stacked bg-white py-12 md:py-20">
+      <div className="mx-auto max-w-[1180px] px-[18px] md:px-8">
+        <div className="after-shop-stacked__marker">
+          <p className="section-kicker text-black/56">Explore collections</p>
+          <span>Scroll to discover</span>
+        </div>
+
+        <div className="after-shop-stacked__deck">
+          {afterShopCollections.map((collection, index) => (
+            <a
+              key={collection.title}
+              href={collection.href}
+              className="after-shop-stacked__panel group"
+              style={{ "--stack-index": index } as CSSProperties}
+            >
+              <img
+                src={collection.image}
+                alt=""
+                aria-hidden
+                loading="lazy"
+                className={`absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.025] ${collection.imageClassName}`}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/82 via-black/10 to-black/5" />
+              <span className="after-shop-stacked__number">
+                {String(index + 1).padStart(2, "0")} / 06
+              </span>
+              <div className="after-shop-stacked__content">
+                <p className="section-kicker text-white/65">{collection.eyebrow}</p>
+                <h2 className="banner-heading mt-3 text-[40px] text-white md:text-[64px]">
+                  {collection.title}
+                </h2>
+                <span className="after-shop-stacked__link">
+                  Shop collection <ChevronRight size={15} />
+                </span>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AfterShopLookbook() {
+  return (
+    <section id="after-shop-lookbook" className="after-shop-lookbook bg-white py-12 md:py-20">
+      <div className="mx-auto max-w-[1180px] px-[18px] md:px-8">
+        <div className="after-shop-lookbook__marker">
+          <p className="section-kicker text-black/56">Collection lookbook</p>
+          <span>01 - 06</span>
+        </div>
+
+        <div className="after-shop-lookbook__grid">
+          {afterShopCollections.map((collection, index) => (
+            <a
+              key={collection.title}
+              href={collection.href}
+              className="after-shop-lookbook__item group"
+              data-reveal
+            >
+              <div className="after-shop-lookbook__visual">
+                <img
+                  src={collection.image}
+                  alt=""
+                  aria-hidden
+                  loading="lazy"
+                  className={`h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.025] ${collection.imageClassName}`}
+                />
+              </div>
+              <div className="after-shop-lookbook__caption">
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <div>
+                  <p className="section-kicker text-black/48">{collection.eyebrow}</p>
+                  <h2 className="banner-heading mt-2 text-[28px] text-black md:text-[36px]">
+                    {collection.title}
+                  </h2>
+                </div>
+                <ChevronRight size={17} />
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function AfterShopHomepage() {
+  if (AFTER_SHOP_VARIANT === "spotlight") return <AfterShopSpotlight />;
+  if (AFTER_SHOP_VARIANT === "stacked") return <AfterShopStacked />;
+  if (AFTER_SHOP_VARIANT === "lookbook") return <AfterShopLookbook />;
   if (AFTER_SHOP_VARIANT === "guided") return <AfterShopGuidedRail />;
   if (AFTER_SHOP_VARIANT === "mosaic") return <AfterShopMosaic />;
   if (AFTER_SHOP_VARIANT === "chapters") return <AfterShopChapters />;
