@@ -1,14 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
-  BadgeCheck,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  MessageCircle,
   Minus,
   Plus,
   Search,
-  ShieldCheck,
   ShoppingBag,
   SlidersHorizontal,
   Star,
@@ -58,6 +55,7 @@ import shemaghProfile from "@/assets/product-photos/shemagh-profile.jpg";
 import shemaghRearSide from "@/assets/product-photos/shemagh-rear-side.jpg";
 import shemaghRedFront from "@/assets/product-photos/shemagh-red-front.jpg";
 import shemaghRedFull from "@/assets/product-photos/shemagh-red-full.jpg";
+import sabrWatchGreen from "@/assets/collection-banners/sabr-watch-green.jpg";
 
 export const Route = createFileRoute("/")({
   head: () => {
@@ -294,6 +292,41 @@ const collectionBanners = [
     image: "/homepage/makkah-gloves.jpg",
     imageClassName: "object-center",
     href: "/shop?collection=Gloves",
+  },
+];
+
+const postShopCollectionBanners = [
+  {
+    title: "YEMENI SHEMAGHS",
+    eyebrow: "Heritage edit",
+    copy: "Lightweight red and white shemaghs.",
+    image: shemaghRedFull,
+    imageClassName: "object-[50%_38%]",
+    href: "/shop?collection=Shemaghs",
+  },
+  {
+    title: "KHADIJA NIQABS",
+    eyebrow: "Modest essentials",
+    copy: "Clean coverage in everyday colours.",
+    image: niqabBlackFront,
+    imageClassName: "object-[50%_32%]",
+    href: "/shop?collection=Niqabs",
+  },
+  {
+    title: "WOVEN KUFIS",
+    eyebrow: "Daily prayerwear",
+    copy: "Breathable openwork in a clean white finish.",
+    image: kufiFront,
+    imageClassName: "object-[50%_30%]",
+    href: "/shop?collection=Kufis",
+  },
+  {
+    title: "SABR WATCHES",
+    eyebrow: "Arabic dial watches",
+    copy: "Brushed steel with Arabic numeral dials.",
+    image: sabrWatchGreen,
+    imageClassName: "object-center",
+    href: "/shop?collection=Watches",
   },
 ];
 
@@ -1007,12 +1040,20 @@ function HeroSlider() {
   );
 }
 
-function CollectionBanners() {
+function CollectionBannerGrid({
+  banners,
+  id,
+  prioritizeFirst = false,
+}: {
+  banners: typeof collectionBanners;
+  id: string;
+  prioritizeFirst?: boolean;
+}) {
   return (
-    <section id="catalog" className="bg-white px-[18px] py-6 md:px-8 md:py-10">
+    <section id={id} className="bg-white px-[18px] py-6 md:px-8 md:py-10">
       <div className="mx-auto max-w-[1120px]">
         <div className="mx-auto grid max-w-[920px] gap-4 md:grid-cols-2 md:gap-5">
-          {collectionBanners.map((banner, index) => (
+          {banners.map((banner, index) => (
             <a
               key={banner.title}
               href={banner.href}
@@ -1023,7 +1064,7 @@ function CollectionBanners() {
                 src={banner.image}
                 alt=""
                 aria-hidden
-                loading={index === 0 ? "eager" : "lazy"}
+                loading={prioritizeFirst && index === 0 ? "eager" : "lazy"}
                 className={`absolute inset-0 h-full w-full object-cover ${banner.imageClassName}`}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/78 via-black/10 to-transparent" />
@@ -1043,6 +1084,10 @@ function CollectionBanners() {
       </div>
     </section>
   );
+}
+
+function CollectionBanners() {
+  return <CollectionBannerGrid banners={collectionBanners} id="catalog" prioritizeFirst />;
 }
 
 function SectionTitle({
@@ -1181,79 +1226,7 @@ function BestSellers() {
 }
 
 function PostShopClose() {
-  const assurances = [
-    {
-      title: "Considered quality",
-      copy: "Every item is reviewed before it joins the Fawzaan collection.",
-      icon: BadgeCheck,
-    },
-    {
-      title: "Direct support",
-      copy: "Real help with products and orders through WhatsApp.",
-      icon: MessageCircle,
-    },
-    {
-      title: "Secure checkout",
-      copy: "Protected payments with clear order confirmation.",
-      icon: ShieldCheck,
-    },
-  ];
-
-  return (
-    <section id="our-story" className="border-t border-black/10 bg-white">
-      <div className="mx-auto max-w-[1180px] px-[22px] py-14 md:px-8 md:py-24">
-        <div className="grid overflow-hidden bg-[#f3f3f1] md:grid-cols-[1.08fr_0.92fr]">
-          <div className="relative aspect-[5/4] min-h-0 overflow-hidden md:aspect-auto md:min-h-[600px]">
-            <img
-              src={shemaghManBack}
-              alt="White shemagh with detailed red embroidery"
-              loading="lazy"
-              className="h-full w-full object-cover object-[center_38%]"
-            />
-          </div>
-          <div className="flex items-center px-6 py-10 sm:px-10 md:px-12 md:py-16 lg:px-16">
-            <div className="max-w-[430px]" data-reveal>
-              <p className="section-kicker text-[#C85F22]">Fawzaan Store</p>
-              <h2 className="section-heading mt-4 text-[36px] leading-[1.02] text-black md:text-[50px]">
-                MODEST ESSENTIALS, CHOSEN WITH PURPOSE
-              </h2>
-              <p className="commerce-copy mt-6 max-w-[390px] text-[15px] leading-7 text-black/62">
-                A focused collection of everyday pieces shaped by faith, heritage, and practical
-                wear. No endless catalogue, just useful products selected with care.
-              </p>
-              <a
-                href="/about"
-                className="mt-8 inline-flex h-12 items-center gap-2 bg-black px-6 text-[11px] font-bold uppercase text-white transition-colors duration-300 hover:bg-[#D9643C]"
-              >
-                Our story <ChevronRight size={15} />
-              </a>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid border-x border-b border-black/10 sm:grid-cols-3">
-          {assurances.map((assurance, index) => {
-            const Icon = assurance.icon;
-            return (
-              <div
-                key={assurance.title}
-                className={`flex gap-4 px-5 py-7 md:px-7 md:py-8 ${
-                  index ? "border-t border-black/10 sm:border-l sm:border-t-0" : ""
-                }`}
-                data-reveal
-              >
-                <Icon className="mt-0.5 shrink-0 text-[#D9643C]" size={21} strokeWidth={1.7} />
-                <div>
-                  <h3 className="text-[13px] font-bold uppercase text-black">{assurance.title}</h3>
-                  <p className="mt-2 text-[12px] leading-5 text-black/55">{assurance.copy}</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
+  return <CollectionBannerGrid banners={postShopCollectionBanners} id="collections-after-shop" />;
 }
 
 function Collections() {
