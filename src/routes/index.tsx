@@ -88,6 +88,15 @@ type Product = StoreProduct & {
   tag?: "Bestseller" | "New" | "Limited";
 };
 
+type AfterShopVariant = "official" | "compact" | "editorial" | "rail";
+
+const AFTER_SHOP_VARIANT: AfterShopVariant = (() => {
+  const variant = import.meta.env.VITE_HOMEPAGE_AFTER_SHOP_VARIANT;
+  return variant === "compact" || variant === "editorial" || variant === "rail"
+    ? variant
+    : "official";
+})();
+
 type CollectionName = Product["collection"];
 
 const FRAME_W = 390;
@@ -1693,6 +1702,116 @@ function HoneyFeature() {
   );
 }
 
+function AfterShopCollectionRail() {
+  const collections = [
+    {
+      title: "KASHMIR HONEY",
+      eyebrow: "The harvest",
+      image: honeyMulti,
+      imageClassName: "object-center",
+      href: "/shop?collection=Honey",
+    },
+    {
+      title: "MAKKAH GLOVES",
+      eyebrow: "Coming next",
+      image: "/homepage/makkah-gloves.jpg",
+      imageClassName: "object-center",
+      href: "/shop?collection=Gloves",
+    },
+    {
+      title: "YEMENI SHEMAGHS",
+      eyebrow: "For the brothers",
+      image: shemaghManBack,
+      imageClassName: "object-[62%_center]",
+      href: "/shop?collection=Shemaghs",
+    },
+    {
+      title: "KHADIJA NIQABS",
+      eyebrow: "For the sisters",
+      image: niqabBlackFront,
+      imageClassName: "object-[50%_30%]",
+      href: "/shop?collection=Niqabs",
+    },
+    {
+      title: "WOVEN KUFIS",
+      eyebrow: "Daily prayerwear",
+      image: kufiSide,
+      imageClassName: "object-[center_28%]",
+      href: "/shop?collection=Kufis",
+    },
+    {
+      title: "SABR WATCHES",
+      eyebrow: "Arabic dial watches",
+      image: "/homepage/sabr-watch-black.jpg",
+      imageClassName: "object-center",
+      href: "/shop?collection=Watches",
+    },
+  ];
+
+  return (
+    <section id="after-shop-collections" className="bg-white py-12 md:py-20">
+      <div className="mx-auto max-w-[1180px]">
+        <div className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto px-[18px] pb-2 md:grid md:grid-cols-3 md:gap-5 md:overflow-visible md:px-8">
+          {collections.map((collection) => (
+            <a
+              key={collection.title}
+              href={collection.href}
+              className="collection-banner group relative block aspect-[4/5] w-[78vw] max-w-[330px] shrink-0 snap-start overflow-hidden bg-black text-white md:w-auto md:max-w-none"
+              data-reveal
+            >
+              <img
+                src={collection.image}
+                alt=""
+                aria-hidden
+                loading="lazy"
+                className={`absolute inset-0 h-full w-full object-cover ${collection.imageClassName}`}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/78 via-black/10 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-6 md:p-7">
+                <p className="section-kicker text-white/72">{collection.eyebrow}</p>
+                <h2 className="banner-heading mt-3 text-[38px] md:text-[44px]">
+                  {collection.title}
+                </h2>
+                <span className="mt-6 inline-flex h-10 items-center gap-2 bg-white px-4 text-[10px] font-bold uppercase text-black">
+                  Shop collection <ChevronRight size={14} />
+                </span>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AfterShopHomepage() {
+  if (AFTER_SHOP_VARIANT === "rail") return <AfterShopCollectionRail />;
+
+  if (AFTER_SHOP_VARIANT === "editorial") {
+    return (
+      <div className="post-shop-layout post-shop-layout--editorial">
+        <HoneyFeature />
+        <ModestEssentials />
+        <WatchCollection />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={
+        AFTER_SHOP_VARIANT === "compact"
+          ? "post-shop-layout post-shop-layout--compact"
+          : "post-shop-layout"
+      }
+    >
+      <ModestEssentials />
+      <WatchCollection />
+      <HoneyFeature />
+    </div>
+  );
+}
+
 function WatchCollection() {
   const { products: catalog } = useStoreProducts();
   const { formatPrice } = useCurrency();
@@ -1885,9 +2004,7 @@ export function LegacyHomepageContent({
       )}
       <CollectionBanners />
       <ShopAllProducts />
-      <ModestEssentials />
-      <WatchCollection />
-      <HoneyFeature />
+      <AfterShopHomepage />
       {customSections?.content.length ? (
         <HomepageRenderer data={customSections} editMode={editMode} />
       ) : null}

@@ -1123,3 +1123,94 @@
     height: var(--homepage-scene-mobile-height);
   }
 }
+
+/* Preview-only post-Shop All compositions. Production defaults to the official layout. */
+.post-shop-layout--compact #essentials {
+  padding-bottom: 2rem;
+  padding-top: 3.5rem;
+}
+
+.post-shop-layout--compact #essentials > div > div:last-child {
+  margin-top: 2rem;
+}
+
+.post-shop-layout--compact #watch-collection {
+  padding-bottom: 2rem;
+  padding-top: 1rem;
+}
+
+.post-shop-layout--compact #honey {
+  padding-bottom: 4rem;
+  padding-top: 1rem;
+}
+
+.post-shop-layout--compact #honey > div > div:last-child {
+  min-height: 0;
+}
+
+.post-shop-layout--editorial #honey {
+  padding-bottom: 2rem;
+  padding-top: 3.5rem;
+}
+
+.post-shop-layout--editorial #honey > div > div:last-child {
+  min-height: 0;
+}
+
+.post-shop-layout--editorial #essentials {
+  padding-bottom: 2rem;
+  padding-top: 2rem;
+}
+
+.post-shop-layout--editorial #essentials > div > div:last-child {
+  margin-top: 2rem;
+}
+
+.post-shop-layout--editorial #watch-collection {
+  padding-bottom: 4rem;
+  padding-top: 1rem;
+}
+
+@media (min-width: 768px) {
+  .post-shop-layout--compact #essentials {
+    padding-bottom: 3rem;
+    padding-top: 5rem;
+  }
+
+  .post-shop-layout--compact #watch-collection,
+  .post-shop-layout--compact #honey {
+    padding-bottom: 3rem;
+    padding-top: 3rem;
+  }
+
+  .post-shop-layout--editorial #honey {
+    padding-bottom: 3rem;
+    padding-top: 5rem;
+  }
+
+  .post-shop-layout--editorial #honey > div {
+    align-items: stretch;
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  }
+
+  .post-shop-layout--editorial #honey > div > a {
+    min-height: 620px;
+  }
+
+  .post-shop-layout--editorial #honey > div > div:last-child {
+    grid-template-columns: 1fr;
+    margin-top: 0;
+  }
+
+  .post-shop-layout--editorial #essentials {
+    padding-bottom: 3rem;
+    padding-top: 3rem;
+  }
+
+  .post-shop-layout--editorial #watch-collection {
+    padding-bottom: 5rem;
+    padding-top: 3rem;
+  }
+}
