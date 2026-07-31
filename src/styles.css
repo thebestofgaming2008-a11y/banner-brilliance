@@ -852,10 +852,6 @@
     transform: translate3d(0, 0, 0);
   }
 
-  [data-reveal="collection"] {
-    transition-delay: calc(var(--collection-index, 0) * 70ms);
-  }
-
   .collection-lookbook-row__image {
     backface-visibility: hidden;
     transform: scale(1.001);

@@ -16,7 +16,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
@@ -1244,8 +1243,6 @@ function PostShopClose() {
             href={collection.href}
             className="collection-lookbook-row group grid border-b border-black/10 md:grid-cols-2"
             data-collection-card
-            data-reveal="collection"
-            style={{ "--collection-index": index } as CSSProperties}
           >
             <div
               className={`collection-lookbook-row__media relative min-h-[68svh] overflow-hidden md:min-h-[680px] ${
