@@ -1006,9 +1006,9 @@ function HeroSlider() {
 
 function CollectionBanners() {
   return (
-    <section id="catalog" className="bg-white px-[18px] py-6 md:px-8 md:py-10">
+    <section id="catalog" className="bg-white px-[18px] pb-8 pt-7 md:px-8 md:pb-14 md:pt-12">
       <div className="mx-auto max-w-[1120px]">
-        <div className="mx-auto grid max-w-[920px] gap-4 md:grid-cols-2 md:gap-5">
+        <div className="mx-auto grid max-w-[920px] gap-3 md:grid-cols-2 md:gap-5">
           {collectionBanners.map((banner, index) => (
             <a
               key={banner.title}
@@ -1024,12 +1024,14 @@ function CollectionBanners() {
                 className={`absolute inset-0 h-full w-full object-cover ${banner.imageClassName}`}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/78 via-black/10 to-transparent" />
-              <div className="relative z-10 flex h-full items-end p-6 md:p-8">
-                <div className="max-w-[360px]">
+              <div className="relative z-10 flex h-full items-end p-7 md:p-8">
+                <div className="max-w-[340px]">
                   <p className="section-kicker text-white/72">{banner.eyebrow}</p>
-                  <h3 className="banner-heading mt-3 text-[42px] md:text-[50px]">{banner.title}</h3>
-                  <p className="commerce-copy mt-4 max-w-[280px] text-white/76">{banner.copy}</p>
-                  <span className="mt-7 inline-flex h-11 items-center bg-white px-5 text-[10px] font-bold uppercase tracking-normal text-black">
+                  <h3 className="banner-heading mt-2.5 text-[40px] md:text-[50px]">
+                    {banner.title}
+                  </h3>
+                  <p className="commerce-copy mt-3.5 max-w-[280px] text-white/76">{banner.copy}</p>
+                  <span className="mt-6 inline-flex h-11 items-center bg-white px-5 text-[10px] font-bold uppercase tracking-normal text-black">
                     Shop collection
                   </span>
                 </div>
@@ -1111,7 +1113,7 @@ function ProductTile({
       </div>
       <div className="mt-3 text-left">
         <p className="section-kicker text-black/45">{product.collection}</p>
-        <h3 className="product-name mt-1 min-h-8 text-[15px] leading-4 text-current md:text-[16px]">
+        <h3 className="product-name mt-1 min-h-8 text-[15px] leading-[1.12] text-[#292521] md:text-[16px]">
           {product.name}
         </h3>
         {product.reviews > 0 ? (
@@ -1198,7 +1200,10 @@ function ModestEssentials() {
   ];
 
   return (
-    <section id="essentials" className="scroll-mt-[76px] bg-white px-[18px] py-14 md:px-8 md:py-24">
+    <section
+      id="essentials"
+      className="scroll-mt-[76px] bg-white px-[18px] pb-10 pt-14 md:px-8 md:pb-14 md:pt-20"
+    >
       <div className="mx-auto max-w-[1120px]">
         <div className="mx-auto max-w-[650px] text-center" data-reveal>
           <p className="section-kicker text-black/50">Fawzaan essentials</p>
@@ -1207,7 +1212,7 @@ function ModestEssentials() {
           </h2>
         </div>
 
-        <div className="mt-9 grid gap-4 md:mt-12 md:grid-cols-2 md:gap-5">
+        <div className="mt-8 grid gap-3 md:mt-10 md:grid-cols-2 md:gap-5">
           {edits.map((edit) => (
             <a
               key={edit.title}
@@ -1223,11 +1228,11 @@ function ModestEssentials() {
                 className={`absolute inset-0 h-full w-full object-cover ${edit.imageClassName}`}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/78 via-black/20 to-transparent" />
-              <div className="absolute inset-x-0 bottom-0 p-6 md:p-8">
+              <div className="absolute inset-x-0 bottom-0 p-7 md:p-8">
                 <p className="section-kicker text-white/72">{edit.eyebrow}</p>
-                <h3 className="banner-heading mt-3 text-[42px] md:text-[62px]">{edit.title}</h3>
-                <p className="commerce-copy mt-4 max-w-[280px] text-white/76">{edit.copy}</p>
-                <span className="mt-7 inline-flex h-11 items-center bg-white px-5 text-[10px] font-bold uppercase tracking-normal text-black">
+                <h3 className="banner-heading mt-2.5 text-[40px] md:text-[58px]">{edit.title}</h3>
+                <p className="commerce-copy mt-3.5 max-w-[280px] text-white/76">{edit.copy}</p>
+                <span className="mt-6 inline-flex h-11 items-center bg-white px-5 text-[10px] font-bold uppercase tracking-normal text-black">
                   Shop edit
                 </span>
               </div>
@@ -1420,7 +1425,10 @@ function ShopAllProducts() {
     tabsRef.current?.scrollBy({ left: direction * 220, behavior: "smooth" });
 
   return (
-    <section id="shop-all" className="scroll-mt-[76px] bg-white px-[22px] py-16 md:px-8 md:py-24">
+    <section
+      id="shop-all"
+      className="scroll-mt-[76px] bg-white px-[22px] pb-14 pt-14 md:px-8 md:pb-20 md:pt-20"
+    >
       <div className="mx-auto max-w-[1180px]">
         <div data-reveal>
           <div>
@@ -1657,7 +1665,10 @@ function HoneyFeature() {
   const honeyProducts = catalog.filter((product) => product.collection === "Honey");
 
   return (
-    <section id="honey" className="scroll-mt-[76px] bg-white px-[22px] py-16 md:px-8 md:py-24">
+    <section
+      id="honey"
+      className="scroll-mt-[76px] bg-white px-[22px] pb-16 pt-8 md:px-8 md:pb-20 md:pt-14"
+    >
       <div className="mx-auto max-w-[1180px]">
         <a
           href="/shop?collection=Honey"
@@ -1674,16 +1685,16 @@ function HoneyFeature() {
             />
           </div>
           <div className="absolute inset-0 bg-gradient-to-t from-black/76 via-black/15 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 p-6 md:p-9">
+          <div className="absolute inset-x-0 bottom-0 p-7 md:p-9">
             <p className="section-kicker text-white/72">The harvest</p>
-            <h2 className="banner-heading mt-2 text-[38px] md:text-[62px]">KASHMIR HONEY</h2>
-            <p className="commerce-copy mt-4 max-w-xs text-white/74">
+            <h2 className="banner-heading mt-2.5 text-[40px] md:text-[60px]">KASHMIR HONEY</h2>
+            <p className="commerce-copy mt-3.5 max-w-xs text-white/74">
               Raw floral honey, selected by origin.
             </p>
           </div>
         </a>
 
-        <div className="mt-10 grid min-h-[360px] grid-cols-2 gap-x-2 gap-y-10 md:grid-cols-3 md:gap-x-4">
+        <div className="mt-8 grid grid-cols-2 gap-x-3 gap-y-10 md:mt-10 md:grid-cols-3 md:gap-x-4">
           {honeyProducts.map((product) => (
             <ProductTile key={product.slug} product={product} />
           ))}
@@ -1709,7 +1720,7 @@ function WatchCollection() {
   return (
     <section
       id="watch-collection"
-      className="scroll-mt-[76px] bg-white px-[18px] py-12 md:px-8 md:py-20"
+      className="scroll-mt-[76px] bg-white px-[18px] pb-10 pt-8 md:px-8 md:pb-14 md:pt-14"
     >
       <div className="mx-auto grid max-w-[1120px] gap-5 md:grid-cols-[0.9fr_1.1fr]">
         <a
@@ -1725,10 +1736,10 @@ function WatchCollection() {
             className="absolute inset-0 h-full w-full object-cover object-center"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 p-6 md:p-8">
+          <div className="absolute inset-x-0 bottom-0 p-7 md:p-8">
             <p className="section-kicker text-white/70">Arabic dial watches</p>
-            <h2 className="banner-heading mt-3 text-[48px] md:text-[72px]">SABR WATCHES</h2>
-            <p className="commerce-copy mt-4 max-w-xs text-white/74">
+            <h2 className="banner-heading mt-2.5 text-[44px] md:text-[68px]">SABR WATCHES</h2>
+            <p className="commerce-copy mt-3.5 max-w-xs text-white/74">
               Arabic numerals, brushed steel, clean daily polish.
             </p>
           </div>
@@ -1877,7 +1888,7 @@ export function LegacyHomepageContent({
   const editorHomepage = isHomepageEditorData(homepage) ? homepage : null;
   const customSections = editorHomepage ? editorSlice(editorHomepage, "after-honey") : null;
   return (
-    <>
+    <div className="legacy-homepage">
       {editorHomepage ? (
         <HomepageRenderer data={editorSlice(editorHomepage, "hero")} editMode={editMode} />
       ) : (
@@ -1894,7 +1905,7 @@ export function LegacyHomepageContent({
       <ManagedCollectionSections />
       <ManagedHomepageBanners />
       <ExploreBeyond />
-    </>
+    </div>
   );
 }
 
