@@ -56,13 +56,6 @@ import shemaghProfile from "@/assets/product-photos/shemagh-profile.jpg";
 import shemaghRearSide from "@/assets/product-photos/shemagh-rear-side.jpg";
 import shemaghRedFront from "@/assets/product-photos/shemagh-red-front.jpg";
 import shemaghRedFull from "@/assets/product-photos/shemagh-red-full.jpg";
-import glovesEditorial from "@/assets/collection-banners/makkah-gloves.jpg";
-import honeyEditorial from "@/assets/hero-honey.webp";
-import kufiEditorial from "@/assets/hero-kufi.jpg";
-import niqabEditorial from "@/assets/hero-niqab.jpg";
-import shemaghEditorial from "@/assets/collection-banners/shemagh-editorial.webp";
-import watchEditorial from "@/assets/collection-banners/sabr-watch-editorial.webp";
-
 export const Route = createFileRoute("/")({
   head: () => {
     const metadata = seo({ title: DEFAULT_TITLE, description: DEFAULT_DESCRIPTION, path: "/" });
@@ -1187,79 +1180,100 @@ function BestSellers() {
 function PostShopClose() {
   const collectionLinks = [
     {
+      title: "Kashmir honey",
+      image: "/homepage/honey.jpg",
+      href: "/shop?collection=Honey",
+      alt: "Client photograph of a Kashmir honey jar on red and white shemagh fabric",
+      imageClassName: "object-[50%_62%]",
+      mediaClassName: "bg-[#f4eee5]",
+      panelClassName: "bg-[#f3efe8] text-black",
+    },
+    {
       title: "Shemaghs",
-      image: shemaghEditorial,
+      image: "/homepage/client-shemagh-original.jpg",
       href: "/shop?collection=Shemaghs",
-      alt: "Red shemagh presented in a warm studio portrait",
-      imageClassName: "object-[50%_center]",
+      alt: "Client photograph of an ivory and red embroidered shemagh on a mannequin",
+      imageClassName: "object-[50%_44%]",
+      mediaClassName: "bg-white",
+      panelClassName: "bg-white text-black",
     },
     {
       title: "Niqabs",
-      image: niqabEditorial,
+      image: niqabBlackFront,
       href: "/shop?collection=Niqabs",
-      alt: "Black niqab presented in a warm studio portrait",
-      imageClassName: "object-[50%_center]",
+      alt: "Original catalog photograph of the black Khadija niqab",
+      imageClassName: "object-[50%_36%]",
+      mediaClassName: "bg-[#f1f1f1]",
+      panelClassName: "bg-[#111] text-white",
     },
     {
       title: "Kufis",
-      image: kufiEditorial,
+      image: kufiFront,
       href: "/shop?collection=Kufis",
-      alt: "White kufi arranged on soft ivory fabric",
-      imageClassName: "object-center",
+      alt: "Original catalog photograph of a white woven kufi",
+      imageClassName: "object-[50%_34%]",
+      mediaClassName: "bg-white",
+      panelClassName: "bg-[#f5f5f3] text-black",
     },
     {
-      title: "Gloves",
-      image: glovesEditorial,
+      title: "Makkah gloves",
+      image: "/homepage/makkah-gloves.jpg",
       href: "/shop?collection=Gloves",
-      alt: "Makkah gloves presented in six available colours",
-      imageClassName: "object-center",
-    },
-    {
-      title: "Honey",
-      image: honeyEditorial,
-      href: "/shop?collection=Honey",
-      alt: "Golden honey jar in a warm natural still life",
-      imageClassName: "object-[54%_center]",
+      alt: "Client photograph of black and white Makkah gloves in their packaging",
+      imageClassName: "object-[50%_48%]",
+      mediaClassName: "bg-[#f0f0ee]",
+      panelClassName: "bg-white text-black",
     },
     {
       title: "Sabr watches",
-      image: watchEditorial,
+      image: "/homepage/client-sabr-watch-original.jpg",
       href: "/shop?collection=Watches",
-      alt: "Green dial Sabr watch on black satin and shemagh fabric",
-      imageClassName: "object-center",
+      alt: "Client photograph of a green dial Sabr watch held over red shemagh fabric",
+      imageClassName: "object-[50%_51%]",
+      mediaClassName: "bg-[#111]",
+      panelClassName: "bg-[#111] text-white",
     },
   ];
 
   return (
     <section id="collections-after-shop" className="border-t border-black/10 bg-white">
-      <div
-        className="mx-auto grid max-w-[1600px] grid-cols-2 gap-px bg-white md:grid-cols-3 md:gap-3 md:px-6 md:py-6"
-        aria-label="Shop collections"
-      >
+      <div className="mx-auto max-w-[1600px]" aria-label="Shop collections">
         {collectionLinks.map((collection, index) => (
           <a
             key={collection.title}
             href={collection.href}
-            className="shopify-collection-tile group relative aspect-[4/5] overflow-hidden bg-[#e9e9e6] text-white md:aspect-[5/6]"
+            className="collection-lookbook-row group grid border-b border-black/10 md:grid-cols-2"
             data-collection-card
             data-reveal="collection"
             style={{ "--collection-index": index } as CSSProperties}
           >
-            <img
-              src={collection.image}
-              alt={collection.alt}
-              loading="lazy"
-              decoding="async"
-              className={`shopify-collection-tile__image absolute inset-0 h-full w-full object-cover ${collection.imageClassName}`}
-            />
-            <div className="shopify-collection-tile__shade absolute inset-0" />
-            <div className="absolute inset-x-0 bottom-0 p-4 md:p-7">
-              <h3 className="shopify-collection-tile__title text-[18px] font-bold uppercase leading-tight md:text-[26px] xl:text-[30px]">
-                {collection.title}
-              </h3>
-              <span className="shopify-collection-tile__link mt-2 inline-flex border-b border-white/70 pb-0.5 text-[9px] font-bold uppercase tracking-normal md:text-[10px]">
-                Shop
-              </span>
+            <div
+              className={`collection-lookbook-row__media relative min-h-[68svh] overflow-hidden md:min-h-[680px] ${
+                index % 2 ? "md:order-2" : ""
+              } ${collection.mediaClassName}`}
+            >
+              <img
+                src={collection.image}
+                alt={collection.alt}
+                loading="lazy"
+                decoding="async"
+                className={`collection-lookbook-row__image absolute inset-0 h-full w-full object-cover ${collection.imageClassName}`}
+              />
+            </div>
+            <div
+              className={`collection-lookbook-row__content flex min-h-[176px] items-center px-6 py-10 md:min-h-[680px] md:px-[8vw] ${
+                index % 2 ? "md:order-1" : ""
+              } ${collection.panelClassName}`}
+            >
+              <div>
+                <h3 className="collection-lookbook-row__title text-[34px] font-bold uppercase leading-none md:text-[52px] xl:text-[64px]">
+                  {collection.title}
+                </h3>
+                <span className="collection-lookbook-row__link mt-6 inline-flex items-center gap-2 border-b border-current pb-1 text-[10px] font-bold uppercase tracking-normal">
+                  Shop collection
+                  <ChevronRight size={14} aria-hidden="true" />
+                </span>
+              </div>
             </div>
           </a>
         ))}
