@@ -64,6 +64,8 @@ test.describe("fixed-template homepage studio", () => {
     await dialog.getByLabel("Small text").fill("Limited release");
     await dialog.getByLabel("Collection title").fill("RAMADAN PICKS");
     await dialog.getByLabel("Link", { exact: true }).fill("/shop?collection=Ramadan");
+    await expect(dialog.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
+    await expect(dialog.getByRole("button", { name: "Publish live", exact: true })).toBeEnabled();
 
     const frame = storefront(page);
     await expect(frame.locator('[data-mosaic-card="RAMADAN PICKS"]')).toContainText(
@@ -73,7 +75,8 @@ test.describe("fixed-template homepage studio", () => {
       "href",
       "/shop?collection=Ramadan",
     );
-    await expect(dialog.getByRole("button", { name: "Move collection up" })).toBeEnabled();
+    await expect(dialog.getByRole("button", { name: "Move collection up" })).toBeDisabled();
+    await expect(dialog.getByRole("button", { name: "Delete collection" })).toBeEnabled();
     await dialog.getByRole("button", { name: "Done", exact: true }).click();
     await expect(dialog).toBeHidden();
   });

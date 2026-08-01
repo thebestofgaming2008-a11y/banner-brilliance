@@ -26,7 +26,7 @@ import { HomepageRenderer } from "@/features/homepage/components";
 import { isHomepageEditorData } from "@/features/homepage/default-data";
 import { IKHWAAN_HERO_GRADIENT, SALIHAAT_HERO_GRADIENT } from "@/features/homepage/brand";
 import type { HeroGradient, HomepageData, HomepageMosaicCard } from "@/features/homepage/types";
-import { homepageMosaicCards } from "@/features/homepage/mosaic-data";
+import { CORE_MOSAIC_CARD_COUNT, homepageMosaicCards } from "@/features/homepage/mosaic-data";
 import { MangoMenuIcon } from "@/components/store/mango-menu-icon";
 import { useCurrency } from "@/hooks/use-currency";
 import {
@@ -1668,15 +1668,17 @@ function MosaicCollectionCard({
   collection,
   featured = false,
   index,
+  added = false,
 }: {
   collection: HomepageMosaicCard;
   featured?: boolean;
   index: number;
+  added?: boolean;
 }) {
   return (
     <a
       href={collection.href}
-      className={`collection-banner homepage-mosaic__card homepage-mosaic__card--${index + 1} group relative block overflow-hidden bg-black text-white`}
+      className={`collection-banner homepage-mosaic__card ${added ? "homepage-mosaic__card--added" : `homepage-mosaic__card--${index + 1}`} group relative block overflow-hidden bg-black text-white`}
       data-reveal
       data-mosaic-card={collection.title}
     >
@@ -1709,7 +1711,7 @@ function MosaicCollectionCard({
         <span
           className={
             featured
-              ? "mt-6 inline-flex h-10 items-center gap-2 bg-white px-4 text-[10px] font-bold uppercase text-black"
+              ? "homepage-mosaic__featured-link mt-6 inline-flex h-10 items-center gap-2 bg-white px-4 text-[10px] font-bold uppercase text-black"
               : "homepage-mosaic__link mt-4 inline-flex items-center gap-1.5 text-[9px] font-bold uppercase text-white"
           }
         >
@@ -1723,6 +1725,10 @@ function MosaicCollectionCard({
 
 function HomepageCollectionMosaic({ homepage }: { homepage?: HomepageData | null }) {
   const mosaicCollections = homepageMosaicCards(homepage);
+  const coreCollections = mosaicCollections.slice(0, CORE_MOSAIC_CARD_COUNT);
+  const addedCollections = mosaicCollections.slice(CORE_MOSAIC_CARD_COUNT);
+  const addedLayout = addedCollections.length <= 4 ? String(addedCollections.length) : "many";
+  const addedRemainder = addedCollections.length % 3;
   return (
     <section
       id="collections"
@@ -1732,18 +1738,32 @@ function HomepageCollectionMosaic({ homepage }: { homepage?: HomepageData | null
       <div className="mx-auto max-w-[1180px] px-[18px] md:px-8">
         <div className="homepage-mosaic__marker">
           <p className="section-kicker text-black/56">Collections</p>
-          <span>{String(mosaicCollections.length).padStart(2, "0")}</span>
         </div>
         <div className="homepage-mosaic__grid">
-          {mosaicCollections.map((collection, index) => (
+          {coreCollections.map((collection, index) => (
             <MosaicCollectionCard
-              key={collection.title}
+              key={collection.id}
               collection={collection}
               featured={index === 0}
               index={index}
             />
           ))}
         </div>
+        {addedCollections.length ? (
+          <div
+            className={`homepage-mosaic__extras homepage-mosaic__extras--${addedLayout} homepage-mosaic__extras--remainder-${addedRemainder}`}
+            data-added-collections={addedCollections.length}
+          >
+            {addedCollections.map((collection, index) => (
+              <MosaicCollectionCard
+                key={collection.id}
+                collection={collection}
+                index={index}
+                added
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
     </section>
   );

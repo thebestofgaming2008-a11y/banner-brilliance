@@ -42,8 +42,8 @@ function blankPromotion(): PromotionDraft {
     storefront_title: null,
     storefront_message: null,
     storefront_badge: "OFFER",
-    storefront_button_label: "Shop the offer",
-    storefront_button_url: "/shop",
+    storefront_button_label: null,
+    storefront_button_url: null,
     usedCount: 0,
   };
 }
@@ -195,9 +195,8 @@ export function PromotionsPanel({
               current.storefront_title || (checked ? "A special offer for you" : null),
             storefront_message: current.storefront_message,
             storefront_badge: current.storefront_badge || (checked ? "OFFER" : null),
-            storefront_button_label:
-              current.storefront_button_label || (checked ? "Shop the offer" : null),
-            storefront_button_url: current.storefront_button_url || (checked ? "/shop" : null),
+            storefront_button_label: null,
+            storefront_button_url: null,
           }
         : current,
     );
@@ -239,8 +238,8 @@ export function PromotionsPanel({
           storefront_title: input.storefront_title?.trim() || null,
           storefront_message: input.storefront_message?.trim() || null,
           storefront_badge: input.storefront_badge?.trim() || null,
-          storefront_button_label: input.storefront_button_label?.trim() || null,
-          storefront_button_url: input.storefront_button_url?.trim() || null,
+          storefront_button_label: null,
+          storefront_button_url: null,
         },
         id,
       );
@@ -654,42 +653,25 @@ export function PromotionsPanel({
                         className="w-full resize-y rounded-md border border-[#D1D5DB] bg-white px-3 py-2 text-sm outline-none transition focus:border-[#111827] focus:ring-1 focus:ring-[#111827]"
                       />
                     </label>
-                    <label>
-                      <span className={labelClass}>Button label</span>
-                      <input
-                        value={draft.storefront_button_label ?? ""}
-                        onChange={(event) => update("storefront_button_label", event.target.value)}
-                        placeholder="Shop the offer"
-                        className={inputClass}
-                      />
-                    </label>
-                    <label>
-                      <span className={labelClass}>Button destination</span>
-                      <input
-                        value={draft.storefront_button_url ?? ""}
-                        onChange={(event) => update("storefront_button_url", event.target.value)}
-                        placeholder="/shop"
-                        className={inputClass}
-                      />
-                    </label>
                     <div className="sm:col-span-2 border border-[#E5E7EB] bg-[#F7F7F5] p-3">
                       <p className="mb-2 text-[10px] font-semibold uppercase text-[#6B7280]">
                         Storefront preview
                       </p>
-                      <div className="flex items-end justify-between gap-3 bg-white p-3 shadow-sm">
+                      <div className="brand-mango-bg p-4 text-white shadow-sm">
                         <div className="min-w-0">
-                          <p className="text-[10px] font-bold uppercase text-[#E8653D]">
+                          <p className="text-[9px] font-bold uppercase text-white/75">
                             {draft.storefront_badge || "OFFER"}
                           </p>
-                          <p className="mt-1 truncate text-sm font-semibold text-[#111827]">
+                          <p className="mt-2 truncate text-base font-semibold text-white">
                             {draft.storefront_title || "A special offer for you"}
                           </p>
-                          <p className="mt-0.5 truncate font-mono text-xs text-[#6B7280]">
-                            {draft.code || "YOURCODE"}
+                          <p className="mt-1 truncate text-xs text-white/75">
+                            {draft.storefront_message ||
+                              "Tell customers what the promotion includes."}
                           </p>
                         </div>
-                        <span className="grid h-12 w-12 shrink-0 place-items-center bg-[#E8653D] text-white">
-                          <BadgePercent className="h-5 w-5" />
+                        <span className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded bg-white text-[10px] font-bold uppercase text-[#D75631]">
+                          Copy code {draft.code || "YOURCODE"}
                         </span>
                       </div>
                     </div>

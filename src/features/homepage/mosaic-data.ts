@@ -67,6 +67,8 @@ export const DEFAULT_MOSAIC_COLLECTIONS: HomepageMosaicCard[] = [
   },
 ];
 
+export const CORE_MOSAIC_CARD_COUNT = DEFAULT_MOSAIC_COLLECTIONS.length;
+
 function cloneDefaults() {
   return DEFAULT_MOSAIC_COLLECTIONS.map((card) => ({ ...card }));
 }

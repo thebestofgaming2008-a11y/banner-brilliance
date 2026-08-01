@@ -39,8 +39,9 @@ test("promotion trigger stays circular and opens the branded offer panel", async
   const dialog = page.getByRole("dialog", { name: "Launch special" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText("12% off", { exact: true })).toBeVisible();
-  await expect(dialog.getByText("L12", { exact: true })).toBeVisible();
-  await expect(dialog.getByRole("link", { name: "Shop now" })).toHaveAttribute("href", "/shop");
+  const copyCode = dialog.getByRole("button", { name: "Copy promotion code L12" });
+  await expect(copyCode).toContainText("Copy code L12");
+  await expect(dialog.getByRole("link")).toHaveCount(0);
 
   const panel = await dialog.boundingBox();
   const viewport = page.viewportSize();

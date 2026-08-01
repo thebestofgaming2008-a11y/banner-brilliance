@@ -59,7 +59,7 @@ import { StorefrontFramePreview, StudioCanvas } from "./studio-canvas";
 import { StudioInspector } from "./studio-inspector";
 import { StudioTemplateInspector, type HomepageTemplatePatch } from "./studio-template-inspector";
 import { HomepageImageInput } from "./homepage-image-field";
-import { homepageMosaicCards, MAX_MOSAIC_CARDS } from "./mosaic-data";
+import { CORE_MOSAIC_CARD_COUNT, homepageMosaicCards, MAX_MOSAIC_CARDS } from "./mosaic-data";
 import {
   createCollectionWithProducts,
   createHeroSlide,
@@ -445,13 +445,27 @@ function IconButton({
 function MosaicEditorDialog({
   cards,
   categories,
+  saving,
+  publishing,
+  dirty,
+  unpublished,
+  hasConflict,
   onChange,
   onClose,
+  onSave,
+  onPublish,
 }: {
   cards: HomepageMosaicCard[];
   categories: AdminCategory[];
+  saving: boolean;
+  publishing: boolean;
+  dirty: boolean;
+  unpublished: boolean;
+  hasConflict: boolean;
   onChange: (cards: HomepageMosaicCard[]) => void;
   onClose: () => void;
+  onSave: () => void;
+  onPublish: () => void;
 }) {
   const [selectedId, setSelectedId] = useState(cards[0]?.id ?? "");
   const selectedIndex = Math.max(
@@ -459,6 +473,7 @@ function MosaicEditorDialog({
     cards.findIndex((card) => card.id === selectedId),
   );
   const selected = cards[selectedIndex];
+  const selectedIsCore = selectedIndex < CORE_MOSAIC_CARD_COUNT;
 
   useEffect(() => {
     if (cards.some((card) => card.id === selectedId)) return;
@@ -474,6 +489,7 @@ function MosaicEditorDialog({
     if (!selected) return;
     const nextIndex = selectedIndex + direction;
     if (nextIndex < 0 || nextIndex >= cards.length) return;
+    if (selectedIsCore !== nextIndex < CORE_MOSAIC_CARD_COUNT) return;
     const next = [...cards];
     [next[selectedIndex], next[nextIndex]] = [next[nextIndex]!, next[selectedIndex]!];
     onChange(next);
@@ -496,14 +512,12 @@ function MosaicEditorDialog({
   const duplicateCard = () => {
     if (!selected || cards.length >= MAX_MOSAIC_CARDS) return;
     const copy = { ...selected, id: createStudioId("mosaic"), title: `${selected.title} COPY` };
-    const next = [...cards];
-    next.splice(selectedIndex + 1, 0, copy);
-    onChange(next);
+    onChange([...cards, copy]);
     setSelectedId(copy.id);
   };
 
   const deleteCard = () => {
-    if (!selected || cards.length <= 1) return;
+    if (!selected || selectedIsCore) return;
     const next = cards.filter((card) => card.id !== selected.id);
     setSelectedId(next[Math.min(selectedIndex, next.length - 1)]?.id ?? "");
     onChange(next);
@@ -550,7 +564,13 @@ function MosaicEditorDialog({
                   </span>
                   <span>
                     <strong>{card.title || "Untitled collection"}</strong>
-                    <small>{index === 0 ? "Large featured box" : `Box ${index + 1}`}</small>
+                    <small>
+                      {index === 0
+                        ? "Core featured box"
+                        : index < CORE_MOSAIC_CARD_COUNT
+                          ? `Core box ${index + 1}`
+                          : `Added box ${index - CORE_MOSAIC_CARD_COUNT + 1}`}
+                    </small>
                   </span>
                   <ChevronRight size={15} />
                 </button>
@@ -565,7 +585,9 @@ function MosaicEditorDialog({
                   <strong>
                     {selectedIndex === 0
                       ? "Featured collection"
-                      : `Collection ${selectedIndex + 1}`}
+                      : selectedIsCore
+                        ? `Core collection ${selectedIndex + 1}`
+                        : `Added collection ${selectedIndex - CORE_MOSAIC_CARD_COUNT + 1}`}
                   </strong>
                   <span>Changes appear immediately in Preview.</span>
                 </div>
@@ -574,7 +596,7 @@ function MosaicEditorDialog({
                     type="button"
                     aria-label="Move collection up"
                     title="Move up"
-                    disabled={selectedIndex === 0}
+                    disabled={selectedIndex === 0 || selectedIndex === CORE_MOSAIC_CARD_COUNT}
                     onClick={() => moveCard(-1)}
                   >
                     <ChevronUp size={16} />
@@ -583,7 +605,10 @@ function MosaicEditorDialog({
                     type="button"
                     aria-label="Move collection down"
                     title="Move down"
-                    disabled={selectedIndex === cards.length - 1}
+                    disabled={
+                      selectedIndex === cards.length - 1 ||
+                      selectedIndex === CORE_MOSAIC_CARD_COUNT - 1
+                    }
                     onClick={() => moveCard(1)}
                   >
                     <ChevronDown size={16} />
@@ -600,7 +625,7 @@ function MosaicEditorDialog({
                     type="button"
                     aria-label="Delete collection"
                     title="Delete"
-                    disabled={cards.length <= 1}
+                    disabled={selectedIsCore}
                     onClick={deleteCard}
                   >
                     <Trash2 size={15} />
@@ -698,8 +723,8 @@ function MosaicEditorDialog({
                   <div className="studio-mosaic-note">
                     <Check size={15} />
                     <span>
-                      The first box is automatically featured. The layout adapts to every screen
-                      size.
+                      Core boxes keep the approved Mosaic. New boxes are always added afterward, and
+                      their layout adapts automatically to the number added.
                     </span>
                   </div>
                 </div>
@@ -709,10 +734,33 @@ function MosaicEditorDialog({
         </div>
 
         <footer className="studio-mosaic-footer">
-          <span>Use Save to keep a draft, then Publish when it is ready.</span>
-          <button type="button" onClick={onClose}>
-            Done
-          </button>
+          <span>
+            {dirty
+              ? "Unsaved collection changes"
+              : unpublished
+                ? "Draft saved and ready to publish"
+                : "Homepage is up to date"}
+          </span>
+          <div className="studio-mosaic-footer__actions">
+            <button type="button" className="is-secondary" onClick={onClose}>
+              Done
+            </button>
+            <button
+              type="button"
+              className="is-secondary"
+              disabled={saving || !dirty}
+              onClick={onSave}
+            >
+              {saving ? "Saving..." : "Save draft"}
+            </button>
+            <button
+              type="button"
+              disabled={publishing || hasConflict || (!dirty && !unpublished)}
+              onClick={onPublish}
+            >
+              {publishing ? "Publishing..." : "Publish live"}
+            </button>
+          </div>
         </footer>
       </section>
     </div>
@@ -2306,8 +2354,24 @@ export function HomepageVisualEditor({
         <MosaicEditorDialog
           cards={homepageMosaicCards(data)}
           categories={categories}
+          saving={saving}
+          publishing={publishing}
+          dirty={dirty}
+          unpublished={unpublished}
+          hasConflict={Boolean(conflict)}
           onChange={updateMosaicCards}
           onClose={() => setMosaicOpen(false)}
+          onSave={() => void saveDraft()}
+          onPublish={() => {
+            if (publishIssues.length) {
+              const message = `Fix before publishing: ${publishIssues[0]}`;
+              setEditorError(message);
+              toast.error(message);
+              return;
+            }
+            setMosaicOpen(false);
+            setPublishConfirmOpen(true);
+          }}
         />
       ) : null}
 

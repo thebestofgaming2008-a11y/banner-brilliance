@@ -7,8 +7,6 @@ type FeaturedPromotion = {
   title: string;
   message: string;
   badge: string;
-  buttonLabel: string;
-  buttonUrl: string;
   type: "percent" | "fixed";
   value: number;
   endsAt: string | null;
@@ -79,9 +77,9 @@ export function PromotionPopover() {
         <section
           role="dialog"
           aria-label={promotion.title}
-          className="promotion-popover__panel absolute bottom-[60px] right-0 w-[calc(100vw-2rem)] max-w-[336px] overflow-hidden rounded-[6px] border border-black/10 bg-white text-black shadow-[0_20px_60px_rgba(0,0,0,0.22)]"
+          className="promotion-popover__panel brand-mango-bg absolute bottom-[60px] right-0 w-[calc(100vw-2rem)] max-w-[336px] overflow-hidden rounded-[6px] border border-white/20 text-white shadow-[0_20px_60px_rgba(0,0,0,0.22)]"
         >
-          <div className="brand-mango-bg flex min-h-[76px] items-start justify-between gap-4 px-5 py-4 text-white">
+          <div className="flex items-start justify-between gap-4 px-5 pb-0 pt-5">
             <div>
               <p className="text-[9px] font-bold uppercase text-white/80">
                 {promotion.badge || "Current offer"}
@@ -97,40 +95,29 @@ export function PromotionPopover() {
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="p-5">
+          <div className="p-5 pt-4">
             <h2 className="banner-heading text-[28px] leading-none">{promotion.title}</h2>
-            <p className="mt-3 text-[13px] leading-5 text-black/62">{promotion.message}</p>
+            <p className="mt-3 text-[13px] leading-5 text-white/84">{promotion.message}</p>
             {endsLabel ? (
-              <p className="mt-3 text-[10px] font-bold uppercase text-black/45">Ends {endsLabel}</p>
+              <p className="mt-3 text-[10px] font-bold uppercase text-white/65">Ends {endsLabel}</p>
             ) : null}
 
             <button
               type="button"
               onClick={() => void copyCode()}
-              className="mt-5 flex h-[50px] w-full items-center justify-between rounded-[4px] border border-dashed border-black/25 bg-[#F8F8F6] px-3.5 text-left transition-colors hover:border-black/50"
+              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-[4px] bg-white px-5 text-[10px] font-bold uppercase text-[#D75631] shadow-[0_8px_22px_rgba(80,20,0,0.12)] transition-colors hover:bg-white/90 focus:outline-none focus:ring-2 focus:ring-white/70 focus:ring-offset-2 focus:ring-offset-[#E8653D]"
               aria-label={`Copy promotion code ${promotion.code}`}
             >
-              <span>
-                <span className="block text-[9px] font-semibold uppercase text-black/45">
-                  Checkout code
-                </span>
-                <span className="mt-0.5 block font-mono text-sm font-bold">{promotion.code}</span>
-              </span>
               {copied ? (
-                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-emerald-700">
-                  Copied <Check className="h-4 w-4" />
-                </span>
+                <>
+                  Code copied <Check className="h-4 w-4" />
+                </>
               ) : (
-                <Copy className="h-4 w-4 text-black/55" />
+                <>
+                  Copy code {promotion.code} <Copy className="h-4 w-4" />
+                </>
               )}
             </button>
-
-            <a
-              href={promotion.buttonUrl}
-              className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-[4px] bg-[#E8653D] px-5 text-[10px] font-bold uppercase text-white transition-colors hover:bg-[#D75631]"
-            >
-              {promotion.buttonLabel}
-            </a>
           </div>
         </section>
       ) : null}
