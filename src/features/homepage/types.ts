@@ -325,10 +325,20 @@ export type HomepageData = {
     props: {
       title: string;
       backgroundColor: string;
+      mosaicCollections?: HomepageMosaicCard[];
     };
   };
   content: HomepageContentItem[];
   zones?: Record<string, HomepageContentItem[]>;
+};
+
+export type HomepageMosaicCard = {
+  id: string;
+  title: string;
+  eyebrow: string;
+  image: string;
+  imagePosition: string;
+  href: string;
 };
 
 export type HomepageVersion = {

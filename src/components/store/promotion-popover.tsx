@@ -1,13 +1,35 @@
 import { useEffect, useState } from "react";
 import { BadgePercent, Check, Copy, X } from "lucide-react";
-import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+
+type FeaturedPromotion = {
+  id: string;
+  code: string;
+  title: string;
+  message: string;
+  badge: string;
+  buttonLabel: string;
+  buttonUrl: string;
+  type: "percent" | "fixed";
+  value: number;
+  endsAt: string | null;
+};
 
 export function PromotionPopover() {
-  const [queryTime] = useState(Date.now);
-  const promotion = useQuery(api.promotions.getFeatured, { now: queryTime });
+  const [promotion, setPromotion] = useState<FeaturedPromotion | null>(null);
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/promotions/featured", {
+      headers: { accept: "application/json" },
+      signal: controller.signal,
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((result: FeaturedPromotion | null) => setPromotion(result))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     if (!promotion) return;
@@ -57,56 +79,59 @@ export function PromotionPopover() {
         <section
           role="dialog"
           aria-label={promotion.title}
-          className="promotion-popover__panel absolute bottom-[60px] right-0 w-[calc(100vw-2rem)] max-w-[350px] border border-black/12 border-t-[3px] border-t-[#E8653D] bg-white p-5 text-black shadow-[0_18px_50px_rgba(0,0,0,0.18)]"
+          className="promotion-popover__panel absolute bottom-[60px] right-0 w-[calc(100vw-2rem)] max-w-[336px] overflow-hidden rounded-[6px] border border-black/10 bg-white text-black shadow-[0_20px_60px_rgba(0,0,0,0.22)]"
         >
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="section-kicker text-[#E8653D]">{promotion.badge || "Current offer"}</p>
-              <p className="mt-2 text-[12px] font-bold uppercase text-black/55">
-                {offerValue}
-                {endsLabel ? ` · Ends ${endsLabel}` : ""}
+          <div className="brand-mango-bg flex min-h-[76px] items-start justify-between gap-4 px-5 py-4 text-white">
+            <div>
+              <p className="text-[9px] font-bold uppercase text-white/80">
+                {promotion.badge || "Current offer"}
               </p>
-              <h2 className="banner-heading mt-3 text-[30px] leading-[0.98]">{promotion.title}</h2>
+              <p className="mt-1 text-[22px] font-bold leading-none">{offerValue}</p>
             </div>
             <button
               type="button"
               onClick={() => setOpen(false)}
               aria-label="Close offer"
-              className="grid h-9 w-9 shrink-0 place-items-center text-black/55 transition hover:bg-black/5 hover:text-black"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white/80 transition hover:bg-white/15 hover:text-white"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
+          <div className="p-5">
+            <h2 className="banner-heading text-[28px] leading-none">{promotion.title}</h2>
+            <p className="mt-3 text-[13px] leading-5 text-black/62">{promotion.message}</p>
+            {endsLabel ? (
+              <p className="mt-3 text-[10px] font-bold uppercase text-black/45">Ends {endsLabel}</p>
+            ) : null}
 
-          <p className="mt-4 text-[13px] leading-5 text-black/62">{promotion.message}</p>
-
-          <button
-            type="button"
-            onClick={() => void copyCode()}
-            className="mt-5 flex h-[52px] w-full items-center justify-between border border-black/15 bg-[#F7F7F5] px-3.5 text-left transition-colors hover:border-black/40"
-            aria-label={`Copy promotion code ${promotion.code}`}
-          >
-            <span>
-              <span className="block text-[9px] font-semibold uppercase text-black/45">
-                Checkout code
+            <button
+              type="button"
+              onClick={() => void copyCode()}
+              className="mt-5 flex h-[50px] w-full items-center justify-between rounded-[4px] border border-dashed border-black/25 bg-[#F8F8F6] px-3.5 text-left transition-colors hover:border-black/50"
+              aria-label={`Copy promotion code ${promotion.code}`}
+            >
+              <span>
+                <span className="block text-[9px] font-semibold uppercase text-black/45">
+                  Checkout code
+                </span>
+                <span className="mt-0.5 block font-mono text-sm font-bold">{promotion.code}</span>
               </span>
-              <span className="mt-0.5 block font-mono text-sm font-bold">{promotion.code}</span>
-            </span>
-            {copied ? (
-              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-emerald-700">
-                Copied <Check className="h-4 w-4" />
-              </span>
-            ) : (
-              <Copy className="h-4 w-4 text-black/55" />
-            )}
-          </button>
+              {copied ? (
+                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-emerald-700">
+                  Copied <Check className="h-4 w-4" />
+                </span>
+              ) : (
+                <Copy className="h-4 w-4 text-black/55" />
+              )}
+            </button>
 
-          <a
-            href={promotion.buttonUrl}
-            className="mt-3 inline-flex h-11 w-full items-center justify-center bg-[#E8653D] px-5 text-[10px] font-bold uppercase text-white transition-colors hover:bg-[#D75631]"
-          >
-            {promotion.buttonLabel}
-          </a>
+            <a
+              href={promotion.buttonUrl}
+              className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-[4px] bg-[#E8653D] px-5 text-[10px] font-bold uppercase text-white transition-colors hover:bg-[#D75631]"
+            >
+              {promotion.buttonLabel}
+            </a>
+          </div>
         </section>
       ) : null}
 
@@ -116,7 +141,7 @@ export function PromotionPopover() {
         aria-expanded={open}
         aria-label={open ? "Hide current offer" : "Show current offer"}
         title={promotion.badge || "Current offer"}
-        className="grid h-12 w-12 place-items-center border border-white/80 bg-[#E8653D] text-white shadow-[0_9px_28px_rgba(0,0,0,0.2)] transition-colors hover:bg-[#D75631] focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+        className="grid h-12 w-12 place-items-center rounded-full border border-white/80 bg-[#E8653D] text-white shadow-[0_9px_28px_rgba(0,0,0,0.2)] transition-colors hover:bg-[#D75631] focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
       >
         {open ? <X className="h-5 w-5" /> : <BadgePercent className="h-5 w-5" />}
       </button>

@@ -1,5 +1,6 @@
 import { DEFAULT_HERO_GRADIENT, IKHWAAN_HERO_GRADIENT, SALIHAAT_HERO_GRADIENT } from "./brand";
 import type { HeroGradient, HeroProps, HeroSlide, HomepageData } from "./types";
+import { ensureHomepageMosaic } from "./mosaic-data";
 
 export const DEFAULT_HOMEPAGE_DATA: HomepageData = {
   schemaVersion: 2,
@@ -205,7 +206,7 @@ export const DEFAULT_HOMEPAGE_DATA: HomepageData = {
 export function cloneDefaultHomepageData(): HomepageData {
   const data = JSON.parse(JSON.stringify(DEFAULT_HOMEPAGE_DATA)) as HomepageData;
   data.content = data.content.filter((item) => item.type === "Hero");
-  return data;
+  return ensureHomepageMosaic(data);
 }
 
 export function isHomepageEditorData(value: unknown): value is HomepageData {
@@ -299,5 +300,5 @@ export function normalizeHomepageData(data: HomepageData): HomepageData {
         },
       } as typeof item;
     });
-  return normalized;
+  return ensureHomepageMosaic(normalized);
 }

@@ -25,10 +25,15 @@ import { merchandiseProducts, type StoreProduct, useStoreProducts } from "@/data
 import { HomepageRenderer } from "@/features/homepage/components";
 import { isHomepageEditorData } from "@/features/homepage/default-data";
 import { IKHWAAN_HERO_GRADIENT, SALIHAAT_HERO_GRADIENT } from "@/features/homepage/brand";
-import type { HeroGradient, HomepageData } from "@/features/homepage/types";
+import type { HeroGradient, HomepageData, HomepageMosaicCard } from "@/features/homepage/types";
+import { homepageMosaicCards } from "@/features/homepage/mosaic-data";
 import { MangoMenuIcon } from "@/components/store/mango-menu-icon";
 import { useCurrency } from "@/hooks/use-currency";
-import { useCatalogPresentation, type CatalogBanner } from "@/services/catalogPresentation";
+import {
+  listCatalogPresentation,
+  useCatalogPresentation,
+  type CatalogBanner,
+} from "@/services/catalogPresentation";
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, seo } from "@/lib/seo";
 import { STORE_LOGO_URL } from "@/lib/store-config";
 import { PromotionPopover } from "@/components/store/promotion-popover";
@@ -57,6 +62,7 @@ import shemaghRedFront from "@/assets/product-photos/shemagh-red-front.jpg";
 import shemaghRedFull from "@/assets/product-photos/shemagh-red-full.jpg";
 
 export const Route = createFileRoute("/")({
+  loader: () => listCatalogPresentation(),
   head: () => {
     const metadata = seo({ title: DEFAULT_TITLE, description: DEFAULT_DESCRIPTION, path: "/" });
     return {
@@ -1658,66 +1664,12 @@ function ProductImageLibrary() {
   );
 }
 
-const mosaicCollections = [
-  {
-    title: "KASHMIR HONEY",
-    eyebrow: "The harvest",
-    image: honeyMulti,
-    imageClassName: "object-center",
-    href: "/shop?collection=Honey",
-  },
-  {
-    title: "MAKKAH GLOVES",
-    eyebrow: "Coming next",
-    image: "/homepage/makkah-gloves.jpg",
-    imageClassName: "object-center",
-    href: "/shop?collection=Gloves",
-  },
-  {
-    title: "YEMENI SHEMAGHS",
-    eyebrow: "For the brothers",
-    image: shemaghManBack,
-    imageClassName: "object-[62%_center]",
-    href: "/shop?collection=Shemaghs",
-  },
-  {
-    title: "KHADIJA NIQABS",
-    eyebrow: "For the sisters",
-    image: niqabBlackFront,
-    imageClassName: "object-[50%_30%]",
-    href: "/shop?collection=Niqabs",
-  },
-  {
-    title: "WOVEN KUFIS",
-    eyebrow: "Daily prayerwear",
-    image: kufiSide,
-    imageClassName: "object-[center_28%]",
-    href: "/shop?collection=Kufis",
-  },
-  {
-    title: "SABR WATCHES",
-    eyebrow: "Arabic dial watches",
-    image: "/homepage/sabr-watch-black.jpg",
-    imageClassName: "object-center",
-    href: "/shop?collection=Watches",
-  },
-  {
-    title: "SHOP ALL",
-    eyebrow: "The complete edit",
-    image: shemaghRedFull,
-    imageClassName: "object-[center_28%]",
-    href: "/shop",
-  },
-] as const;
-
-type MosaicCollection = (typeof mosaicCollections)[number];
-
 function MosaicCollectionCard({
   collection,
   featured = false,
   index,
 }: {
-  collection: MosaicCollection;
+  collection: HomepageMosaicCard;
   featured?: boolean;
   index: number;
 }) {
@@ -1728,13 +1680,18 @@ function MosaicCollectionCard({
       data-reveal
       data-mosaic-card={collection.title}
     >
-      <img
-        src={collection.image}
-        alt=""
-        aria-hidden
-        loading="lazy"
-        className={`absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.025] ${collection.imageClassName}`}
-      />
+      {collection.image ? (
+        <img
+          src={collection.image}
+          alt=""
+          aria-hidden
+          loading="lazy"
+          className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.025]"
+          style={{ objectPosition: collection.imagePosition }}
+        />
+      ) : (
+        <div className="absolute inset-0 bg-[#3a3a38]" aria-hidden />
+      )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/82 via-black/8 to-transparent" />
       <div
         className={
@@ -1764,7 +1721,8 @@ function MosaicCollectionCard({
   );
 }
 
-function HomepageCollectionMosaic() {
+function HomepageCollectionMosaic({ homepage }: { homepage?: HomepageData | null }) {
+  const mosaicCollections = homepageMosaicCards(homepage);
   return (
     <section
       id="collections"
@@ -1982,7 +1940,8 @@ function Footer() {
 function Index() {
   useScrollReveal();
   useHashScroll();
-  const { homepage } = useCatalogPresentation();
+  const initialPresentation = Route.useLoaderData();
+  const { homepage } = useCatalogPresentation(initialPresentation);
 
   return (
     <main className="min-h-screen bg-white font-sans-ui text-black antialiased">
@@ -2024,7 +1983,7 @@ export function LegacyHomepageContent({
       )}
       <CollectionBanners />
       <ShopAllProducts />
-      <HomepageCollectionMosaic />
+      <HomepageCollectionMosaic homepage={editorHomepage} />
       {customSections?.content.length ? (
         <HomepageRenderer data={customSections} editMode={editMode} />
       ) : null}

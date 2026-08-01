@@ -14,6 +14,7 @@ import {
   History,
   Image as ImageIcon,
   Layers3,
+  LayoutGrid,
   Loader2,
   Lock,
   Minus,
@@ -57,6 +58,8 @@ import {
 import { StorefrontFramePreview, StudioCanvas } from "./studio-canvas";
 import { StudioInspector } from "./studio-inspector";
 import { StudioTemplateInspector, type HomepageTemplatePatch } from "./studio-template-inspector";
+import { HomepageImageInput } from "./homepage-image-field";
+import { homepageMosaicCards, MAX_MOSAIC_CARDS } from "./mosaic-data";
 import {
   createCollectionWithProducts,
   createHeroSlide,
@@ -85,6 +88,7 @@ import type {
   HeroSlide,
   HomepageData,
   HomepageEditorState,
+  HomepageMosaicCard,
   HomepageVersion,
   HomepageViewport,
   PromoBannerProps,
@@ -197,6 +201,19 @@ function safeHomepageLink(value: string | undefined) {
 
 function homepagePublishIssues(data: HomepageData, products: StoreProduct[]) {
   const issues: string[] = [];
+  const mosaicIds = new Set<string>();
+  homepageMosaicCards(data).forEach((card, index) => {
+    const label = card.title.trim() || `Collection box ${index + 1}`;
+    if (!card.title.trim()) issues.push(`Collection box ${index + 1} needs a title.`);
+    if (!card.image.trim()) issues.push(`${label} needs an image.`);
+    if (!safeHomepageLink(card.href) || !card.href.trim()) {
+      issues.push(`${label} needs a valid shop link.`);
+    }
+    if (!card.id.trim() || mosaicIds.has(card.id)) {
+      issues.push(`${label} needs a unique ID.`);
+    }
+    mosaicIds.add(card.id);
+  });
   data.content.forEach((item, index) => {
     if (item.type === "Hero") {
       item.props.slides.forEach((slide, slideIndex) => {
@@ -425,6 +442,283 @@ function IconButton({
   );
 }
 
+function MosaicEditorDialog({
+  cards,
+  categories,
+  onChange,
+  onClose,
+}: {
+  cards: HomepageMosaicCard[];
+  categories: AdminCategory[];
+  onChange: (cards: HomepageMosaicCard[]) => void;
+  onClose: () => void;
+}) {
+  const [selectedId, setSelectedId] = useState(cards[0]?.id ?? "");
+  const selectedIndex = Math.max(
+    0,
+    cards.findIndex((card) => card.id === selectedId),
+  );
+  const selected = cards[selectedIndex];
+
+  useEffect(() => {
+    if (cards.some((card) => card.id === selectedId)) return;
+    setSelectedId(cards[0]?.id ?? "");
+  }, [cards, selectedId]);
+
+  const patchCard = (patch: Partial<HomepageMosaicCard>) => {
+    if (!selected) return;
+    onChange(cards.map((card) => (card.id === selected.id ? { ...card, ...patch } : card)));
+  };
+
+  const moveCard = (direction: -1 | 1) => {
+    if (!selected) return;
+    const nextIndex = selectedIndex + direction;
+    if (nextIndex < 0 || nextIndex >= cards.length) return;
+    const next = [...cards];
+    [next[selectedIndex], next[nextIndex]] = [next[nextIndex]!, next[selectedIndex]!];
+    onChange(next);
+  };
+
+  const addCard = () => {
+    if (cards.length >= MAX_MOSAIC_CARDS) return;
+    const card: HomepageMosaicCard = {
+      id: createStudioId("mosaic"),
+      title: "NEW COLLECTION",
+      eyebrow: "Explore",
+      image: "",
+      imagePosition: "center",
+      href: "/shop",
+    };
+    onChange([...cards, card]);
+    setSelectedId(card.id);
+  };
+
+  const duplicateCard = () => {
+    if (!selected || cards.length >= MAX_MOSAIC_CARDS) return;
+    const copy = { ...selected, id: createStudioId("mosaic"), title: `${selected.title} COPY` };
+    const next = [...cards];
+    next.splice(selectedIndex + 1, 0, copy);
+    onChange(next);
+    setSelectedId(copy.id);
+  };
+
+  const deleteCard = () => {
+    if (!selected || cards.length <= 1) return;
+    const next = cards.filter((card) => card.id !== selected.id);
+    setSelectedId(next[Math.min(selectedIndex, next.length - 1)]?.id ?? "");
+    onChange(next);
+  };
+
+  return (
+    <div
+      className="studio-modal-backdrop studio-mosaic-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Edit collection mosaic"
+      onMouseDown={onClose}
+    >
+      <section className="studio-mosaic-dialog" onMouseDown={(event) => event.stopPropagation()}>
+        <header className="studio-mosaic-header">
+          <div>
+            <p>Homepage</p>
+            <h2>Collection Mosaic</h2>
+            <span>Add, reorder, and edit the collection boxes shown after Shop All.</span>
+          </div>
+          <button type="button" aria-label="Close collection editor" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="studio-mosaic-body">
+          <aside className="studio-mosaic-list">
+            <div className="studio-mosaic-list__title">
+              <span>{cards.length} collection boxes</span>
+              <button type="button" onClick={addCard} disabled={cards.length >= MAX_MOSAIC_CARDS}>
+                <Plus size={15} /> Add
+              </button>
+            </div>
+            <div className="studio-mosaic-list__items">
+              {cards.map((card, index) => (
+                <button
+                  type="button"
+                  key={card.id}
+                  className={card.id === selected?.id ? "is-active" : ""}
+                  onClick={() => setSelectedId(card.id)}
+                >
+                  <span className="studio-mosaic-thumb">
+                    {card.image ? <img src={card.image} alt="" /> : <ImageIcon size={16} />}
+                  </span>
+                  <span>
+                    <strong>{card.title || "Untitled collection"}</strong>
+                    <small>{index === 0 ? "Large featured box" : `Box ${index + 1}`}</small>
+                  </span>
+                  <ChevronRight size={15} />
+                </button>
+              ))}
+            </div>
+          </aside>
+
+          {selected ? (
+            <div className="studio-mosaic-fields">
+              <div className="studio-mosaic-fields__toolbar">
+                <div>
+                  <strong>
+                    {selectedIndex === 0
+                      ? "Featured collection"
+                      : `Collection ${selectedIndex + 1}`}
+                  </strong>
+                  <span>Changes appear immediately in Preview.</span>
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    aria-label="Move collection up"
+                    title="Move up"
+                    disabled={selectedIndex === 0}
+                    onClick={() => moveCard(-1)}
+                  >
+                    <ChevronUp size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Move collection down"
+                    title="Move down"
+                    disabled={selectedIndex === cards.length - 1}
+                    onClick={() => moveCard(1)}
+                  >
+                    <ChevronDown size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Duplicate collection"
+                    title="Duplicate"
+                    onClick={duplicateCard}
+                  >
+                    <Copy size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Delete collection"
+                    title="Delete"
+                    disabled={cards.length <= 1}
+                    onClick={deleteCard}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="studio-mosaic-form">
+                <div className="studio-mosaic-form__image">
+                  <label>Collection image</label>
+                  <HomepageImageInput
+                    value={selected.image}
+                    onChange={(image) => patchCard({ image })}
+                    inputLabel="Collection image URL"
+                  />
+                  <label>
+                    Image focus
+                    <select
+                      value={selected.imagePosition}
+                      onChange={(event) => patchCard({ imagePosition: event.target.value })}
+                    >
+                      <option value="center">Centre</option>
+                      <option value="center top">Top</option>
+                      <option value="center bottom">Bottom</option>
+                      <option value="left center">Left</option>
+                      <option value="right center">Right</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="studio-mosaic-form__copy">
+                  <label>
+                    Small text
+                    <input
+                      type="text"
+                      maxLength={60}
+                      value={selected.eyebrow}
+                      onChange={(event) => patchCard({ eyebrow: event.target.value })}
+                      placeholder="For the brothers"
+                    />
+                  </label>
+                  <label>
+                    Collection title
+                    <input
+                      type="text"
+                      maxLength={80}
+                      value={selected.title}
+                      onChange={(event) => patchCard({ title: event.target.value })}
+                      placeholder="Yemeni Shemaghs"
+                    />
+                  </label>
+                  <label>
+                    Shop destination
+                    <select
+                      value={
+                        selected.href === "/shop"
+                          ? "/shop"
+                          : categories.some(
+                                (category) =>
+                                  `/shop?collection=${encodeURIComponent(category.name)}` ===
+                                  selected.href,
+                              )
+                            ? selected.href
+                            : "custom"
+                      }
+                      onChange={(event) => {
+                        if (event.target.value !== "custom")
+                          patchCard({ href: event.target.value });
+                      }}
+                    >
+                      <option value="/shop">Shop all</option>
+                      {categories
+                        .filter((category) => category.type === "collection")
+                        .map((category) => (
+                          <option
+                            key={category.slug}
+                            value={`/shop?collection=${encodeURIComponent(category.name)}`}
+                          >
+                            {category.name}
+                          </option>
+                        ))}
+                      <option value="custom">Custom link</option>
+                    </select>
+                  </label>
+                  <label>
+                    Link
+                    <input
+                      type="text"
+                      maxLength={300}
+                      value={selected.href}
+                      onChange={(event) => patchCard({ href: event.target.value })}
+                      placeholder="/shop?collection=Shemaghs"
+                    />
+                  </label>
+                  <div className="studio-mosaic-note">
+                    <Check size={15} />
+                    <span>
+                      The first box is automatically featured. The layout adapts to every screen
+                      size.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <footer className="studio-mosaic-footer">
+          <span>Use Save to keep a draft, then Publish when it is ready.</span>
+          <button type="button" onClick={onClose}>
+            Done
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 export function HomepageVisualEditor({
   categories,
   onClose,
@@ -453,6 +747,7 @@ export function HomepageVisualEditor({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
+  const [mosaicOpen, setMosaicOpen] = useState(false);
   const [leftTab, setLeftTab] = useState<"file" | "assets">("file");
   const [addOpen, setAddOpen] = useState(false);
   const [viewport, setViewport] = useState<HomepageViewport>("desktop");
@@ -598,6 +893,24 @@ export function HomepageVisualEditor({
     setUnpublished(true);
     setHistoryCounts();
   }, []);
+
+  const updateMosaicCards = useCallback(
+    (cards: HomepageMosaicCard[]) => {
+      const current = dataRef.current;
+      if (!current) return;
+      commit(
+        {
+          ...current,
+          root: {
+            ...current.root,
+            props: { ...current.root.props, mosaicCollections: cards },
+          },
+        },
+        true,
+      );
+    },
+    [commit],
+  );
 
   const undo = useCallback(() => {
     const current = dataRef.current;
@@ -1471,6 +1784,14 @@ export function HomepageVisualEditor({
           <button
             type="button"
             className="studio-secondary-button"
+            onClick={() => setMosaicOpen(true)}
+          >
+            <LayoutGrid size={15} />
+            <span>Collections</span>
+          </button>
+          <button
+            type="button"
+            className="studio-secondary-button"
             disabled={publishing}
             onClick={() => setRestoreConfirmOpen(true)}
           >
@@ -1980,6 +2301,15 @@ export function HomepageVisualEditor({
           />
         )}
       </div>
+
+      {mosaicOpen ? (
+        <MosaicEditorDialog
+          cards={homepageMosaicCards(data)}
+          categories={categories}
+          onChange={updateMosaicCards}
+          onClose={() => setMosaicOpen(false)}
+        />
+      ) : null}
 
       {addOpen ? (
         <div

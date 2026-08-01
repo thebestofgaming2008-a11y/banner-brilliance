@@ -6,6 +6,7 @@ const PAGE_KEY = "home";
 const MAX_DOCUMENT_BYTES = 750_000;
 const MAX_COMPONENTS = 40;
 const MAX_VERSIONS = 15;
+const MAX_MOSAIC_CARDS = 20;
 const MIN_SAFE_HERO_TEMPLATE_VERSION = 5;
 const ALLOWED_COMPONENTS = new Set(["Hero", "CollectionFeature", "PromoBanner"]);
 const LEGACY_HOMEPAGE_PLACEMENTS = [
@@ -149,6 +150,30 @@ function validateHomepageData(data: unknown) {
   if (!isVersion2Homepage(data))
     throw new Error("Homepage document must use the focused editor schema version 2.");
   const document = data;
+  const root = objectValue(objectValue(document)?.root);
+  const rootProps = objectValue(root?.props);
+  const mosaic = rootProps?.mosaicCollections;
+  if (mosaic !== undefined) {
+    if (!Array.isArray(mosaic) || mosaic.length < 1 || mosaic.length > MAX_MOSAIC_CARDS) {
+      throw new Error(
+        `The collection Mosaic must contain between 1 and ${MAX_MOSAIC_CARDS} boxes.`,
+      );
+    }
+    const mosaicIds = new Set<string>();
+    mosaic.forEach((value, index) => {
+      const card = objectValue(value);
+      const id = String(card?.id ?? "").trim();
+      const title = String(card?.title ?? "").trim();
+      const image = String(card?.image ?? "").trim();
+      const href = String(card?.href ?? "").trim();
+      if (!id || mosaicIds.has(id))
+        throw new Error(`Collection box ${index + 1} needs a unique ID.`);
+      if (!title) throw new Error(`Collection box ${index + 1} needs a title.`);
+      if (!image) throw new Error(`${title} needs an image.`);
+      if (!href) throw new Error(`${title} needs a shop link.`);
+      mosaicIds.add(id);
+    });
+  }
   if (document.content.length > MAX_COMPONENTS) {
     throw new Error(`A homepage can contain at most ${MAX_COMPONENTS} sections.`);
   }

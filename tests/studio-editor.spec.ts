@@ -52,6 +52,32 @@ test.describe("fixed-template homepage studio", () => {
     await expect(page.getByRole("button", { name: "Align text left" })).toBeVisible();
   });
 
+  test("manages collection Mosaic boxes in a focused editor", async ({ page }) => {
+    await page.getByRole("button", { name: "Collections", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Edit collection mosaic" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText("7 collection boxes", { exact: true })).toBeVisible();
+    await expect(dialog.getByLabel("Collection title")).toHaveValue("KASHMIR HONEY");
+
+    await dialog.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(dialog.getByText("8 collection boxes", { exact: true })).toBeVisible();
+    await dialog.getByLabel("Small text").fill("Limited release");
+    await dialog.getByLabel("Collection title").fill("RAMADAN PICKS");
+    await dialog.getByLabel("Link", { exact: true }).fill("/shop?collection=Ramadan");
+
+    const frame = storefront(page);
+    await expect(frame.locator('[data-mosaic-card="RAMADAN PICKS"]')).toContainText(
+      "Limited release",
+    );
+    await expect(frame.locator('[data-mosaic-card="RAMADAN PICKS"]')).toHaveAttribute(
+      "href",
+      "/shop?collection=Ramadan",
+    );
+    await expect(dialog.getByRole("button", { name: "Move collection up" })).toBeEnabled();
+    await dialog.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(dialog).toBeHidden();
+  });
+
   test("keeps Figma-style text boxes aligned in auto width, auto height and fixed modes", async ({
     page,
   }) => {

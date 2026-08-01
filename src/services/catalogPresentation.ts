@@ -130,19 +130,25 @@ export async function listCatalogPresentation(
   return presentationRequest;
 }
 
-export function useCatalogPresentation() {
-  const [presentation, setPresentation] = useState<CatalogPresentation>({
-    taxonomy: fallbackTaxonomy,
-    banners: [],
-  });
+export function useCatalogPresentation(initialPresentation?: CatalogPresentation) {
+  const [presentation, setPresentation] = useState<CatalogPresentation>(
+    initialPresentation ?? {
+      taxonomy: fallbackTaxonomy,
+      banners: [],
+    },
+  );
   useEffect(() => {
     let alive = true;
     listCatalogPresentation().then((next) => {
-      if (alive) setPresentation(next);
+      if (alive) {
+        setPresentation((current) =>
+          JSON.stringify(current) === JSON.stringify(next) ? current : next,
+        );
+      }
     });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [initialPresentation]);
   return useMemo(() => presentation, [presentation]);
 }

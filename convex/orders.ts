@@ -200,7 +200,7 @@ async function getCheckoutProduct(ctx: any, productId: string) {
   return id ? await ctx.db.get(id) : null;
 }
 
-async function nextOrderNumber(ctx: any, entropy: string) {
+async function nextOrderNumber(ctx: any, _entropy: string) {
   const timestamp = nowIso();
   const existing = await ctx.db
     .query("store_settings")
@@ -214,12 +214,7 @@ async function nextOrderNumber(ctx: any, entropy: string) {
       value: next,
       updated_at: timestamp,
     });
-  const suffix =
-    cleanText(entropy, 160)
-      .replace(/[^a-zA-Z0-9]/g, "")
-      .slice(-6)
-      .toUpperCase() || String(Date.parse(timestamp)).slice(-6);
-  return `#FZ-${next}-${suffix}`;
+  return `#${next}`;
 }
 
 async function orderWithItems(ctx: any, order: any): Promise<Record<string, any>> {

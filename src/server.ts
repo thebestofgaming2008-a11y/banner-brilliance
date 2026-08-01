@@ -36,6 +36,9 @@ const CATALOG_CACHE_HEADERS = {
 const CURRENCY_CACHE_HEADERS = {
   "cache-control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
 };
+const PROMOTION_CACHE_HEADERS = {
+  "cache-control": "public, max-age=30, s-maxage=60, stale-while-revalidate=300",
+};
 const MAX_PRODUCT_MEDIA_BYTES = 25 * 1024 * 1024;
 const ALLOWED_PRODUCT_MEDIA_TYPES = new Set([
   "image/avif",
@@ -289,6 +292,21 @@ async function handleCatalogRequest(request: Request, env: unknown): Promise<Res
   const fallback =
     product ?? localBackendProducts.find((item) => (id ? item.id === id : item.slug === slug));
   return jsonResponse(fallback, fallback ? 200 : 404, CATALOG_CACHE_HEADERS);
+}
+
+async function handlePromotionRequest(request: Request, env: unknown): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (request.method !== "GET" || url.pathname !== "/api/promotions/featured") return null;
+  try {
+    const client = convexClient(env, request);
+    const promotion = client
+      ? await client.query(api.promotions.getFeatured, { now: Date.now() })
+      : null;
+    return jsonResponse(promotion, 200, PROMOTION_CACHE_HEADERS);
+  } catch (error) {
+    console.error("Featured promotion unavailable", error);
+    return jsonResponse(null, 200, PROMOTION_CACHE_HEADERS);
+  }
 }
 
 async function handleMediaRequest(request: Request, env: unknown): Promise<Response | null> {
@@ -804,6 +822,9 @@ export default {
 
       const catalogResponse = await handleCatalogRequest(request, env);
       if (catalogResponse) return finish(catalogResponse);
+
+      const promotionResponse = await handlePromotionRequest(request, env);
+      if (promotionResponse) return finish(promotionResponse);
 
       const razorpayResponse = await handleRazorpayApiRequest(request, env);
       if (razorpayResponse) return finish(razorpayResponse);
