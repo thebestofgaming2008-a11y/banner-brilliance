@@ -68,7 +68,7 @@ test("home and live catalog render without browser errors", async ({ page }) => 
     .toBeTruthy();
   await expect(hero).toHaveCSS("touch-action", "pan-y");
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole("heading", { name: "SHOP ALL" })).toBeVisible();
+  await expect(page.locator("#shop-all").getByRole("heading", { name: "SHOP ALL" })).toBeVisible();
   const managedFilter = presentation.taxonomy.find((item) => item.type === "filter");
   if (managedFilter) {
     const filterTab = page.getByRole("tab", { name: managedFilter.name, exact: true });
@@ -80,6 +80,9 @@ test("home and live catalog render without browser errors", async ({ page }) => 
     await page.getByRole("tab", { name: "All", exact: true }).click();
   }
   await expect(page.locator("#shop-all a.product-card").first()).toBeVisible();
+  const mosaic = page.getByTestId("homepage-collection-mosaic");
+  await expect(mosaic.locator("[data-mosaic-card]")).toHaveCount(7);
+  await expect(mosaic.locator('[data-mosaic-card="SHOP ALL"]')).toHaveAttribute("href", "/shop");
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
   ).toBeTruthy();
@@ -451,7 +454,7 @@ test("homepage shop controls filter, pluralize, and link to the selected collect
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/", { waitUntil: "domcontentloaded", timeout: 60_000 });
-  await expect(page.getByText("© 2026 Fawzaan Store. All rights reserved.")).toBeVisible();
+  await expect(page.getByText(/2026 Fawzaan Store\. All rights reserved\./)).toBeVisible();
 
   const shop = page.locator("#shop-all");
   await expect(shop.getByRole("button", { name: "Previous collections" })).toBeVisible();
@@ -529,22 +532,12 @@ test("hero preset supplies a responsive conversion lockup", async ({ page }) => 
   expect(collectionBannerBox).not.toBeNull();
   expect(collectionBannerBox!.height).toBeGreaterThan(collectionBannerBox!.width);
 
-  const essentialImages = page.locator("#essentials .collection-banner > img");
-  await essentialImages.first().scrollIntoViewIfNeeded();
-  await expect(essentialImages).toHaveCount(2);
-  await expect
-    .poll(() =>
-      essentialImages.evaluateAll((images: HTMLImageElement[]) =>
-        images.map((image) => image.naturalWidth),
-      ),
-    )
-    .toEqual([1672, 1536]);
-
-  const watchBanner = page.locator("#watch-collection .collection-banner img");
-  await watchBanner.scrollIntoViewIfNeeded();
-  await expect
-    .poll(() => watchBanner.evaluate((image: HTMLImageElement) => image.naturalWidth))
-    .toBe(1023);
+  const mosaic = page.getByTestId("homepage-collection-mosaic");
+  const mosaicCards = mosaic.locator("[data-mosaic-card]");
+  await mosaicCards.last().scrollIntoViewIfNeeded();
+  await expect(mosaicCards).toHaveCount(7);
+  await expect(mosaicCards.first()).toHaveAttribute("data-mosaic-card", "KASHMIR HONEY");
+  await expect(mosaicCards.last()).toHaveAttribute("data-mosaic-card", "SHOP ALL");
 });
 
 test("hero captions stay inside phone, tablet, zoomed, and desktop viewports", async ({ page }) => {

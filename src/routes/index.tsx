@@ -354,7 +354,13 @@ function useHashScroll() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const sectionHashes = new Set(["#honey", "#watch-collection", "#essentials", "#bestsellers"]);
+    const sectionHashes = new Set([
+      "#collections",
+      "#honey",
+      "#watch-collection",
+      "#essentials",
+      "#bestsellers",
+    ]);
 
     const revealVisibleChildren = (target: HTMLElement) => {
       target.querySelectorAll<HTMLElement>("[data-reveal]").forEach((item) => {
@@ -530,8 +536,8 @@ function Header() {
               ["Shemaghs", "#shop-shemaghs"],
               ["Niqabs", "#shop-niqabs"],
               ["Kufis", "#shop-kufis"],
-              ["Kashmir honey", "#honey"],
-              ["SABR watches", "#watch-collection"],
+              ["Kashmir honey", "#shop-honey"],
+              ["SABR watches", "#shop-watches"],
             ].map(([label, href]) => (
               <li key={label}>
                 <a
@@ -1652,6 +1658,139 @@ function ProductImageLibrary() {
   );
 }
 
+const mosaicCollections = [
+  {
+    title: "KASHMIR HONEY",
+    eyebrow: "The harvest",
+    image: honeyMulti,
+    imageClassName: "object-center",
+    href: "/shop?collection=Honey",
+  },
+  {
+    title: "MAKKAH GLOVES",
+    eyebrow: "Coming next",
+    image: "/homepage/makkah-gloves.jpg",
+    imageClassName: "object-center",
+    href: "/shop?collection=Gloves",
+  },
+  {
+    title: "YEMENI SHEMAGHS",
+    eyebrow: "For the brothers",
+    image: shemaghManBack,
+    imageClassName: "object-[62%_center]",
+    href: "/shop?collection=Shemaghs",
+  },
+  {
+    title: "KHADIJA NIQABS",
+    eyebrow: "For the sisters",
+    image: niqabBlackFront,
+    imageClassName: "object-[50%_30%]",
+    href: "/shop?collection=Niqabs",
+  },
+  {
+    title: "WOVEN KUFIS",
+    eyebrow: "Daily prayerwear",
+    image: kufiSide,
+    imageClassName: "object-[center_28%]",
+    href: "/shop?collection=Kufis",
+  },
+  {
+    title: "SABR WATCHES",
+    eyebrow: "Arabic dial watches",
+    image: "/homepage/sabr-watch-black.jpg",
+    imageClassName: "object-center",
+    href: "/shop?collection=Watches",
+  },
+  {
+    title: "SHOP ALL",
+    eyebrow: "The complete edit",
+    image: shemaghRedFull,
+    imageClassName: "object-[center_28%]",
+    href: "/shop",
+  },
+] as const;
+
+type MosaicCollection = (typeof mosaicCollections)[number];
+
+function MosaicCollectionCard({
+  collection,
+  featured = false,
+  index,
+}: {
+  collection: MosaicCollection;
+  featured?: boolean;
+  index: number;
+}) {
+  return (
+    <a
+      href={collection.href}
+      className={`collection-banner homepage-mosaic__card homepage-mosaic__card--${index + 1} group relative block overflow-hidden bg-black text-white`}
+      data-reveal
+      data-mosaic-card={collection.title}
+    >
+      <img
+        src={collection.image}
+        alt=""
+        aria-hidden
+        loading="lazy"
+        className={`absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.025] ${collection.imageClassName}`}
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/82 via-black/8 to-transparent" />
+      <div
+        className={
+          featured
+            ? "absolute inset-x-0 bottom-0 p-6 md:p-8"
+            : "absolute inset-x-0 bottom-0 p-4 md:p-5"
+        }
+      >
+        <p className="section-kicker text-white/72">{collection.eyebrow}</p>
+        <h2
+          className={`banner-heading mt-3 ${featured ? "text-[38px] md:text-[46px]" : "text-[21px] md:text-[23px]"}`}
+        >
+          {collection.title}
+        </h2>
+        <span
+          className={
+            featured
+              ? "mt-6 inline-flex h-10 items-center gap-2 bg-white px-4 text-[10px] font-bold uppercase text-black"
+              : "homepage-mosaic__link mt-4 inline-flex items-center gap-1.5 text-[9px] font-bold uppercase text-white"
+          }
+        >
+          {featured ? "Shop collection" : "Explore"}
+          <ChevronRight size={featured ? 14 : 12} />
+        </span>
+      </div>
+    </a>
+  );
+}
+
+function HomepageCollectionMosaic() {
+  return (
+    <section
+      id="collections"
+      className="homepage-mosaic scroll-mt-[76px] bg-white py-12 md:py-20"
+      data-testid="homepage-collection-mosaic"
+    >
+      <div className="mx-auto max-w-[1180px] px-[18px] md:px-8">
+        <div className="homepage-mosaic__marker">
+          <p className="section-kicker text-black/56">Collections</p>
+          <span>{String(mosaicCollections.length).padStart(2, "0")}</span>
+        </div>
+        <div className="homepage-mosaic__grid">
+          {mosaicCollections.map((collection, index) => (
+            <MosaicCollectionCard
+              key={collection.title}
+              collection={collection}
+              featured={index === 0}
+              index={index}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function HoneyFeature() {
   const { products: catalog } = useStoreProducts();
   const honeyProducts = catalog.filter((product) => product.collection === "Honey");
@@ -1885,9 +2024,7 @@ export function LegacyHomepageContent({
       )}
       <CollectionBanners />
       <ShopAllProducts />
-      <ModestEssentials />
-      <WatchCollection />
-      <HoneyFeature />
+      <HomepageCollectionMosaic />
       {customSections?.content.length ? (
         <HomepageRenderer data={customSections} editMode={editMode} />
       ) : null}

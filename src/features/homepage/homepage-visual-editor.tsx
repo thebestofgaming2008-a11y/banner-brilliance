@@ -1655,12 +1655,12 @@ export function HomepageVisualEditor({
                     <Lock size={13} />
                     <span>
                       <strong>Original storefront</strong>
-                      <small>Collections through Honey are locked</small>
+                      <small>Hero, Shop All, and the Mosaic are locked</small>
                     </span>
                   </div>
                   <div className="studio-pages-header">
-                    <span>After Honey</span>
-                    <IconButton label="Add section after Honey" onClick={() => setAddOpen(true)}>
+                    <span>After Mosaic</span>
+                    <IconButton label="Add section after Mosaic" onClick={() => setAddOpen(true)}>
                       <Plus size={14} />
                     </IconButton>
                   </div>
@@ -1996,7 +1996,7 @@ export function HomepageVisualEditor({
             <header>
               <div>
                 <h2>Add homepage section</h2>
-                <p>New sections appear after Honey.</p>
+                <p>New sections appear after the collection Mosaic.</p>
               </div>
               <button type="button" aria-label="Close" onClick={() => setAddOpen(false)}>
                 <X size={17} />
@@ -2054,7 +2054,7 @@ export function HomepageVisualEditor({
         >
           <div className="studio-publish-confirm" onMouseDown={(event) => event.stopPropagation()}>
             <h2>Publish homepage?</h2>
-            <p>This replaces the public hero and adds your custom sections after Honey.</p>
+            <p>This replaces the public hero and adds your custom sections after the Mosaic.</p>
             <div>
               <button type="button" onClick={() => setPublishConfirmOpen(false)}>
                 Cancel

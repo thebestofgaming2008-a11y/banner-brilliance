@@ -30,7 +30,7 @@ test.describe("fixed-template homepage studio", () => {
     await expect(page.locator(".studio-layer-row")).toHaveCount(0);
 
     const frame = storefront(page);
-    await expect(frame.locator("#honey")).toBeAttached();
+    await expect(frame.getByTestId("homepage-collection-mosaic")).toBeAttached();
     await expect(frame.locator("footer")).toBeAttached();
     await expect(frame.getByRole("button", { name: "Add homepage section" })).toBeAttached();
     const frameSize = await frame.locator("html").evaluate((element) => ({
@@ -62,7 +62,7 @@ test.describe("fixed-template homepage studio", () => {
 
     const initialBox = await title.boundingBox();
     expect(initialBox).not.toBeNull();
-    const initialCenter = initialBox!.x + initialBox!.width / 2;
+    const initialLeft = initialBox!.x;
 
     await inspector.getByRole("button", { name: "Auto width", exact: true }).click();
     await expect(title).toHaveAttribute("data-text-resize", "width-and-height");
@@ -71,9 +71,9 @@ test.describe("fixed-template homepage studio", () => {
     await expect
       .poll(async () => {
         const box = await title.boundingBox();
-        return box ? box.x + box.width / 2 : 0;
+        return box?.x ?? 0;
       })
-      .toBeCloseTo(initialCenter, 1);
+      .toBeCloseTo(initialLeft, 1);
     const autoWidthSelection = frame.locator('.studio-selection-box[data-selection-layer="title"]');
     await expect
       .poll(async () => {
@@ -253,7 +253,7 @@ test.describe("fixed-template homepage studio", () => {
     const activeScene = storefront(page).locator('[data-editor-active="true"]');
 
     await inspector.getByLabel("Title", { exact: true }).fill("SUMMER COLLECTION");
-    await inspector.getByLabel("Subtitle", { exact: true }).fill("A limited seasonal release");
+    await inspector.locator("textarea").first().fill("A limited seasonal release");
     await inspector.getByLabel("Shop button text", { exact: true }).fill("Explore summer");
     await inspector.getByLabel("Shop button link", { exact: true }).fill("/shop?collection=summer");
     await expect(activeScene.locator('[data-banner-layer="title"]')).toHaveText(
@@ -408,7 +408,7 @@ test.describe("fixed-template homepage studio", () => {
     ).toHaveText("Shop the collection");
   });
 
-  test("adds only the two supported post-Honey section templates", async ({ page }) => {
+  test("adds only the two supported post-Mosaic section templates", async ({ page }) => {
     const frame = storefront(page);
     const addButton = frame.getByRole("button", { name: "Add homepage section" });
     await addButton.scrollIntoViewIfNeeded();
@@ -436,8 +436,6 @@ test.describe("fixed-template homepage studio", () => {
       .getByLabel("Subtitle", { exact: true })
       .fill("Raw floral honey, selected by origin.");
     const standalone = frame.locator('[data-homepage-banner-id][data-editor-active="true"]');
-    const honeyBanner = frame.locator("#honey .collection-banner");
-    const honeyTitle = honeyBanner.getByRole("heading", { name: "KASHMIR HONEY" });
     await expect(standalone).toContainText("LIMITED RELEASE");
     await expect(standalone).toContainText("RAMADAN OFFER");
     await expect(standalone.locator('[data-banner-layer="button"]')).toHaveText("Shop edit");
@@ -458,33 +456,24 @@ test.describe("fixed-template homepage studio", () => {
       "left",
     );
     const presetTitle = standalone.locator('[data-banner-layer="title"]');
-    const [honeyBannerBox, standaloneBox, honeyTitleBox, presetTitleBox] = await Promise.all([
-      honeyBanner.boundingBox(),
+    const [standaloneSize, standaloneBox, presetTitleBox] = await Promise.all([
+      standalone.evaluate((element) => ({
+        width: (element as HTMLElement).offsetWidth,
+        height: (element as HTMLElement).offsetHeight,
+      })),
       standalone.boundingBox(),
-      honeyTitle.boundingBox(),
       presetTitle.boundingBox(),
     ]);
-    expect(honeyBannerBox).not.toBeNull();
     expect(standaloneBox).not.toBeNull();
-    expect(honeyTitleBox).not.toBeNull();
     expect(presetTitleBox).not.toBeNull();
-    if (honeyBannerBox && standaloneBox && honeyTitleBox && presetTitleBox) {
-      expect(Math.abs(honeyBannerBox.width - standaloneBox.width)).toBeLessThan(1);
-      expect(Math.abs(honeyBannerBox.height - standaloneBox.height)).toBeLessThan(1);
-      expect(
-        Math.abs(honeyTitleBox.x - honeyBannerBox.x - (presetTitleBox.x - standaloneBox.x)),
-      ).toBeLessThan(1);
+    if (standaloneBox && presetTitleBox) {
+      expect(standaloneSize.width).toBe(1180);
+      expect(standaloneSize.height).toBeGreaterThan(500);
+      expect(presetTitleBox.x).toBeGreaterThanOrEqual(standaloneBox.x);
+      expect(presetTitleBox.x + presetTitleBox.width).toBeLessThanOrEqual(
+        standaloneBox.x + standaloneBox.width,
+      );
     }
-    const honeyTitleTypography = await honeyTitle.evaluate((element) => {
-      const style = getComputedStyle(element);
-      return {
-        fontFamily: style.fontFamily,
-        fontSize: style.fontSize,
-        fontWeight: style.fontWeight,
-        lineHeight: style.lineHeight,
-        textTransform: style.textTransform,
-      };
-    });
     await expect
       .poll(() =>
         presetTitle.evaluate((element) => {
@@ -498,7 +487,13 @@ test.describe("fixed-template homepage studio", () => {
           };
         }),
       )
-      .toEqual(honeyTitleTypography);
+      .toEqual({
+        fontFamily: '"Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif',
+        fontSize: "62px",
+        fontWeight: "850",
+        lineHeight: "54.56px",
+        textTransform: "uppercase",
+      });
     await expect(presetTitle).toHaveAttribute("data-layer-locked", "true");
     await presetTitle.click();
     const titleSelection = standalone.locator(

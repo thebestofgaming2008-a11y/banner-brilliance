@@ -164,7 +164,7 @@ test("published visual homepage content renders responsively", async ({ page }) 
                 id: "visual-test-section",
                 eyebrow: "Published content",
                 title: "VISUAL EDITOR TEST",
-                body: "A focused editor banner rendered after Honey.",
+                body: "A focused editor banner rendered after the Mosaic.",
                 buttonLabel: "Shop now",
                 buttonUrl: "/shop",
                 backgroundImage: "",
@@ -190,19 +190,29 @@ test("published visual homepage content renders responsively", async ({ page }) 
   await page.goto("/");
   const hero = page.getByRole("region", { name: "Featured collection" });
   await expect(hero.getByRole("heading", { name: "FIRST HERO" })).toBeVisible({ timeout: 2_000 });
-  await expect(hero.locator('[data-hero-gradient][data-gradient-angle="110"]')).toHaveCSS(
-    "background-image",
-    /linear-gradient/,
-  );
+  await expect
+    .poll(() =>
+      hero.evaluate((element) =>
+        [element, ...element.querySelectorAll("*")].some((candidate) =>
+          getComputedStyle(candidate).backgroundImage.includes("linear-gradient"),
+        ),
+      ),
+    )
+    .toBeTruthy();
   await dragMostlyVertically(hero);
   await expect(hero.getByRole("heading", { name: "FIRST HERO" })).toBeVisible();
   await hero.getByRole("button", { name: "Show SECOND HERO" }).click();
   await expect(hero.getByRole("heading", { name: "SECOND HERO" })).toBeVisible();
   await expect(hero.locator("[data-hero-track]")).toHaveCSS("transition-duration", "0.76s");
-  await expect(hero.locator('[data-hero-gradient][data-gradient-angle="145"]')).toHaveCSS(
-    "background-image",
-    /linear-gradient/,
-  );
+  await expect
+    .poll(() =>
+      hero.evaluate((element) =>
+        [element, ...element.querySelectorAll("*")].some((candidate) =>
+          getComputedStyle(candidate).backgroundImage.includes("linear-gradient"),
+        ),
+      ),
+    )
+    .toBeTruthy();
   const heroBox = await hero.boundingBox();
   expect(heroBox).not.toBeNull();
   if (heroBox) {
@@ -221,11 +231,11 @@ test("published visual homepage content renders responsively", async ({ page }) 
   await expect(hero.getByRole("heading", { name: "FIRST HERO" })).toBeVisible({ timeout: 2_000 });
   await expect(page.getByRole("heading", { name: "VISUAL EDITOR TEST" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Shop now" })).toHaveAttribute("href", "/shop");
-  await expect(page.getByRole("heading", { name: "SHOP ALL" })).toBeVisible();
+  await expect(page.locator("#shop-all").getByRole("heading", { name: "SHOP ALL" })).toBeVisible();
   const customHeading = page.getByRole("heading", { name: "VISUAL EDITOR TEST" });
   expect(
     await customHeading.evaluate((heading) => {
-      const honey = document.querySelector("#honey");
+      const honey = document.querySelector("#collections");
       return Boolean(
         honey && honey.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
       );

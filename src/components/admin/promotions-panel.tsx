@@ -184,14 +184,48 @@ export function PromotionsPanel({
   const update = <Key extends keyof PromotionDraft>(key: Key, value: PromotionDraft[Key]) =>
     setDraft((current) => (current ? { ...current, [key]: value } : current));
 
+  const toggleStorefront = (checked: boolean) =>
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            active: checked ? true : current.active,
+            storefront_enabled: checked,
+            storefront_title:
+              current.storefront_title || (checked ? "A special offer for you" : null),
+            storefront_message: current.storefront_message,
+            storefront_badge: current.storefront_badge || (checked ? "OFFER" : null),
+            storefront_button_label:
+              current.storefront_button_label || (checked ? "Shop the offer" : null),
+            storefront_button_url: current.storefront_button_url || (checked ? "/shop" : null),
+          }
+        : current,
+    );
+
   const submit = async () => {
     if (!draft) return;
     if (!draft.name.trim() || !draft.code.trim()) {
       toast.error("Add a promotion name and checkout code.");
       return;
     }
+    if (!Number.isFinite(draft.value) || draft.value <= 0) {
+      toast.error("Enter a discount greater than zero.");
+      return;
+    }
+    if (draft.type === "percent" && draft.value > 100) {
+      toast.error("A percentage discount cannot exceed 100%.");
+      return;
+    }
     if (draft.scope_type === "products" && draft.product_ids.length === 0) {
       toast.error("Choose at least one eligible product.");
+      return;
+    }
+    if (
+      draft.starts_at &&
+      draft.ends_at &&
+      Date.parse(draft.ends_at) <= Date.parse(draft.starts_at)
+    ) {
+      toast.error("The end date must be after the start date.");
       return;
     }
     setSaving(true);
@@ -289,7 +323,7 @@ export function PromotionsPanel({
                         ) : null}
                       </span>
                       <span className="mt-0.5 block truncate text-xs text-[#6B7280]">
-                        {discountLabel(promotion)} · {status.label}
+                        {discountLabel(promotion)} / {status.label}
                       </span>
                     </span>
                     <ChevronRight className="h-4 w-4 shrink-0 text-[#9CA3AF]" />
@@ -320,7 +354,14 @@ export function PromotionsPanel({
                     Used {draft.usedCount}
                     {draft.usage_limit ? ` of ${draft.usage_limit}` : " times"}
                   </p>
-                ) : null}
+                ) : (
+                  <p className="text-xs text-[#6B7280]">
+                    {discountLabel(draft)} /{" "}
+                    {draft.scope_type === "all"
+                      ? "all products"
+                      : `${draft.product_ids.length} selected`}
+                  </p>
+                )}
               </div>
               <button
                 type="button"
@@ -485,8 +526,14 @@ export function PromotionsPanel({
                 ) : null}
               </div>
 
-              <div className="border-t border-[#E5E7EB] pt-7">
-                <h3 className="text-sm font-semibold text-[#111827]">Conditions</h3>
+              <details className="group border-t border-[#E5E7EB] pt-7">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-[#111827]">
+                  Optional limits and schedule
+                  <ChevronRight className="h-4 w-4 text-[#6B7280] transition-transform group-open:rotate-90" />
+                </summary>
+                <p className="mt-1 text-xs leading-5 text-[#6B7280]">
+                  Leave these empty for an unlimited promotion that starts immediately.
+                </p>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <label>
                     <span className={labelClass}>Minimum subtotal (INR)</span>
@@ -501,19 +548,23 @@ export function PromotionsPanel({
                       className={inputClass}
                     />
                   </label>
-                  <label>
-                    <span className={labelClass}>Maximum discount (INR)</span>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="No maximum"
-                      value={draft.maximum_discount ?? ""}
-                      onChange={(event) =>
-                        update("maximum_discount", nullableNumber(event.target.value))
-                      }
-                      className={inputClass}
-                    />
-                  </label>
+                  {draft.type === "percent" ? (
+                    <label>
+                      <span className={labelClass}>Maximum discount (INR)</span>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="No maximum"
+                        value={draft.maximum_discount ?? ""}
+                        onChange={(event) =>
+                          update("maximum_discount", nullableNumber(event.target.value))
+                        }
+                        className={inputClass}
+                      />
+                    </label>
+                  ) : (
+                    <div className="hidden sm:block" />
+                  )}
                   <label>
                     <span className={labelClass}>Total usage limit</span>
                     <input
@@ -548,7 +599,7 @@ export function PromotionsPanel({
                     />
                   </label>
                 </div>
-              </div>
+              </details>
 
               <div className="border-t border-[#E5E7EB] pt-7">
                 <Toggle
@@ -567,7 +618,7 @@ export function PromotionsPanel({
                 <div className="mt-4">
                   <Toggle
                     checked={draft.storefront_enabled}
-                    onChange={(checked) => update("storefront_enabled", checked)}
+                    onChange={toggleStorefront}
                     label="Show the corner offer"
                     description="Only one active promotion can be featured. Enabling this replaces the previous featured offer."
                   />
@@ -584,7 +635,7 @@ export function PromotionsPanel({
                       />
                     </label>
                     <label>
-                      <span className={labelClass}>Circle label</span>
+                      <span className={labelClass}>Corner label</span>
                       <input
                         value={draft.storefront_badge ?? ""}
                         onChange={(event) => update("storefront_badge", event.target.value)}
@@ -621,17 +672,25 @@ export function PromotionsPanel({
                         className={inputClass}
                       />
                     </label>
-                    <div className="sm:col-span-2 flex items-center gap-3 rounded-md border border-[#E5E7EB] bg-[#FAFAFA] p-3">
-                      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#111827] px-1 text-center text-[9px] font-bold uppercase text-white">
-                        {draft.storefront_badge || "OFFER"}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-[#111827]">
-                          {draft.storefront_title || "A special offer for you"}
-                        </p>
-                        <p className="truncate text-xs text-[#6B7280]">
-                          Code {draft.code || "YOURCODE"}
-                        </p>
+                    <div className="sm:col-span-2 border border-[#E5E7EB] bg-[#F7F7F5] p-3">
+                      <p className="mb-2 text-[10px] font-semibold uppercase text-[#6B7280]">
+                        Storefront preview
+                      </p>
+                      <div className="flex items-end justify-between gap-3 bg-white p-3 shadow-sm">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-bold uppercase text-[#E8653D]">
+                            {draft.storefront_badge || "OFFER"}
+                          </p>
+                          <p className="mt-1 truncate text-sm font-semibold text-[#111827]">
+                            {draft.storefront_title || "A special offer for you"}
+                          </p>
+                          <p className="mt-0.5 truncate font-mono text-xs text-[#6B7280]">
+                            {draft.code || "YOURCODE"}
+                          </p>
+                        </div>
+                        <span className="grid h-12 w-12 shrink-0 place-items-center bg-[#E8653D] text-white">
+                          <BadgePercent className="h-5 w-5" />
+                        </span>
                       </div>
                     </div>
                   </div>
