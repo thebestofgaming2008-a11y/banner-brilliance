@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("gift trigger stays circular and opens the rewards panel", async ({ page }) => {
+test("gift-shaped offer trigger stays circular and opens the discount panel", async ({ page }) => {
   await page.route("**/api/promotions/featured", async (route) => {
     await route.fulfill({
       status: 200,
@@ -21,9 +21,13 @@ test("gift trigger stays circular and opens the rewards panel", async ({ page })
   });
 
   await page.goto("/");
-  const trigger = page.getByRole("button", { name: /show gifts and offers/i });
+  await expect(page.getByRole("link", { name: "Fawzaan home" }).locator("img")).toHaveAttribute(
+    "src",
+    "/fawzaan-logo.png",
+  );
+  const trigger = page.getByRole("button", { name: /show current offer/i });
   await expect(trigger).toBeVisible();
-  await expect(page.getByRole("dialog", { name: "Gifts and offers" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Launch special" })).toHaveCount(0);
   const circle = await trigger.evaluate((element) => {
     const styles = getComputedStyle(element);
     const rect = element.getBoundingClientRect();
@@ -37,7 +41,7 @@ test("gift trigger stays circular and opens the rewards panel", async ({ page })
   expect(circle.radius).toBeGreaterThanOrEqual(circle.width / 2);
 
   if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
-  const dialog = page.getByRole("dialog", { name: "Gifts and offers" });
+  const dialog = page.getByRole("dialog", { name: "Launch special" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText("12% off", { exact: true })).toBeVisible();
   const copyCode = dialog.getByRole("button", { name: "Copy code L12" });
