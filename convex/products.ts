@@ -923,7 +923,21 @@ export const deleteProduct = mutation({
       throw new Error("This product has too many related records for one safe delete operation.");
     }
     let linkedProducts = 0;
+    let pausedGiftCampaigns = 0;
     const timestamp = nowIso();
+
+    const giftCampaigns = await ctx.db
+      .query("gift_campaigns")
+      .withIndex("by_active", (lookup) => lookup.eq("active", true))
+      .take(50);
+    for (const campaign of giftCampaigns) {
+      const dependsOnProduct =
+        campaign.gift_product_id === args.id ||
+        campaign.requirements.some((requirement) => requirement.product_ids.includes(args.id));
+      if (!dependsOnProduct) continue;
+      await ctx.db.patch(campaign._id, { active: false, updated_at: timestamp });
+      pausedGiftCampaigns += 1;
+    }
 
     for (const item of wishlistItems) await ctx.db.delete(item._id);
     for (const review of reviews) await ctx.db.delete(review._id);
@@ -958,6 +972,7 @@ export const deleteProduct = mutation({
         wishlistItems: wishlistItems.length,
         reviews: reviews.length,
         linkedProducts,
+        pausedGiftCampaigns,
       },
     });
     return {
@@ -965,6 +980,7 @@ export const deleteProduct = mutation({
       wishlistItems: wishlistItems.length,
       reviews: reviews.length,
       linkedProducts,
+      pausedGiftCampaigns,
     };
   },
 });

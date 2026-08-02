@@ -3,9 +3,23 @@ import { useGiftOffers } from "@/hooks/use-gift-offers";
 import { storefrontImageUrl } from "@/lib/storefront-image";
 import { cn } from "@/lib/utils";
 
-export function GiftLines({ variant }: { variant: "drawer" | "cart" | "checkout" }) {
-  const { offers, earnedGifts } = useGiftOffers();
-  const visibleOffers = variant === "checkout" ? earnedGifts : offers;
+export function GiftLines({
+  variant,
+  hasDiscount = false,
+}: {
+  variant: "drawer" | "cart" | "checkout";
+  hasDiscount?: boolean;
+}) {
+  const { offers, earnedGifts } = useGiftOffers(hasDiscount);
+  const visibleOffers =
+    variant === "checkout"
+      ? earnedGifts
+      : [
+          ...earnedGifts,
+          ...offers
+            .filter((offer) => !offer.earned)
+            .sort((left, right) => right.progress - left.progress),
+        ].slice(0, 3);
   if (!visibleOffers.length) return null;
   const hasEarnedGift = earnedGifts.length > 0;
 
@@ -56,24 +70,31 @@ export function GiftLines({ variant }: { variant: "drawer" | "cart" | "checkout"
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[9px] font-bold uppercase text-[#A84624]">
-                {offer.earned ? "Free gift" : `${offer.progress}% complete`}
+                {offer.earned
+                  ? "Free gift"
+                  : offer.blocked_reason
+                    ? "Offer unavailable"
+                    : `${offer.progress}% complete`}
               </p>
               <p className="product-name mt-0.5 line-clamp-2 text-[13px] leading-4">
                 {offer.gift.name}
               </p>
               <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-black/60">
-                {offer.earned
-                  ? `Qty ${offer.gift.quantity}${
-                      [offer.gift.color, offer.gift.size].filter(Boolean).length
-                        ? ` - ${[offer.gift.color, offer.gift.size].filter(Boolean).join(" / ")}`
-                        : ""
-                    }`
-                  : offer.requirements
-                      .map(
-                        (requirement) =>
-                          `${Math.min(requirement.current_quantity, requirement.required_quantity)}/${requirement.required_quantity} ${requirement.label}`,
-                      )
-                      .join(offer.match_mode === "all" ? " + " : " or ")}
+                {offer.blocked_reason
+                  ? offer.blocked_reason
+                  : offer.earned
+                    ? `Qty ${offer.gift.quantity}${
+                        [offer.gift.color, offer.gift.size].filter(Boolean).length
+                          ? ` - ${[offer.gift.color, offer.gift.size].filter(Boolean).join(" / ")}`
+                          : ""
+                      }`
+                    : offer.requirements
+                        .map((requirement) =>
+                          requirement.scope_type === "subtotal"
+                            ? `INR ${Math.min(requirement.current_quantity, requirement.required_quantity).toLocaleString("en-IN")} / INR ${requirement.required_quantity.toLocaleString("en-IN")}`
+                            : `${Math.min(requirement.current_quantity, requirement.required_quantity)}/${requirement.required_quantity} ${requirement.label}`,
+                        )
+                        .join(offer.match_mode === "all" ? " + " : " or ")}
               </p>
               {!offer.earned ? (
                 <div className="mt-2 h-1 overflow-hidden rounded-full bg-black/10">

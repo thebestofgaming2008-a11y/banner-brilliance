@@ -1,12 +1,28 @@
 import { useMemo, useState } from "react";
-import { CalendarClock, Check, ChevronRight, Gift, Plus, Search, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Archive,
+  CalendarClock,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Gift,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
-import type { GiftCampaign, GiftCampaignInput, GiftRequirement } from "@/services/adminService";
+import type {
+  AdminCategory,
+  GiftCampaign,
+  GiftCampaignInput,
+  GiftRequirement,
+} from "@/services/adminService";
 import type { Product } from "@/services/productService";
 import { cn } from "@/lib/utils";
 
-type Draft = GiftCampaignInput & { id?: string };
+type Draft = GiftCampaignInput & { id?: string; archived_at?: string | null };
 
 const inputClass =
   "h-10 w-full rounded-md border border-[#D1D5DB] bg-white px-3 text-sm outline-none transition focus:border-[#111827] focus:ring-1 focus:ring-[#111827]";
@@ -24,6 +40,7 @@ function blankRequirement(): GiftRequirement {
     label: "",
     scope_type: "collection",
     collection_slugs: [],
+    category_ids: [],
     product_ids: [],
     required_quantity: 1,
   };
@@ -32,7 +49,7 @@ function blankRequirement(): GiftRequirement {
 function blankCampaign(sortOrder: number): Draft {
   return {
     name: "",
-    active: true,
+    active: false,
     match_mode: "all",
     requirements: [blankRequirement()],
     gift_product_id: "",
@@ -42,6 +59,12 @@ function blankCampaign(sortOrder: number): Draft {
     starts_at: null,
     ends_at: null,
     sort_order: sortOrder,
+    priority: Math.max(1, 100 - sortOrder),
+    combines_with_other_gifts: false,
+    repeatable: false,
+    max_awards_per_order: 1,
+    allow_discount_codes: true,
+    archived_at: null,
   };
 }
 
@@ -59,6 +82,12 @@ function campaignDraft(campaign: GiftCampaign): Draft {
     starts_at: campaign.starts_at,
     ends_at: campaign.ends_at,
     sort_order: campaign.sort_order,
+    priority: campaign.priority,
+    combines_with_other_gifts: campaign.combines_with_other_gifts,
+    repeatable: campaign.repeatable,
+    max_awards_per_order: campaign.max_awards_per_order,
+    allow_discount_codes: campaign.allow_discount_codes,
+    archived_at: campaign.archived_at,
   };
 }
 
@@ -75,6 +104,7 @@ function toIsoDateTime(value: string) {
 
 function statusFor(campaign: GiftCampaign) {
   const now = Date.now();
+  if (campaign.archived_at) return "Archived";
   if (!campaign.active) return "Inactive";
   if (campaign.starts_at && Date.parse(campaign.starts_at) > now) return "Scheduled";
   if (campaign.ends_at && Date.parse(campaign.ends_at) <= now) return "Ended";
@@ -88,11 +118,13 @@ function productOptions(product: Product, type: "color" | "size") {
 export function GiftCampaignsPanel({
   campaigns,
   products,
+  categories,
   onSave,
   onDelete,
 }: {
   campaigns: GiftCampaign[];
   products: Product[];
+  categories: AdminCategory[];
   onSave: (input: GiftCampaignInput, id?: string) => Promise<GiftCampaign>;
   onDelete: (id: string) => Promise<boolean>;
 }) {
@@ -105,14 +137,18 @@ export function GiftCampaignsPanel({
     () => products.filter((product) => product.is_active !== false),
     [products],
   );
-  const collections = useMemo(() => {
-    const values = new Map<string, string>();
-    for (const product of activeProducts) {
-      const value = slug(product.category_id || product.category);
-      if (value) values.set(value, product.category || product.category_id || value);
-    }
-    return [...values.entries()].map(([value, label]) => ({ value, label }));
-  }, [activeProducts]);
+  const collections = useMemo(
+    () =>
+      categories
+        .filter((category) => category.type === "collection" && category.is_active !== false)
+        .sort(
+          (left, right) =>
+            Number(left.sort_order ?? 999) - Number(right.sort_order ?? 999) ||
+            left.name.localeCompare(right.name),
+        )
+        .map((category) => ({ id: category.id, value: slug(category.slug), label: category.name })),
+    [categories],
+  );
   const visibleProducts = useMemo(() => {
     const query = productQuery.trim().toLowerCase();
     return activeProducts.filter(
@@ -125,6 +161,35 @@ export function GiftCampaignsPanel({
     );
   }, [activeProducts, productQuery]);
   const reward = activeProducts.find((product) => product.id === draft?.gift_product_id);
+  const campaignSummary = useMemo(() => {
+    if (!draft) return "";
+    const requirements = draft.requirements.map((requirement) => {
+      if (requirement.scope_type === "subtotal") {
+        return `spend INR ${requirement.required_quantity.toLocaleString("en-IN")}`;
+      }
+      const fallback =
+        requirement.scope_type === "collection" ? "selected collection" : "selected products";
+      return `${requirement.required_quantity} from ${requirement.label || fallback}`;
+    });
+    const condition = requirements.join(draft.match_mode === "all" ? " and " : " or ");
+    const giftName = reward?.name ?? "the selected gift";
+    const repeat = draft.repeatable
+      ? ` Repeats up to ${draft.max_awards_per_order} times per order.`
+      : " Limited to one award per order.";
+    const action = requirements.some((requirement) => requirement.startsWith("spend "))
+      ? condition
+      : `buy ${condition || "the qualifying products"}`;
+    return `${action.charAt(0).toUpperCase()}${action.slice(1)} and receive ${draft.gift_quantity} x ${giftName}.${repeat}`;
+  }, [draft, reward?.name]);
+  const otherActiveCampaigns = useMemo(
+    () =>
+      draft?.active
+        ? campaigns.filter(
+            (campaign) => campaign.id !== draft.id && campaign.active && !campaign.archived_at,
+          ).length
+        : 0,
+    [campaigns, draft?.active, draft?.id],
+  );
 
   const updateRequirement = (index: number, patch: Partial<GiftRequirement>) => {
     setDraft((current) =>
@@ -162,7 +227,7 @@ export function GiftCampaignsPanel({
 
     setSaving(true);
     try {
-      const { id, ...input } = draft;
+      const { id, archived_at: _archivedAt, ...input } = draft;
       const saved = await onSave(
         {
           ...input,
@@ -174,7 +239,9 @@ export function GiftCampaignsPanel({
               (requirement.scope_type === "collection"
                 ? collections.find((item) => item.value === requirement.collection_slugs[0])
                     ?.label || "Selected collection"
-                : "Selected products"),
+                : requirement.scope_type === "products"
+                  ? "Selected products"
+                  : "Cart subtotal"),
           })),
         },
         id,
@@ -187,12 +254,18 @@ export function GiftCampaignsPanel({
     }
   };
 
-  const remove = async () => {
-    if (!draft?.id || !window.confirm(`Delete ${draft.name}?`)) return;
+  const archive = async () => {
+    if (
+      !draft?.id ||
+      !window.confirm(
+        `Archive ${draft.name}? It will stop immediately and remain available in campaign history.`,
+      )
+    )
+      return;
     try {
       if (await onDelete(draft.id)) setDraft(null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Gift campaign could not be deleted.");
+      toast.error(error instanceof Error ? error.message : "Gift campaign could not be archived.");
     }
   };
 
@@ -260,29 +333,39 @@ export function GiftCampaignsPanel({
               </h2>
             </div>
             <div className="flex items-center gap-2">
-              {draft.id ? (
+              {draft.id && !draft.archived_at ? (
                 <button
                   type="button"
-                  aria-label="Delete gift campaign"
-                  title="Delete gift campaign"
-                  onClick={() => void remove()}
+                  aria-label="Archive gift campaign"
+                  title="Archive gift campaign"
+                  onClick={() => void archive()}
                   className="grid h-10 w-10 place-items-center rounded-md border border-[#D1D5DB] text-[#991B1B]"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Archive className="h-4 w-4" />
                 </button>
               ) : null}
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => void submit()}
-                className="h-10 rounded-md bg-[#111827] px-5 text-sm font-medium text-white disabled:opacity-50"
-              >
-                {saving ? "Saving..." : "Save campaign"}
-              </button>
+              {!draft.archived_at ? (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void submit()}
+                  className="h-10 rounded-md bg-[#111827] px-5 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {saving ? "Saving..." : "Save campaign"}
+                </button>
+              ) : null}
             </div>
           </header>
 
-          <div className="space-y-7 p-5 md:p-6">
+          <fieldset
+            disabled={Boolean(draft.archived_at)}
+            className="space-y-7 p-5 disabled:opacity-70 md:p-6"
+          >
+            {draft.archived_at ? (
+              <div className="rounded-md border border-[#D1D5DB] bg-[#F9FAFB] px-4 py-3 text-sm text-[#4B5563]">
+                This campaign is archived and preserved for order history.
+              </div>
+            ) : null}
             <section className="grid gap-4 md:grid-cols-[minmax(0,1fr)_170px]">
               <label>
                 <span className={labelClass}>Campaign name</span>
@@ -320,6 +403,134 @@ export function GiftCampaignsPanel({
               </div>
             </section>
 
+            <details className="group border-t border-[#E5E7EB] pt-6">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-[#111827] focus-visible:ring-offset-2">
+                <span>
+                  <span className="block text-sm font-semibold text-[#111827]">Advanced rules</span>
+                  <span className="mt-1 block text-xs text-[#6B7280]">
+                    Optional limits for overlapping offers, repeats, and discount codes.
+                  </span>
+                </span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-[#6B7280] transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="mt-5">
+                <p className="text-xs text-[#6B7280]">
+                  Higher priority offers are evaluated first when campaigns overlap.
+                </p>
+                <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <label>
+                    <span className={labelClass}>Priority</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={10000}
+                      value={draft.priority}
+                      onChange={(event) =>
+                        setDraft({
+                          ...draft,
+                          priority: Math.max(0, Number(event.target.value) || 0),
+                        })
+                      }
+                      className={inputClass}
+                    />
+                  </label>
+                  <label>
+                    <span className={labelClass}>Awards per order</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      disabled={!draft.repeatable}
+                      value={draft.max_awards_per_order}
+                      onChange={(event) =>
+                        setDraft({
+                          ...draft,
+                          max_awards_per_order: Math.min(
+                            10,
+                            Math.max(1, Number(event.target.value) || 1),
+                          ),
+                        })
+                      }
+                      className={inputClass}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={draft.repeatable}
+                    onClick={() =>
+                      setDraft({
+                        ...draft,
+                        repeatable: !draft.repeatable,
+                        max_awards_per_order: draft.repeatable ? 1 : draft.max_awards_per_order,
+                      })
+                    }
+                    className="flex h-10 items-center justify-between self-end rounded-md border border-[#D1D5DB] px-3 text-left text-xs font-medium text-[#374151]"
+                  >
+                    Repeat when qualified
+                    <span
+                      className={cn(
+                        "h-5 w-9 rounded-full p-0.5 transition-colors",
+                        draft.repeatable ? "bg-emerald-600" : "bg-[#D1D5DB]",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "block h-4 w-4 rounded-full bg-white transition-transform",
+                          draft.repeatable && "translate-x-4",
+                        )}
+                      />
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={draft.combines_with_other_gifts}
+                    onClick={() =>
+                      setDraft({
+                        ...draft,
+                        combines_with_other_gifts: !draft.combines_with_other_gifts,
+                      })
+                    }
+                    className="flex h-10 items-center justify-between self-end rounded-md border border-[#D1D5DB] px-3 text-left text-xs font-medium text-[#374151]"
+                  >
+                    Combine with gifts
+                    <span
+                      className={cn(
+                        "h-5 w-9 rounded-full p-0.5 transition-colors",
+                        draft.combines_with_other_gifts ? "bg-emerald-600" : "bg-[#D1D5DB]",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "block h-4 w-4 rounded-full bg-white transition-transform",
+                          draft.combines_with_other_gifts && "translate-x-4",
+                        )}
+                      />
+                    </span>
+                  </button>
+                </div>
+                <label className="mt-4 flex items-center gap-3 text-xs text-[#374151]">
+                  <input
+                    type="checkbox"
+                    checked={draft.allow_discount_codes}
+                    onChange={(event) =>
+                      setDraft({ ...draft, allow_discount_codes: event.target.checked })
+                    }
+                  />
+                  Allow this gift to combine with discount codes
+                </label>
+                {otherActiveCampaigns ? (
+                  <p className="mt-3 flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    {otherActiveCampaigns} other active gift campaign
+                    {otherActiveCampaigns === 1 ? "" : "s"}. Priority and combination settings will
+                    resolve overlapping orders safely.
+                  </p>
+                ) : null}
+              </div>
+            </details>
+
             <section className="border-t border-[#E5E7EB] pt-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -352,11 +563,13 @@ export function GiftCampaignsPanel({
                     className="grid gap-3 rounded-md border border-[#E5E7EB] bg-[#FAFAFA] p-4 md:grid-cols-[96px_150px_minmax(0,1fr)_40px]"
                   >
                     <label>
-                      <span className={labelClass}>Quantity</span>
+                      <span className={labelClass}>
+                        {requirement.scope_type === "subtotal" ? "Minimum INR" : "Quantity"}
+                      </span>
                       <input
                         type="number"
                         min={1}
-                        max={99}
+                        max={requirement.scope_type === "subtotal" ? 10000000 : 99}
                         value={requirement.required_quantity}
                         onChange={(event) =>
                           updateRequirement(index, {
@@ -372,8 +585,10 @@ export function GiftCampaignsPanel({
                         value={requirement.scope_type}
                         onChange={(event) =>
                           updateRequirement(index, {
-                            scope_type: event.target.value as "collection" | "products",
+                            scope_type: event.target.value as
+                              "collection" | "products" | "subtotal",
                             collection_slugs: [],
+                            category_ids: [],
                             product_ids: [],
                           })
                         }
@@ -381,6 +596,7 @@ export function GiftCampaignsPanel({
                       >
                         <option value="collection">A collection</option>
                         <option value="products">Specific products</option>
+                        <option value="subtotal">Cart subtotal</option>
                       </select>
                     </label>
                     {requirement.scope_type === "collection" ? (
@@ -391,6 +607,12 @@ export function GiftCampaignsPanel({
                           onChange={(event) =>
                             updateRequirement(index, {
                               collection_slugs: event.target.value ? [event.target.value] : [],
+                              category_ids: event.target.value
+                                ? [
+                                    collections.find((item) => item.value === event.target.value)
+                                      ?.id ?? "",
+                                  ].filter(Boolean)
+                                : [],
                               label:
                                 collections.find((item) => item.value === event.target.value)
                                   ?.label ?? "",
@@ -406,7 +628,7 @@ export function GiftCampaignsPanel({
                           ))}
                         </select>
                       </label>
-                    ) : (
+                    ) : requirement.scope_type === "products" ? (
                       <div>
                         <span className={labelClass}>Products</span>
                         <details className="relative">
@@ -456,6 +678,10 @@ export function GiftCampaignsPanel({
                             </div>
                           </div>
                         </details>
+                      </div>
+                    ) : (
+                      <div className="flex h-10 items-center self-end rounded-md border border-[#E5E7EB] bg-white px-3 text-xs text-[#6B7280]">
+                        Based on the server-verified INR subtotal
                       </div>
                     )}
                     <button
@@ -606,7 +832,20 @@ export function GiftCampaignsPanel({
                 </label>
               </div>
             </section>
-          </div>
+
+            <section className="rounded-md border border-[#D8DEE8] bg-[#F8FAFC] p-4">
+              <p className="text-[10px] font-semibold uppercase text-[#64748B]">Customer offer</p>
+              <p className="mt-2 text-sm leading-6 text-[#111827]">{campaignSummary}</p>
+              {reward &&
+              Number(reward.stock_quantity ?? 0) <
+                draft.gift_quantity * (draft.repeatable ? draft.max_awards_per_order : 1) ? (
+                <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-amber-800">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  Gift stock is below the maximum quantity this campaign could award in one order.
+                </p>
+              ) : null}
+            </section>
+          </fieldset>
         </div>
       ) : (
         <div className="grid min-h-[420px] place-items-center p-8 text-center">

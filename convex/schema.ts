@@ -207,6 +207,7 @@ export default defineSchema({
     is_gift: optionalBoolean,
     gift_campaign_id: v.optional(v.union(v.id("gift_campaigns"), v.null())),
     gift_campaign_name: optionalString,
+    gift_campaign_snapshot: v.optional(v.any()),
   }).index("by_order_id", ["order_id"]),
   reviews: defineTable({
     product_id: v.string(),
@@ -261,8 +262,9 @@ export default defineSchema({
     requirements: v.array(
       v.object({
         label: v.string(),
-        scope_type: v.union(v.literal("collection"), v.literal("products")),
+        scope_type: v.union(v.literal("collection"), v.literal("products"), v.literal("subtotal")),
         collection_slugs: v.array(v.string()),
+        category_ids: v.optional(v.array(v.id("categories"))),
         product_ids: v.array(v.id("products")),
         required_quantity: v.number(),
       }),
@@ -274,11 +276,33 @@ export default defineSchema({
     starts_at: optionalString,
     ends_at: optionalString,
     sort_order: v.number(),
+    priority: optionalNumber,
+    combines_with_other_gifts: optionalBoolean,
+    repeatable: optionalBoolean,
+    max_awards_per_order: optionalNumber,
+    allow_discount_codes: optionalBoolean,
+    archived_at: optionalString,
     created_at: v.string(),
     updated_at: v.string(),
   })
     .index("by_active", ["active"])
     .index("by_sort_order", ["sort_order"]),
+  gift_redemptions: defineTable({
+    campaign_id: v.union(v.id("gift_campaigns"), v.null()),
+    campaign_name: v.string(),
+    order_id: v.id("orders"),
+    product_id: v.id("products"),
+    product_name: v.string(),
+    quantity: v.number(),
+    customer_email: optionalString,
+    customer_phone: optionalString,
+    status: v.string(),
+    campaign_snapshot: v.any(),
+    created_at: v.string(),
+  })
+    .index("by_campaign_id", ["campaign_id"])
+    .index("by_order_id", ["order_id"])
+    .index("by_customer_email_and_campaign_id", ["customer_email", "campaign_id"]),
   shipping_rates: defineTable({
     carrier: v.string(),
     zone: v.string(),

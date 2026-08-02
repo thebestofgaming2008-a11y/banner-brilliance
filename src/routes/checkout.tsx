@@ -681,7 +681,7 @@ function CheckoutPage() {
                 </li>
               ))}
             </ul>
-            <GiftLines variant="checkout" />
+            <GiftLines variant="checkout" hasDiscount={Boolean(appliedPromotionCode)} />
             <div className="mt-5 border-t border-ink/15 pt-4">
               <label
                 htmlFor="promotion-code"

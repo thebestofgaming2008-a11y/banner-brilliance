@@ -11,6 +11,7 @@ import {
 } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
 import {
   isAdminEmail,
   nowIso,
@@ -285,7 +286,9 @@ async function checkoutQuote(ctx: any, cart: Array<any>, promotionCode?: string 
   }
   const shipping = 0;
   const promotion = await evaluatePromotion(ctx, promotionCode, validatedCart, subtotal);
-  const giftOffers = await evaluateGiftCampaigns(ctx, validatedCart);
+  const giftOffers = await evaluateGiftCampaigns(ctx, validatedCart, Date.now(), {
+    hasDiscount: Boolean(promotion),
+  });
   const earnedGifts = giftOffers.filter((offer) => offer.earned);
   for (const offer of earnedGifts) {
     validatedCart.push({
@@ -304,6 +307,18 @@ async function checkoutQuote(ctx: any, cart: Array<any>, promotionCode?: string 
       isGift: true,
       giftCampaignId: String(offer.id),
       giftCampaignName: offer.name,
+      giftCampaignSnapshot: {
+        name: offer.name,
+        requirements: offer.requirements.map((requirement) => ({
+          label: requirement.label,
+          required_quantity: requirement.required_quantity,
+        })),
+        priority: offer.priority,
+        repeatable: offer.repeatable,
+        award_count: offer.award_count,
+        combines_with_other_gifts: offer.combines_with_other_gifts,
+        allow_discount_codes: offer.allow_discount_codes,
+      },
     });
   }
   const requiredStock = new Map<string, number>();
@@ -403,6 +418,55 @@ async function failCheckoutIntent(
     updated_at: nowIso(),
   });
   return true;
+}
+
+async function recordGiftRedemption(
+  ctx: MutationCtx,
+  args: {
+    orderId: Id<"orders">;
+    campaignId: Id<"gift_campaigns"> | null;
+    campaignName: string | null;
+    campaignSnapshot: unknown;
+    productId: Id<"products">;
+    productName: string;
+    quantity: number;
+    customerEmail: string;
+    customerPhone: string;
+    status?: "pending" | "awarded";
+    createdAt: string;
+  },
+) {
+  if (!args.campaignId) return;
+  const campaign = await ctx.db.get(args.campaignId);
+  const snapshot =
+    args.campaignSnapshot ??
+    (campaign
+      ? {
+          name: campaign.name,
+          requirements: campaign.requirements.map((requirement) => ({
+            label: requirement.label,
+            required_quantity: requirement.required_quantity,
+          })),
+          priority: campaign.priority ?? campaign.sort_order,
+          repeatable: campaign.repeatable ?? false,
+          max_awards_per_order: campaign.max_awards_per_order ?? 1,
+          combines_with_other_gifts: campaign.combines_with_other_gifts ?? false,
+          allow_discount_codes: campaign.allow_discount_codes ?? true,
+        }
+      : { name: args.campaignName ?? "Archived gift campaign" });
+  await ctx.db.insert("gift_redemptions", {
+    campaign_id: args.campaignId,
+    campaign_name: args.campaignName ?? campaign?.name ?? "Gift campaign",
+    order_id: args.orderId,
+    product_id: args.productId,
+    product_name: args.productName,
+    quantity: args.quantity,
+    customer_email: args.customerEmail || null,
+    customer_phone: args.customerPhone || null,
+    status: args.status ?? "awarded",
+    campaign_snapshot: snapshot,
+    created_at: args.createdAt,
+  });
 }
 
 async function savePaidOrder(
@@ -507,13 +571,30 @@ async function savePaidOrder(
         ? ctx.db.normalizeId("gift_campaigns", cleanText(item.giftCampaignId, 200))
         : null,
       giftCampaignName: isGift ? cleanNullable(item.giftCampaignName, 100) : null,
+      giftCampaignSnapshot: isGift ? (item.giftCampaignSnapshot ?? null) : null,
     });
   }
+
+  const currentPromotion =
+    args.locked_discount === undefined
+      ? await evaluatePromotion(
+          ctx,
+          args.promotion_code,
+          normalizedItems.map((item) => ({
+            productId: String(item.product._id),
+            qty: item.qty,
+            priceInr: item.unitPrice,
+          })),
+          computedSubtotal,
+        )
+      : null;
 
   if (args.locked_amount_paise === undefined) {
     const giftOffers = await evaluateGiftCampaigns(
       ctx,
       normalizedItems.map((item) => ({ productId: String(item.product._id), qty: item.qty })),
+      Date.now(),
+      { hasDiscount: Boolean(currentPromotion) },
     );
     for (const offer of giftOffers.filter((item) => item.earned)) {
       const giftProduct = await ctx.db.get(offer.gift.id);
@@ -527,25 +608,22 @@ async function savePaidOrder(
         isGift: true,
         giftCampaignId: offer.id,
         giftCampaignName: offer.name,
+        giftCampaignSnapshot: {
+          name: offer.name,
+          requirements: offer.requirements.map((requirement) => ({
+            label: requirement.label,
+            required_quantity: requirement.required_quantity,
+          })),
+          priority: offer.priority,
+          repeatable: offer.repeatable,
+          award_count: offer.award_count,
+          combines_with_other_gifts: offer.combines_with_other_gifts,
+          allow_discount_codes: offer.allow_discount_codes,
+        },
       });
     }
   }
 
-  const currentPromotion =
-    args.locked_discount === undefined
-      ? await evaluatePromotion(
-          ctx,
-          args.promotion_code,
-          normalizedItems
-            .filter((item) => !item.isGift)
-            .map((item) => ({
-              productId: String(item.product._id),
-              qty: item.qty,
-              priceInr: item.unitPrice,
-            })),
-          computedSubtotal,
-        )
-      : null;
   const computedDiscount = Math.min(
     computedSubtotal,
     Math.max(0, args.locked_discount ?? currentPromotion?.discount ?? 0),
@@ -616,7 +694,22 @@ async function savePaidOrder(
       is_gift: item.isGift,
       gift_campaign_id: item.giftCampaignId,
       gift_campaign_name: item.giftCampaignName,
+      gift_campaign_snapshot: item.giftCampaignSnapshot,
     });
+    if (item.isGift) {
+      await recordGiftRedemption(ctx, {
+        orderId,
+        campaignId: item.giftCampaignId,
+        campaignName: item.giftCampaignName,
+        campaignSnapshot: item.giftCampaignSnapshot,
+        productId: item.product._id,
+        productName: item.product.name,
+        quantity: item.qty,
+        customerEmail: customer.email,
+        customerPhone: customer.phone,
+        createdAt: timestamp,
+      });
+    }
   }
 
   if (!args.stock_already_reserved) {
@@ -879,7 +972,29 @@ export const createWhatsAppOrder = mutation({
           ? ctx.db.normalizeId("gift_campaigns", item.giftCampaignId)
           : null,
         gift_campaign_name: cleanNullable(item.giftCampaignName, 100),
+        gift_campaign_snapshot: item.giftCampaignSnapshot ?? null,
       });
+      if (item.isGift) {
+        const campaignId = item.giftCampaignId
+          ? ctx.db.normalizeId("gift_campaigns", item.giftCampaignId)
+          : null;
+        const productId = ctx.db.normalizeId("products", item.productId);
+        if (productId) {
+          await recordGiftRedemption(ctx, {
+            orderId,
+            campaignId,
+            campaignName: cleanNullable(item.giftCampaignName, 100),
+            campaignSnapshot: item.giftCampaignSnapshot ?? null,
+            productId,
+            productName: item.name,
+            quantity: item.qty,
+            customerEmail: customer.email,
+            customerPhone: customer.phone,
+            status: "pending",
+            createdAt: timestamp,
+          });
+        }
+      }
     }
     const saved = await ctx.db.get(orderId);
     return saved ? await orderWithItems(ctx, saved) : null;
@@ -1814,6 +1929,23 @@ export const updateStatus = mutation({
       }
     }
     await ctx.db.patch(args.id as any, patch);
+    const redemptionStatus =
+      status === "cancelled"
+        ? "cancelled"
+        : status === "returned"
+          ? "returned"
+          : order.payment_provider === "WHATSAPP" && !WHATSAPP_STOCK_STATUSES.has(status)
+            ? "pending"
+            : "awarded";
+    const redemptions = await ctx.db
+      .query("gift_redemptions")
+      .withIndex("by_order_id", (lookup) => lookup.eq("order_id", order._id))
+      .take(20);
+    for (const redemption of redemptions) {
+      if (redemption.status !== redemptionStatus) {
+        await ctx.db.patch(redemption._id, { status: redemptionStatus });
+      }
+    }
     await writeAuditLog(ctx, {
       action: "order.status.update",
       entityType: "order",

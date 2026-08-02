@@ -100,7 +100,7 @@ import {
   deletePromotion,
   listGiftCampaigns,
   saveGiftCampaign,
-  deleteGiftCampaign,
+  archiveGiftCampaign,
   type ProductInput,
   type AdminOrder,
   type AdminCustomer,
@@ -451,7 +451,9 @@ const Admin = () => {
     await refreshPublicCatalog(product);
     notify({
       title: "Product permanently deleted",
-      description: "The product and its saved customer references were removed.",
+      description: result.pausedGiftCampaigns
+        ? `${result.pausedGiftCampaigns} dependent gift campaign${result.pausedGiftCampaigns === 1 ? " was" : "s were"} paused automatically.`
+        : "The product and its saved customer references were removed.",
     });
     await refreshProducts();
   };
@@ -1307,6 +1309,7 @@ const Admin = () => {
               <GiftCampaignsPanel
                 campaigns={giftCampaigns}
                 products={products}
+                categories={categories}
                 onSave={async (input: GiftCampaignInput, id?: string) => {
                   const saved = await saveGiftCampaign(input, id);
                   await refreshGiftCampaigns();
@@ -1317,10 +1320,10 @@ const Admin = () => {
                   return saved;
                 }}
                 onDelete={async (id: string) => {
-                  const removed = await deleteGiftCampaign(id);
+                  const removed = await archiveGiftCampaign(id);
                   if (removed) {
                     await refreshGiftCampaigns();
-                    notify({ title: "Gift campaign deleted" });
+                    notify({ title: "Gift campaign archived" });
                   }
                   return removed;
                 }}
@@ -4903,6 +4906,7 @@ function ProductDrawer({
   onRemoveGroup: (category: AdminCategory) => Promise<{
     removed: boolean;
     updatedProducts: number;
+    pausedGiftCampaigns?: number;
     slug: string | null;
   }>;
   onClose: () => void;

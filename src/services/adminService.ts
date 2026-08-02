@@ -89,6 +89,7 @@ export interface DeleteProductResult {
   wishlistItems: number;
   reviews: number;
   linkedProducts: number;
+  pausedGiftCampaigns?: number;
 }
 
 export async function deleteProduct(id: string): Promise<DeleteProductResult> {
@@ -321,6 +322,7 @@ export async function upsertCategory(input: {
 export async function removeCategory(id: string): Promise<{
   removed: boolean;
   updatedProducts: number;
+  pausedGiftCampaigns?: number;
   slug: string | null;
 }> {
   return await convex.mutation(api.admin.removeCategory, { id: id as Id<"categories"> });
@@ -453,8 +455,9 @@ export async function deletePromotion(id: string): Promise<boolean> {
 
 export interface GiftRequirement {
   label: string;
-  scope_type: "collection" | "products";
+  scope_type: "collection" | "products" | "subtotal";
   collection_slugs: string[];
+  category_ids: string[];
   product_ids: string[];
   required_quantity: number;
 }
@@ -472,11 +475,20 @@ export interface GiftCampaign {
   starts_at: string | null;
   ends_at: string | null;
   sort_order: number;
+  priority: number;
+  combines_with_other_gifts: boolean;
+  repeatable: boolean;
+  max_awards_per_order: number;
+  allow_discount_codes: boolean;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export type GiftCampaignInput = Omit<GiftCampaign, "id" | "created_at" | "updated_at">;
+export type GiftCampaignInput = Omit<
+  GiftCampaign,
+  "id" | "archived_at" | "created_at" | "updated_at"
+>;
 
 export async function listGiftCampaigns(): Promise<GiftCampaign[]> {
   return (await convex.query(api.gifts.listAdmin, {})) as GiftCampaign[];
@@ -492,6 +504,7 @@ export async function saveGiftCampaign(
       gift_product_id: input.gift_product_id as Id<"products">,
       requirements: input.requirements.map((requirement) => ({
         ...requirement,
+        category_ids: requirement.category_ids as Id<"categories">[],
         product_ids: requirement.product_ids as Id<"products">[],
       })),
       id: id ? (id as Id<"gift_campaigns">) : undefined,
@@ -501,7 +514,7 @@ export async function saveGiftCampaign(
   }
 }
 
-export async function deleteGiftCampaign(id: string): Promise<boolean> {
+export async function archiveGiftCampaign(id: string): Promise<boolean> {
   try {
     return await convex.mutation(api.gifts.remove, {
       id: id as Id<"gift_campaigns">,

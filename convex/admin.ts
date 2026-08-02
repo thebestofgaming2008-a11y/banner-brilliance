@@ -316,6 +316,22 @@ export const removeCategory = mutation({
       throw new Error("The Other collection is required and cannot be removed.");
 
     const timestamp = nowIso();
+    let pausedGiftCampaigns = 0;
+    const giftCampaigns = await ctx.db
+      .query("gift_campaigns")
+      .withIndex("by_active", (lookup) => lookup.eq("active", true))
+      .take(50);
+    for (const campaign of giftCampaigns) {
+      const dependsOnCategory = campaign.requirements.some(
+        (requirement) =>
+          requirement.scope_type === "collection" &&
+          ((requirement.category_ids ?? []).includes(category._id) ||
+            requirement.collection_slugs.includes(slug)),
+      );
+      if (!dependsOnCategory) continue;
+      await ctx.db.patch(campaign._id, { active: false, updated_at: timestamp });
+      pausedGiftCampaigns += 1;
+    }
     const products = await ctx.db.query("products").take(2_001);
     if (products.length > 2_000) {
       throw new Error("Too many products to update safely in one category operation.");
@@ -366,9 +382,9 @@ export const removeCategory = mutation({
       entityType: "category",
       entityId: String(category._id),
       summary: category.name,
-      metadata: { slug, type: category.type, updatedProducts },
+      metadata: { slug, type: category.type, updatedProducts, pausedGiftCampaigns },
     });
-    return { removed: true, updatedProducts, slug };
+    return { removed: true, updatedProducts, pausedGiftCampaigns, slug };
   },
 });
 
