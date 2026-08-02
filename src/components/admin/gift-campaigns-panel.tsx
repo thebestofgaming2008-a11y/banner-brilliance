@@ -31,8 +31,10 @@ import type {
   AdminCategory,
   GiftCampaign,
   GiftCampaignInput,
+  GiftCampaignTestResult,
   GiftRequirement,
 } from "@/services/adminService";
+import { testGiftCampaign } from "@/services/adminService";
 import type { Product } from "@/services/productService";
 
 const inputClass =
@@ -148,6 +150,11 @@ export function GiftCampaignsPanel({
   const [productQuery, setProductQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
+  const [testProductId, setTestProductId] = useState("");
+  const [testQuantity, setTestQuantity] = useState(1);
+  const [testCart, setTestCart] = useState<Array<{ product_id: string; quantity: number }>>([]);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<GiftCampaignTestResult | null>(null);
 
   const activeProducts = useMemo(
     () => products.filter((product) => product.is_active !== false),
@@ -212,6 +219,10 @@ export function GiftCampaignsPanel({
     setSavedSignature(giftCampaignSignature(next));
     setProductQuery("");
     setShowErrors(false);
+    setTestProductId("");
+    setTestQuantity(1);
+    setTestCart([]);
+    setTestResult(null);
   };
 
   const createCampaign = () => {
@@ -294,6 +305,38 @@ export function GiftCampaignsPanel({
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Gift offer could not be archived.");
+    }
+  };
+
+  const addTestItem = () => {
+    if (!testProductId) return;
+    setTestCart((current) => {
+      const existing = current.find((line) => line.product_id === testProductId);
+      if (existing) {
+        return current.map((line) =>
+          line.product_id === testProductId
+            ? { ...line, quantity: Math.min(99, line.quantity + testQuantity) }
+            : line,
+        );
+      }
+      return [...current, { product_id: testProductId, quantity: testQuantity }];
+    });
+    setTestProductId("");
+    setTestQuantity(1);
+    setTestResult(null);
+  };
+
+  const runOfferTest = async () => {
+    if (!draft?.id || !testCart.length || isDirty) return;
+    setTesting(true);
+    try {
+      const result = await testGiftCampaign(draft.id, testCart);
+      setTestResult(result);
+      if (!result) toast.error("This saved gift offer could not be tested.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gift offer test failed.");
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -994,6 +1037,131 @@ export function GiftCampaignsPanel({
                     {draft.ends_at ? "Scheduled end" : "No end date"}
                   </span>
                 </div>
+              </div>
+
+              <div className="mt-4 rounded-md border border-[#DDE2E8] bg-[#F8FAFC] p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-[#111827]">Test this offer</p>
+                    <p className="mt-1 text-xs leading-5 text-[#667085]">
+                      Build a sample cart here. Testing never changes stock, orders, or the public
+                      store.
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-[#D1D5DB] bg-white px-2.5 py-1 text-[10px] font-semibold uppercase text-[#667085]">
+                    Private
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_90px_auto]">
+                  <select
+                    value={testProductId}
+                    onChange={(event) => setTestProductId(event.target.value)}
+                    className={inputClass}
+                    aria-label="Product for test cart"
+                  >
+                    <option value="">Choose a product</option>
+                    {activeProducts.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    min={1}
+                    max={99}
+                    value={testQuantity}
+                    onChange={(event) =>
+                      setTestQuantity(Math.min(99, Math.max(1, Number(event.target.value) || 1)))
+                    }
+                    className={inputClass}
+                    aria-label="Test quantity"
+                  />
+                  <button
+                    type="button"
+                    onClick={addTestItem}
+                    disabled={!testProductId}
+                    className={secondaryButton}
+                  >
+                    Add to test
+                  </button>
+                </div>
+
+                {testCart.length ? (
+                  <div className="mt-3 grid gap-2">
+                    {testCart.map((line) => {
+                      const product = activeProducts.find((item) => item.id === line.product_id);
+                      return (
+                        <div
+                          key={line.product_id}
+                          className="flex items-center justify-between gap-3 rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-xs"
+                        >
+                          <span className="min-w-0 truncate text-[#344054]">
+                            {line.quantity} x {product?.name ?? "Product"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTestCart((current) =>
+                                current.filter((item) => item.product_id !== line.product_id),
+                              );
+                              setTestResult(null);
+                            }}
+                            className="text-[#B42318] hover:underline"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void runOfferTest()}
+                    disabled={!draft.id || !testCart.length || isDirty || testing}
+                    className="h-10 rounded-md bg-[#111827] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {testing ? "Testing..." : "Run test"}
+                  </button>
+                  <p className="text-xs text-[#667085]">
+                    {!draft.id
+                      ? "Save the draft once before testing it."
+                      : isDirty
+                        ? "Save your latest changes before testing."
+                        : "Uses the saved rule while ignoring its public schedule."}
+                  </p>
+                </div>
+
+                {testResult ? (
+                  <div
+                    className={cn(
+                      "mt-4 rounded-md border p-4",
+                      testResult.earned
+                        ? "border-emerald-200 bg-emerald-50"
+                        : "border-amber-200 bg-amber-50",
+                    )}
+                    role="status"
+                  >
+                    <p className="text-sm font-semibold text-[#111827]">
+                      {testResult.earned
+                        ? `Pass: ${testResult.gift.quantity} x ${testResult.gift.name} is awarded`
+                        : `Not earned yet: ${testResult.progress}% complete`}
+                    </p>
+                    <div className="mt-2 grid gap-1 text-xs text-[#4B5563]">
+                      {testResult.requirements.map((requirement) => (
+                        <p key={requirement.label}>
+                          {requirement.complete ? "Complete" : "Incomplete"}: {requirement.label} (
+                          {requirement.current_quantity}/{requirement.required_quantity})
+                        </p>
+                      ))}
+                      {testResult.blocked_reason ? <p>{testResult.blocked_reason}</p> : null}
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               {showErrors && readiness.errors.length ? (

@@ -62,6 +62,8 @@ const evaluatedCampaignValidator = v.object({
     v.object({
       label: v.string(),
       scope_type: scopeType,
+      collection_slugs: v.array(v.string()),
+      product_ids: v.array(v.id("products")),
       required_quantity: v.number(),
       current_quantity: v.number(),
       complete: v.boolean(),
@@ -499,6 +501,8 @@ function storefrontEvaluations(results: Awaited<ReturnType<typeof evaluateGiftCa
       requirements: result.requirements.map((requirement) => ({
         label: requirement.label,
         scope_type: requirement.scope_type,
+        collection_slugs: requirement.collection_slugs,
+        product_ids: requirement.product_ids,
         required_quantity: requirement.required_quantity,
         current_quantity: requirement.current_quantity,
         complete: requirement.complete,
@@ -521,6 +525,40 @@ export const listAdmin = query({
           right.priority - left.priority ||
           left.sort_order - right.sort_order,
       );
+  },
+});
+
+export const testCampaign = query({
+  args: {
+    id: v.id("gift_campaigns"),
+    cart: v.array(v.object({ product_id: v.id("products"), quantity: v.number() })),
+  },
+  returns: v.union(evaluatedCampaignValidator, v.null()),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const campaign = await ctx.db.get(args.id);
+    if (!campaign) return null;
+    const results = await evaluateGiftCampaigns(
+      ctx,
+      args.cart.slice(0, 50).map((line) => ({
+        productId: String(line.product_id),
+        qty: Math.min(99, Math.max(0, Math.floor(line.quantity))),
+      })),
+      Date.now(),
+      {
+        hasDiscount: false,
+        campaigns: [
+          {
+            ...campaign,
+            active: true,
+            starts_at: null,
+            ends_at: null,
+            archived_at: null,
+          },
+        ],
+      },
+    );
+    return storefrontEvaluations(results)[0] ?? null;
   },
 });
 

@@ -15,4 +15,10 @@ crons.interval(
   internal.orders.reconcileCapturedPayments,
 );
 
+crons.interval(
+  "remove expired Razorpay webhook receipts",
+  { hours: 24 },
+  internal.orders.cleanupRazorpayWebhookEvents,
+);
+
 export default crons;

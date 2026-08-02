@@ -872,6 +872,22 @@
     }
   }
 
+  @keyframes product-add-success {
+    0% {
+      transform: scale(0.97);
+    }
+    55% {
+      transform: scale(1.025);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  .product-add-success {
+    animation: product-add-success 360ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
   .shop-collection-tab,
   .store-filter-chip {
     transition:
@@ -1253,6 +1269,7 @@
     .shop-collection-tab,
     .store-filter-chip,
     .conversion-nudge,
+    .product-add-success,
     .store-product-card,
     .store-product-card__media,
     .store-product-card__media img,

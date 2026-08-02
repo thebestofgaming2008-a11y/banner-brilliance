@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { type StoreProduct } from "@/data/store";
 import { useCurrency } from "@/hooks/use-currency";
 import { useCart } from "@/lib/cart";
+import { ProductGiftCue } from "@/components/store/product-gift-cue";
 
 function productIsAvailable(product: StoreProduct) {
   return product.inStock !== false && Number(product.stockQuantity ?? 1) > 0;
@@ -77,29 +78,22 @@ export function ProductQuickAdd({
     else addSelectedProduct();
   };
 
-  const label = !available
-    ? "Sold out"
-    : !connected
-      ? "Unavailable"
-      : added
-        ? "Added to cart"
-        : requiresChoice
-          ? "Choose options"
-          : "Add to cart";
+  const label = !available ? "Sold out" : !connected ? "Unavailable" : added ? "Added" : "Add";
 
   return (
     <>
+      <ProductGiftCue product={product} />
       <button
         type="button"
         onClick={startQuickAdd}
         disabled={!canAdd}
-        aria-label={`${label}: ${product.name}`}
+        aria-label={`${requiresChoice && available ? "Choose options and add" : label}: ${product.name}`}
         tabIndex={interactive ? undefined : -1}
-        className={`mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-md px-3 text-[10px] font-bold uppercase transition-[color,background-color,border-color,transform] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D9643C] ${
+        className={`mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-md px-3 text-[10px] font-bold uppercase transition-[color,background-color,border-color,filter,transform] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D9643C] ${
           available && connected
-            ? "brand-mango-bg text-white hover:-translate-y-0.5 hover:brightness-[0.98] active:translate-y-0 disabled:translate-y-0 disabled:cursor-wait disabled:opacity-60"
+            ? "brand-mango-bg text-white hover:-translate-y-0.5 hover:brightness-[0.98] active:scale-[0.97] active:translate-y-0 disabled:translate-y-0 disabled:cursor-wait disabled:opacity-60"
             : "cursor-not-allowed border border-black/10 bg-[#EFEFED] text-black/45"
-        }`}
+        } ${added ? "product-add-success" : ""}`}
       >
         {added ? (
           <Check size={14} aria-hidden="true" />
@@ -171,7 +165,7 @@ export function ProductQuickAdd({
               className="brand-mango-bg flex h-12 w-full items-center justify-center gap-2 rounded-md text-[11px] font-bold uppercase text-white transition-[filter,transform] hover:-translate-y-0.5 hover:brightness-[0.98] active:translate-y-0"
             >
               <ShoppingBag size={15} aria-hidden="true" />
-              Add to cart
+              Add
             </button>
           </div>
         </DialogContent>

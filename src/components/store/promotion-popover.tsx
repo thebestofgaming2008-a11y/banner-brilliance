@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, Gift, X } from "lucide-react";
+import { toast } from "sonner";
 
 import { useGiftOffers, type GiftOffer } from "@/hooks/use-gift-offers";
 import { storefrontImageUrl } from "@/lib/storefront-image";
@@ -75,15 +76,26 @@ export function PromotionPopover() {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const previousEarnedRef = useRef<Set<string> | null>(null);
   const { offers } = useGiftOffers();
   const giftOffers = useMemo(
     () => offers.filter((offer) => offer.gift_available && !offer.blocked_reason).slice(0, 3),
     [offers],
   );
-  const contentId = useMemo(
-    () => [promotion?.id ?? "", ...giftOffers.map((offer) => offer.id)].filter(Boolean).join("."),
-    [giftOffers, promotion?.id],
-  );
+  useEffect(() => {
+    const earned = offers.filter((offer) => offer.earned);
+    const current = new Set(earned.map((offer) => offer.id));
+    if (previousEarnedRef.current === null) {
+      previousEarnedRef.current = current;
+      return;
+    }
+    for (const offer of earned) {
+      if (!previousEarnedRef.current.has(offer.id)) {
+        toast.success(`Free gift unlocked: ${offer.gift.name}`);
+      }
+    }
+    previousEarnedRef.current = current;
+  }, [offers]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -98,8 +110,8 @@ export function PromotionPopover() {
   }, []);
 
   useEffect(() => {
-    if (!contentId) return;
-    const key = `fawzaan.offers-seen.${contentId}`;
+    if (!promotion?.id) return;
+    const key = `fawzaan.offers-seen.${promotion.id}`;
     if (window.sessionStorage.getItem(key)) return;
     let scrollTimer: number | undefined;
     let opened = false;
@@ -122,7 +134,7 @@ export function PromotionPopover() {
       if (scrollTimer) window.clearTimeout(scrollTimer);
       window.removeEventListener("scroll", onScroll);
     };
-  }, [contentId]);
+  }, [promotion?.id]);
 
   useEffect(() => {
     if (!open) return;

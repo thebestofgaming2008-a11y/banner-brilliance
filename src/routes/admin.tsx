@@ -2008,17 +2008,34 @@ function StatusBadge({ status, testId }: { status: string | null | undefined; te
 
 function PaymentBadge({ status, testId }: { status: string | null | undefined; testId: string }) {
   const isPaid = status === "paid";
+  const isRefunded = status === "refunded";
+  const isPartial = status === "partially_refunded";
   return (
     <span
       data-testid={testId}
       className={cn(
         "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium border",
-        isPaid
-          ? "bg-white text-[#374151] border-[#D1D5DB]"
-          : "bg-white text-[#6B7280] border-[#D1D5DB]",
+        isRefunded
+          ? "border-violet-200 bg-violet-50 text-violet-800"
+          : isPartial
+            ? "border-amber-200 bg-amber-50 text-amber-800"
+            : isPaid
+              ? "border-[#D1D5DB] bg-white text-[#374151]"
+              : "border-[#D1D5DB] bg-white text-[#6B7280]",
       )}
     >
-      <span className={cn("h-1.5 w-1.5 rounded-full", isPaid ? "bg-[#111827]" : "bg-[#9CA3AF]")} />
+      <span
+        className={cn(
+          "h-1.5 w-1.5 rounded-full",
+          isRefunded
+            ? "bg-violet-600"
+            : isPartial
+              ? "bg-amber-600"
+              : isPaid
+                ? "bg-[#111827]"
+                : "bg-[#9CA3AF]",
+        )}
+      />
       {status ?? "—"}
     </span>
   );

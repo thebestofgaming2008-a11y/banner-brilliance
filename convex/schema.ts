@@ -134,6 +134,10 @@ export default defineSchema({
     payment_method: optionalString,
     payment_order_id: optionalString,
     payment_id: optionalString,
+    refund_status: optionalString,
+    refunded_amount_inr: optionalNumber,
+    latest_refund_id: optionalString,
+    refund_updated_at: optionalString,
     whatsapp_message: optionalString,
     carrier: optionalString,
     items: v.optional(v.array(v.any())),
@@ -187,13 +191,32 @@ export default defineSchema({
     event_type: v.string(),
     razorpay_order_id: optionalString,
     razorpay_payment_id: optionalString,
+    razorpay_refund_id: optionalString,
     amount_paise: optionalNumber,
     currency: optionalString,
     processing_status: optionalString,
     error: optionalString,
     processed_at: optionalString,
+    expires_at: optionalNumber,
     created_at: v.string(),
-  }).index("by_event_id", ["event_id"]),
+  })
+    .index("by_event_id", ["event_id"])
+    .index("by_expires_at", ["expires_at"]),
+  razorpay_refunds: defineTable({
+    refund_id: v.string(),
+    payment_id: v.string(),
+    razorpay_order_id: optionalString,
+    order_id: v.optional(v.id("orders")),
+    amount_paise: v.number(),
+    currency: v.string(),
+    status: v.string(),
+    error: optionalString,
+    created_at: v.string(),
+    updated_at: v.string(),
+  })
+    .index("by_refund_id", ["refund_id"])
+    .index("by_payment_id", ["payment_id"])
+    .index("by_order_id", ["order_id"]),
   order_items: defineTable({
     order_id: v.id("orders"),
     product_id: optionalString,

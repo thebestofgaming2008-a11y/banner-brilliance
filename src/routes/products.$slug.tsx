@@ -1,11 +1,12 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { CircleCheck, Heart, Minus, Plus, Star } from "lucide-react";
+import { Check, CircleCheck, Heart, Minus, Plus, ShoppingBag, Star } from "lucide-react";
 import { useQuery } from "convex/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { api } from "../../convex/_generated/api";
 import { StoreProductCard } from "@/components/store/product-card";
+import { ProductGiftCue } from "@/components/store/product-gift-cue";
 import { StorePage } from "@/components/store/store-chrome";
 import { toStoreProduct, useStoreProducts } from "@/data/store";
 import { useCurrency } from "@/hooks/use-currency";
@@ -181,9 +182,14 @@ function ProductPage() {
             type="button"
             onClick={addToCart}
             disabled={!isCartReady || product.inStock === false}
-            className={`brand-mango-bg h-10 shrink-0 px-5 text-[10px] font-bold uppercase disabled:cursor-not-allowed disabled:bg-black/10 disabled:bg-none md:px-8 ${added ? "" : "conversion-nudge"}`}
+            className={`brand-mango-bg flex h-10 shrink-0 items-center gap-2 px-5 text-[10px] font-bold uppercase transition-transform active:scale-[0.97] disabled:cursor-not-allowed disabled:bg-black/10 disabled:bg-none md:px-8 ${added ? "product-add-success" : "conversion-nudge"}`}
           >
-            {product.inStock === false ? "Out of stock" : added ? "Added" : "Add to cart"}
+            {added ? (
+              <Check size={14} aria-hidden="true" />
+            ) : (
+              <ShoppingBag size={14} aria-hidden="true" />
+            )}
+            {product.inStock === false ? "Out of stock" : added ? "Added" : "Add"}
           </button>
         </div>
       </div>
@@ -232,6 +238,7 @@ function ProductPage() {
             ) : null}
           </div>
           <p className="mt-6 text-[14px] leading-6 text-black/65">{product.description}</p>
+          <ProductGiftCue product={product} variant="detail" />
 
           {(product.optionGroups ?? []).map((group) => {
             const fixedFreeSize =
@@ -296,9 +303,14 @@ function ProductPage() {
               type="button"
               onClick={addToCart}
               disabled={!isCartReady || product.inStock === false}
-              className={`brand-mango-bg h-12 rounded-md text-[11px] font-bold uppercase disabled:bg-black/10 disabled:bg-none ${added ? "" : "conversion-nudge"}`}
+              className={`brand-mango-bg flex h-12 items-center justify-center gap-2 rounded-md text-[11px] font-bold uppercase transition-transform active:scale-[0.97] disabled:bg-black/10 disabled:bg-none ${added ? "product-add-success" : "conversion-nudge"}`}
             >
-              {product.inStock === false ? "Out of stock" : added ? "Added to cart" : "Add to cart"}
+              {added ? (
+                <Check size={15} aria-hidden="true" />
+              ) : (
+                <ShoppingBag size={15} aria-hidden="true" />
+              )}
+              {product.inStock === false ? "Out of stock" : added ? "Added" : "Add"}
             </button>
           </div>
           <button

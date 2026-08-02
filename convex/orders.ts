@@ -28,6 +28,7 @@ import {
   reservePromotionUse,
 } from "./promotionRules";
 import { evaluateGiftCampaigns } from "./gifts";
+import { summarizeRefundLifecycle } from "./refundRules";
 
 const cartItem = v.object({
   cartKey: v.optional(v.string()),
@@ -87,6 +88,7 @@ const WHATSAPP_STOCK_STATUSES = new Set([
   "delivered",
 ]);
 const CHECKOUT_RESERVATION_MS = 30 * 60 * 1000;
+const WEBHOOK_EVENT_RETENTION_MS = 180 * 24 * 60 * 60 * 1000;
 
 function cleanText(value: string | null | undefined, max = 160) {
   return String(value ?? "")
@@ -672,6 +674,8 @@ async function savePaidOrder(
     payment_provider: "RAZORPAY",
     payment_order_id: cleanText(args.razorpay_order_id, 120),
     payment_id: cleanText(args.razorpay_payment_id, 120),
+    stock_adjusted_at: timestamp,
+    stock_restored_at: null,
     created_at: timestamp,
     updated_at: timestamp,
   });
@@ -1534,13 +1538,14 @@ export const listUnresolvedCheckoutIntents = internalQuery({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const limit = Math.min(Math.max(args.limit ?? 50, 1), 100);
-    const statuses = ["pending", "released", "recovery_required"];
+    const statuses = ["pending", "released", "failed", "recovery_required"];
     const rows = [];
     const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
     for (const status of statuses) {
       const matches = await ctx.db
         .query("checkout_intents")
         .withIndex("by_status", (q) => q.eq("status", status))
+        .order("desc")
         .take(100);
       rows.push(
         ...matches.filter(
@@ -1717,9 +1722,11 @@ export const recordRazorpayWebhook = internalMutation({
     event_type: v.string(),
     razorpay_order_id: v.optional(v.string()),
     razorpay_payment_id: v.optional(v.string()),
+    razorpay_refund_id: v.optional(v.string()),
     amount_paise: v.optional(v.number()),
     currency: v.optional(v.string()),
   },
+  returns: v.object({ duplicate: v.boolean(), status: v.string() }),
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("razorpay_webhook_events")
@@ -1731,9 +1738,11 @@ export const recordRazorpayWebhook = internalMutation({
       event_type: args.event_type,
       razorpay_order_id: args.razorpay_order_id,
       razorpay_payment_id: args.razorpay_payment_id,
+      razorpay_refund_id: args.razorpay_refund_id,
       amount_paise: args.amount_paise,
       currency: args.currency,
       processing_status: "received",
+      expires_at: Date.now() + WEBHOOK_EVENT_RETENTION_MS,
       created_at: nowIso(),
     });
     return { duplicate: false, status: "received" };
@@ -1746,6 +1755,7 @@ export const updateRazorpayWebhookEvent = internalMutation({
     processing_status: v.string(),
     error: v.optional(v.union(v.string(), v.null())),
   },
+  returns: v.boolean(),
   handler: async (ctx, args) => {
     const event = await ctx.db
       .query("razorpay_webhook_events")
@@ -1761,8 +1771,120 @@ export const updateRazorpayWebhookEvent = internalMutation({
   },
 });
 
+export const syncRazorpayRefund = internalMutation({
+  args: {
+    refund_id: v.string(),
+    payment_id: v.string(),
+    razorpay_order_id: v.optional(v.string()),
+    amount_paise: v.number(),
+    total_refunded_paise: v.optional(v.number()),
+    payment_amount_paise: v.optional(v.number()),
+    currency: v.string(),
+    status: v.string(),
+    error: v.optional(v.union(v.string(), v.null())),
+  },
+  returns: v.object({
+    linked: v.boolean(),
+    refund_status: v.string(),
+    refunded_amount_inr: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const refundId = cleanText(args.refund_id, 120);
+    const paymentId = cleanText(args.payment_id, 120);
+    const status = cleanText(args.status, 40).toLowerCase() || "pending";
+    const currency = cleanText(args.currency, 12).toUpperCase() || "INR";
+    const amountPaise = Math.max(0, Math.floor(args.amount_paise));
+    if (!refundId || !paymentId || amountPaise <= 0) {
+      throw new Error("Razorpay refund payload is incomplete.");
+    }
+
+    const order = await ctx.db
+      .query("orders")
+      .withIndex("by_payment_id", (q) => q.eq("payment_id", paymentId))
+      .first();
+    const timestamp = nowIso();
+    const existing = await ctx.db
+      .query("razorpay_refunds")
+      .withIndex("by_refund_id", (q) => q.eq("refund_id", refundId))
+      .first();
+    const razorpayOrderId = cleanNullable(args.razorpay_order_id, 120);
+    const refundRecord = {
+      payment_id: paymentId,
+      ...(razorpayOrderId ? { razorpay_order_id: razorpayOrderId } : {}),
+      ...(order ? { order_id: order._id } : {}),
+      amount_paise: amountPaise,
+      currency,
+      status,
+      error: cleanNullable(args.error, 500),
+      updated_at: timestamp,
+    };
+    if (existing) {
+      await ctx.db.patch(existing._id, refundRecord);
+    } else {
+      await ctx.db.insert("razorpay_refunds", {
+        refund_id: refundId,
+        ...refundRecord,
+        created_at: timestamp,
+      });
+    }
+
+    const refunds = await ctx.db
+      .query("razorpay_refunds")
+      .withIndex("by_payment_id", (q) => q.eq("payment_id", paymentId))
+      .take(100);
+    const paymentAmountPaise = Math.max(
+      0,
+      Math.floor(
+        args.payment_amount_paise ??
+          (order ? Number(order.total_inr ?? order.total ?? 0) * 100 : 0),
+      ),
+    );
+    const { refundedPaise, fullyRefunded, refundStatus } = summarizeRefundLifecycle({
+      refunds,
+      totalRefundedPaise: args.total_refunded_paise,
+      paymentAmountPaise,
+      fallbackStatus: status,
+    });
+
+    if (order) {
+      await ctx.db.patch(order._id, {
+        refund_status: refundStatus,
+        refunded_amount_inr: Math.round(refundedPaise) / 100,
+        latest_refund_id: refundId,
+        refund_updated_at: timestamp,
+        payment_status:
+          refundedPaise > 0
+            ? fullyRefunded
+              ? "refunded"
+              : "partially_refunded"
+            : order.payment_status,
+        updated_at: timestamp,
+      });
+    }
+
+    return {
+      linked: Boolean(order),
+      refund_status: refundStatus,
+      refunded_amount_inr: Math.round(refundedPaise) / 100,
+    };
+  },
+});
+
+export const cleanupRazorpayWebhookEvents = internalMutation({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => {
+    const expired = await ctx.db
+      .query("razorpay_webhook_events")
+      .withIndex("by_expires_at", (q) => q.lt("expires_at", Date.now()))
+      .take(250);
+    for (const event of expired) await ctx.db.delete(event._id);
+    return expired.length;
+  },
+});
+
 export const razorpayWebhook = httpAction(async (ctx, request) => {
-  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  const secret = process.env.RAZORPAY_WEBHOOK_SECRET?.trim();
   if (!secret) return new Response("Webhook secret is not configured.", { status: 503 });
   const rawBody = await request.text();
   const receivedSignature = request.headers.get("x-razorpay-signature") ?? "";
@@ -1778,6 +1900,7 @@ export const razorpayWebhook = httpAction(async (ctx, request) => {
     return new Response("Invalid JSON payload.", { status: 400 });
   }
   let payment = payload?.payload?.payment?.entity;
+  const refund = payload?.payload?.refund?.entity;
   const order = payload?.payload?.order?.entity;
   const eventType = cleanText(payload?.event, 80);
   if (eventType === "order.paid" && !payment?.id && order?.id) {
@@ -1791,18 +1914,21 @@ export const razorpayWebhook = httpAction(async (ctx, request) => {
         Number.isFinite(item?.amount),
     );
   }
-  const effectiveEventType = payment?.status === "captured" ? "payment.captured" : eventType;
+  const effectiveEventType =
+    eventType === "order.paid" && payment?.status === "captured" ? "payment.captured" : eventType;
   const razorpayOrderId = payment?.order_id
     ? cleanText(payment.order_id, 120)
     : order?.id
       ? cleanText(order.id, 120)
       : undefined;
   const razorpayPaymentId = payment?.id ? cleanText(payment.id, 120) : undefined;
+  const razorpayRefundId = refund?.id ? cleanText(refund.id, 120) : undefined;
   const recorded = await ctx.runMutation(internal.orders.recordRazorpayWebhook, {
     event_id: eventId,
     event_type: effectiveEventType,
     razorpay_order_id: razorpayOrderId,
     razorpay_payment_id: razorpayPaymentId,
+    razorpay_refund_id: razorpayRefundId,
     amount_paise: Number.isFinite(payment?.amount) ? payment.amount : undefined,
     currency: payment?.currency ? cleanText(payment.currency, 12) : undefined,
   });
@@ -1811,7 +1937,77 @@ export const razorpayWebhook = httpAction(async (ctx, request) => {
   }
 
   try {
-    if (effectiveEventType === "payment.captured" && razorpayOrderId && razorpayPaymentId) {
+    if (
+      ["refund.created", "refund.processed", "refund.failed"].includes(effectiveEventType) &&
+      razorpayRefundId &&
+      refund?.payment_id
+    ) {
+      const refundError =
+        cleanNullable(
+          refund?.error_description ?? refund?.error_reason ?? refund?.error_code ?? null,
+          500,
+        ) ?? null;
+      const synced = await ctx.runMutation(internal.orders.syncRazorpayRefund, {
+        refund_id: razorpayRefundId,
+        payment_id: cleanText(refund.payment_id, 120),
+        razorpay_order_id: razorpayOrderId,
+        amount_paise: Math.max(0, Math.floor(Number(refund.amount ?? 0))),
+        total_refunded_paise: Number.isFinite(payment?.amount_refunded)
+          ? Math.max(0, Math.floor(payment.amount_refunded))
+          : undefined,
+        payment_amount_paise: Number.isFinite(payment?.amount)
+          ? Math.max(0, Math.floor(payment.amount))
+          : undefined,
+        currency: cleanText(refund.currency ?? payment?.currency ?? "INR", 12) || "INR",
+        status: cleanText(refund.status ?? effectiveEventType.replace("refund.", ""), 40),
+        error: refundError,
+      });
+      await ctx.runMutation(internal.orders.updateRazorpayWebhookEvent, {
+        event_id: eventId,
+        processing_status: synced.linked ? "processed" : "ignored",
+        error: synced.linked ? null : "No store order matched this Razorpay payment.",
+      });
+    } else if (
+      effectiveEventType === "payment.authorized" &&
+      razorpayOrderId &&
+      razorpayPaymentId
+    ) {
+      const intent = await ctx.runQuery(internal.orders.findCheckoutIntent, {
+        razorpay_order_id: razorpayOrderId,
+      });
+      if (!intent) {
+        await ctx.runMutation(internal.orders.updateRazorpayWebhookEvent, {
+          event_id: eventId,
+          processing_status: "ignored",
+          error: "No checkout intent matched this authorised payment.",
+        });
+      } else {
+        let captured = await razorpayRequest(ctx, `/payments/${razorpayPaymentId}`);
+        if (captured?.status === "authorized") {
+          try {
+            captured = await razorpayRequest(ctx, `/payments/${razorpayPaymentId}/capture`, {
+              method: "POST",
+              body: JSON.stringify({ amount: intent.amount_paise, currency: "INR" }),
+            });
+          } catch {
+            captured = await razorpayRequest(ctx, `/payments/${razorpayPaymentId}`);
+          }
+        }
+        if (captured?.status !== "captured") {
+          throw new Error("Authorised Razorpay payment is awaiting capture.");
+        }
+        await ctx.runMutation(internal.orders.finalizeCheckoutIntent, {
+          razorpay_order_id: razorpayOrderId,
+          razorpay_payment_id: razorpayPaymentId,
+          amount_paise: captured.amount,
+          currency: captured.currency,
+        });
+        await ctx.runMutation(internal.orders.updateRazorpayWebhookEvent, {
+          event_id: eventId,
+          processing_status: "processed",
+        });
+      }
+    } else if (effectiveEventType === "payment.captured" && razorpayOrderId && razorpayPaymentId) {
       await ctx.runMutation(internal.orders.finalizeCheckoutIntent, {
         razorpay_order_id: razorpayOrderId,
         razorpay_payment_id: razorpayPaymentId,
@@ -1858,6 +2054,7 @@ export const razorpayWebhook = httpAction(async (ctx, request) => {
       processing_status: "recovery_required",
       error: message,
     });
+    return new Response("Webhook processing failed.", { status: 500 });
   }
   return new Response("ok", { status: 200 });
 });
@@ -1911,13 +2108,13 @@ export const updateStatus = mutation({
         patch.promotion_reserved = true;
       }
       if (WHATSAPP_STOCK_STATUSES.has(status) && !order.stock_adjusted_at) {
-        await adjustWhatsAppOrderStock(ctx, order._id, -1);
+        await adjustOrderStock(ctx, order._id, -1);
         patch.stock_adjusted_at = timestamp;
         patch.stock_restored_at = null;
         patch.payment_status = status === "paid" ? "paid" : (order.payment_status ?? "unconfirmed");
       }
       if ((status === "cancelled" || status === "returned") && order.stock_adjusted_at) {
-        await adjustWhatsAppOrderStock(ctx, order._id, 1);
+        await adjustOrderStock(ctx, order._id, 1);
         patch.stock_adjusted_at = null;
         patch.stock_restored_at = timestamp;
         patch.payment_status =
@@ -1926,6 +2123,19 @@ export const updateStatus = mutation({
       if (closesOrder && order.promotion_id && order.promotion_reserved) {
         await releasePromotionUse(ctx, order.promotion_id);
         patch.promotion_reserved = false;
+      }
+    }
+    if (order.payment_provider === "RAZORPAY") {
+      const closesOrder = status === "cancelled" || status === "returned";
+      if (closesOrder && order.payment_status !== "refunded") {
+        throw new Error("Complete the full refund in Razorpay before closing this paid order.");
+      }
+      if (closesOrder && !order.stock_restored_at) {
+        await adjustOrderStock(ctx, order._id, 1);
+        patch.stock_restored_at = timestamp;
+      }
+      if (!closesOrder && order.stock_restored_at) {
+        throw new Error("A refunded order with restored stock cannot be reopened.");
       }
     }
     await ctx.db.patch(args.id as any, patch);
@@ -1956,7 +2166,7 @@ export const updateStatus = mutation({
   },
 });
 
-async function adjustWhatsAppOrderStock(ctx: any, orderId: any, direction: -1 | 1) {
+async function adjustOrderStock(ctx: any, orderId: any, direction: -1 | 1) {
   const items = await ctx.db
     .query("order_items")
     .withIndex("by_order_id", (q: any) => q.eq("order_id", orderId))

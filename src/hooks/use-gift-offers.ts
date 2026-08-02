@@ -3,6 +3,8 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useCart } from "@/lib/cart";
 
+const initialGiftEvaluationTime = Math.floor(Date.now() / 1000) * 1000;
+
 export type GiftOffer = {
   id: string;
   name: string;
@@ -16,6 +18,8 @@ export type GiftOffer = {
   requirements: Array<{
     label: string;
     scope_type: "collection" | "products" | "subtotal";
+    collection_slugs: string[];
+    product_ids: string[];
     required_quantity: number;
     current_quantity: number;
     complete: boolean;
@@ -33,7 +37,9 @@ export type GiftOffer = {
 
 export function useGiftOffers(hasDiscount = false) {
   const { items } = useCart();
-  const [evaluationTime, setEvaluationTime] = useState(() => Date.now());
+  // Every gift surface shares the same serialized query, allowing Convex React to
+  // deduplicate product-card, cart, checkout, and floating-hub subscriptions.
+  const [evaluationTime, setEvaluationTime] = useState(initialGiftEvaluationTime);
 
   const cart = useMemo(
     () =>
@@ -53,7 +59,10 @@ export function useGiftOffers(hasDiscount = false) {
   useEffect(() => {
     if (!result?.next_change_at) return;
     const delay = Math.min(2_147_000_000, Math.max(250, result.next_change_at - Date.now() + 250));
-    const timer = window.setTimeout(() => setEvaluationTime(Date.now()), delay);
+    const timer = window.setTimeout(
+      () => setEvaluationTime(Math.floor(Date.now() / 1000) * 1000),
+      delay,
+    );
     return () => window.clearTimeout(timer);
   }, [result?.next_change_at]);
 

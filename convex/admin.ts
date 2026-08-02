@@ -678,10 +678,11 @@ export const launchReadiness = query({
     const outOfStockActive = active
       .filter((product) => (product.stock_quantity ?? 0) <= 0 || product.in_stock === false)
       .map((product) => product.name);
+    const razorpayKeyId = process.env.RAZORPAY_KEY_ID?.trim() ?? "";
     const env = {
       adminEmail: Boolean(process.env.ADMIN_EMAIL || process.env.ADMIN_EMAILS),
-      razorpayKeyId: Boolean(process.env.RAZORPAY_KEY_ID),
-      razorpayLive: Boolean(process.env.RAZORPAY_KEY_ID?.startsWith("rzp_live_")),
+      razorpayKeyId: Boolean(razorpayKeyId),
+      razorpayLive: razorpayKeyId.startsWith("rzp_live_"),
       razorpaySecret: Boolean(process.env.RAZORPAY_KEY_SECRET),
       razorpayWebhookSecret: Boolean(process.env.RAZORPAY_WEBHOOK_SECRET),
       checkoutApiSecret: Boolean(process.env.CHECKOUT_API_SECRET || process.env.ADMIN_UPLOAD_TOKEN),
@@ -732,6 +733,9 @@ export const launchReadiness = query({
           : []),
         ...(pendingReviews.length
           ? [`${pendingReviews.length} review(s) are waiting for approval.`]
+          : []),
+        ...(orders.some((order) => order.refund_status === "failed")
+          ? ["One or more Razorpay refunds failed and need attention."]
           : []),
         ...(categories.length === 0 ? ["Default categories/subjects have not been seeded."] : []),
       ],
@@ -830,6 +834,13 @@ export const notifications = query({
         count: recoveries.length,
         title: "Paid orders need recovery",
         body: "captured payments need manual attention",
+        section: "orders",
+      },
+      {
+        id: "refund-failed",
+        count: orders.filter((order) => order.refund_status === "failed").length,
+        title: "Refunds need attention",
+        body: "failed refunds need review in Razorpay",
         section: "orders",
       },
       {

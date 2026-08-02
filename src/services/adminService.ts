@@ -524,6 +524,36 @@ export async function archiveGiftCampaign(id: string): Promise<boolean> {
   }
 }
 
+export interface GiftCampaignTestResult {
+  id: string;
+  name: string;
+  earned: boolean;
+  eligible: boolean;
+  progress: number;
+  gift_available: boolean;
+  blocked_reason: string | null;
+  requirements: Array<{
+    label: string;
+    required_quantity: number;
+    current_quantity: number;
+    complete: boolean;
+  }>;
+  gift: { name: string; quantity: number };
+}
+
+export async function testGiftCampaign(
+  id: string,
+  cart: Array<{ product_id: string; quantity: number }>,
+): Promise<GiftCampaignTestResult | null> {
+  return (await convex.query(api.gifts.testCampaign, {
+    id: id as Id<"gift_campaigns">,
+    cart: cart.map((line) => ({
+      product_id: line.product_id as Id<"products">,
+      quantity: line.quantity,
+    })),
+  })) as GiftCampaignTestResult | null;
+}
+
 export interface LaunchReadiness {
   ready: boolean;
   blockers: string[];
@@ -565,6 +595,10 @@ export interface AdminOrder {
   payment_method?: string | null;
   payment_order_id?: string | null;
   payment_id?: string | null;
+  refund_status?: string | null;
+  refunded_amount_inr?: number | null;
+  latest_refund_id?: string | null;
+  refund_updated_at?: string | null;
   whatsapp_message?: string | null;
   tracking_carrier?: string | null;
   tracking_number?: string | null;

@@ -68,6 +68,9 @@ function statusClasses(value: string | null | undefined) {
   const status = String(value ?? "").toLowerCase();
   if (status === "paid" || status === "delivered")
     return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  if (status === "partially_refunded" || status === "pending")
+    return "border-amber-200 bg-amber-50 text-amber-800";
+  if (status === "refunded") return "border-violet-200 bg-violet-50 text-violet-800";
   if (status === "cancelled" || status === "returned" || status === "failed")
     return "border-rose-200 bg-rose-50 text-rose-800";
   if (status === "shipped" || status === "processing")
@@ -396,6 +399,38 @@ export function OrderDetailsSheet({
                       aria-label="Copy payment ID"
                       title="Copy payment ID"
                       onClick={() => void copyText(order.payment_id!, "Payment ID")}
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded hover:bg-[#F3F4F6]"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  </dd>
+                </div>
+              ) : null}
+              {order.refund_status ? (
+                <div>
+                  <dt className="text-xs text-[#6B7280]">Refund status</dt>
+                  <dd className="mt-1 flex flex-wrap items-center gap-2">
+                    <StatusPill value={order.refund_status} />
+                    {Number(order.refunded_amount_inr ?? 0) > 0 ? (
+                      <span className="text-xs font-medium text-[#111827]">
+                        {formatPrice(order.refunded_amount_inr)} refunded
+                      </span>
+                    ) : null}
+                  </dd>
+                </div>
+              ) : null}
+              {order.latest_refund_id ? (
+                <div className="min-w-0">
+                  <dt className="text-xs text-[#6B7280]">Latest refund ID</dt>
+                  <dd className="mt-1 flex items-center gap-2">
+                    <span className="min-w-0 break-all font-mono text-xs">
+                      {order.latest_refund_id}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label="Copy refund ID"
+                      title="Copy refund ID"
+                      onClick={() => void copyText(order.latest_refund_id!, "Refund ID")}
                       className="grid h-8 w-8 shrink-0 place-items-center rounded hover:bg-[#F3F4F6]"
                     >
                       <Copy className="h-3.5 w-3.5" />
