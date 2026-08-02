@@ -556,14 +556,23 @@ export interface AdminOrder {
   customer_country_type?: string | null;
   shipping_address?: AdminShippingAddress | null;
   shipping_cost?: number | null;
+  subtotal?: number | null;
+  tax?: number | null;
   discount?: number | null;
   promotion_code?: string | null;
+  currency?: string | null;
+  payment_provider?: string | null;
+  payment_method?: string | null;
+  payment_order_id?: string | null;
+  payment_id?: string | null;
+  whatsapp_message?: string | null;
   tracking_carrier?: string | null;
   tracking_number?: string | null;
   tracking_url?: string | null;
   total: number;
   total_inr: number | null;
   created_at: string | null;
+  updated_at?: string | null;
   items?: Array<{
     id: string;
     product_id?: string | null;
@@ -575,6 +584,7 @@ export interface AdminOrder {
     unit_price: number;
     subtotal: number;
     is_gift?: boolean | null;
+    gift_campaign_id?: string | null;
     gift_campaign_name?: string | null;
   }>;
 }

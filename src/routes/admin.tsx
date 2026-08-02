@@ -63,6 +63,7 @@ import {
   ZoomIn,
   ZoomOut,
   Copy,
+  Eye,
   Monitor,
   Smartphone,
   BadgePercent,
@@ -128,6 +129,7 @@ import {
 import { HomepageEditorPortal } from "@/components/admin/homepage-editor-portal";
 import { PromotionsPanel } from "@/components/admin/promotions-panel";
 import { GiftCampaignsPanel } from "@/components/admin/gift-campaigns-panel";
+import { OrderDetailsSheet } from "@/components/admin/order-details-sheet";
 
 const CATEGORIES = [
   {
@@ -1182,6 +1184,7 @@ const Admin = () => {
                   )}
                   <OrdersTable
                     rows={filteredOrders}
+                    allRows={orders}
                     onSendWhatsApp={handleSendWhatsApp}
                     onStatusChange={async (id, s) => {
                       if (await updateOrderStatus(id, s)) {
@@ -2081,34 +2084,50 @@ function RecentOrdersTable({ rows }: { rows: AdminOrder[] }) {
 
 function OrdersTable({
   rows,
+  allRows,
   onStatusChange,
   onSendWhatsApp,
 }: {
   rows: AdminOrder[];
+  allRows: AdminOrder[];
   onStatusChange: (id: string, s: string) => Promise<void>;
   onSendWhatsApp: (
     o: AdminOrder,
     p: { carrier: string; trackingNumber: string; trackingUrl: string },
   ) => Promise<void>;
 }) {
-  if (rows.length === 0)
-    return (
-      <div className="text-center py-10">
-        <ShoppingBag className="h-8 w-8 text-foreground/30 mx-auto mb-2" />
-        <p className="text-sm text-foreground/55">No orders to show.</p>
-      </div>
-    );
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const selectedOrder = allRows.find((order) => order.id === selectedOrderId) ?? null;
   return (
-    <div className="space-y-2.5">
-      {rows.map((r) => (
-        <OrderRow
-          key={r.id}
-          order={r}
-          onStatusChange={onStatusChange}
-          onSendWhatsApp={onSendWhatsApp}
-        />
-      ))}
-    </div>
+    <>
+      {rows.length ? (
+        <div className="space-y-2.5">
+          {rows.map((r) => (
+            <OrderRow
+              key={r.id}
+              order={r}
+              onStatusChange={onStatusChange}
+              onSendWhatsApp={onSendWhatsApp}
+              onViewDetails={() => setSelectedOrderId(r.id)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="py-10 text-center">
+          <ShoppingBag className="mx-auto mb-2 h-8 w-8 text-foreground/30" />
+          <p className="text-sm text-foreground/55">No orders to show.</p>
+        </div>
+      )}
+      <OrderDetailsSheet
+        order={selectedOrder}
+        open={Boolean(selectedOrder)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setSelectedOrderId(null);
+        }}
+        onStatusChange={onStatusChange}
+        onSendWhatsApp={onSendWhatsApp}
+      />
+    </>
   );
 }
 
@@ -2116,6 +2135,7 @@ function OrderRow({
   order,
   onStatusChange,
   onSendWhatsApp,
+  onViewDetails,
 }: {
   order: AdminOrder;
   onStatusChange: (id: string, s: string) => Promise<void>;
@@ -2123,6 +2143,7 @@ function OrderRow({
     o: AdminOrder,
     p: { carrier: string; trackingNumber: string; trackingUrl: string },
   ) => Promise<void>;
+  onViewDetails: () => void;
 }) {
   const [carrier, setCarrier] = useState(order.tracking_carrier ?? "");
   const [trackingNumber, setTrackingNumber] = useState(order.tracking_number ?? "");
@@ -2172,6 +2193,15 @@ function OrderRow({
           <StatusBadge status={order.status} testId={`admin-order-status-badge-${order.id}`} />
         </div>
         <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onViewDetails}
+            data-testid={`admin-order-details-button-${order.id}`}
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-medium transition-colors hover:bg-foreground/[0.04]"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            View
+          </button>
           <select
             value={normalizeOrderStatus(order.status)}
             onChange={(e) => onStatusChange(order.id, e.target.value)}
@@ -2248,6 +2278,15 @@ function OrderRow({
         ) : null}
       </div>
       <div className="grid grid-cols-1 gap-2 px-4 pb-4 md:hidden">
+        <button
+          type="button"
+          onClick={onViewDetails}
+          data-testid={`admin-mobile-order-details-button-${order.id}`}
+          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#111827] text-sm font-semibold text-white"
+        >
+          <Eye className="h-4 w-4" />
+          View order details
+        </button>
         <select
           value={normalizeOrderStatus(order.status)}
           onChange={(e) => onStatusChange(order.id, e.target.value)}
