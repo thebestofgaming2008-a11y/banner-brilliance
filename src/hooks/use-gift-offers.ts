@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { convex } from "@/integrations/convex/client";
 import { useCart } from "@/lib/cart";
 
 export type GiftOffer = {
@@ -33,18 +33,7 @@ export type GiftOffer = {
 
 export function useGiftOffers(hasDiscount = false) {
   const { items } = useCart();
-  const [offers, setOffers] = useState<GiftOffer[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [evaluationTime, setEvaluationTime] = useState(
-    () => Math.floor(Date.now() / 300_000) * 300_000,
-  );
-  useEffect(() => {
-    const timer = window.setInterval(
-      () => setEvaluationTime(Math.floor(Date.now() / 300_000) * 300_000),
-      300_000,
-    );
-    return () => window.clearInterval(timer);
-  }, []);
+  const [evaluationTime, setEvaluationTime] = useState(() => Date.now());
 
   const cart = useMemo(
     () =>
@@ -55,39 +44,24 @@ export function useGiftOffers(hasDiscount = false) {
     [items],
   );
 
+  const result = useQuery(api.gifts.evaluateStorefront, {
+    cart,
+    evaluation_time: evaluationTime,
+    has_discount: hasDiscount,
+  });
+
   useEffect(() => {
-    if (!cart.length) {
-      setOffers([]);
-      setLoading(false);
-      return;
-    }
+    if (!result?.next_change_at) return;
+    const delay = Math.min(2_147_000_000, Math.max(250, result.next_change_at - Date.now() + 250));
+    const timer = window.setTimeout(() => setEvaluationTime(Date.now()), delay);
+    return () => window.clearTimeout(timer);
+  }, [result?.next_change_at]);
 
-    let cancelled = false;
-    setLoading(true);
-    void convex
-      .query(api.gifts.evaluateCart, {
-        cart,
-        evaluation_time: evaluationTime,
-        has_discount: hasDiscount,
-      })
-      .then((nextOffers) => {
-        if (!cancelled) setOffers(nextOffers);
-      })
-      .catch(() => {
-        if (!cancelled) setOffers([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [cart, evaluationTime, hasDiscount]);
+  const offers = (result?.offers ?? []) as GiftOffer[];
 
   return {
     offers,
     earnedGifts: offers.filter((offer) => offer.earned),
-    loading,
+    loading: result === undefined,
   };
 }

@@ -42,6 +42,8 @@ async function addCampaign(
     repeatable?: boolean;
     maxAwards?: number;
     allowDiscounts?: boolean;
+    startsAt?: string | null;
+    endsAt?: string | null;
   },
 ) {
   return await t.run(
@@ -64,8 +66,8 @@ async function addCampaign(
         gift_quantity: 1,
         gift_color: null,
         gift_size: null,
-        starts_at: null,
-        ends_at: null,
+        starts_at: input.startsAt ?? null,
+        ends_at: input.endsAt ?? null,
         sort_order: 0,
         priority: input.priority,
         combines_with_other_gifts: input.combines ?? false,
@@ -80,6 +82,42 @@ async function addCampaign(
 }
 
 describe("gift campaign evaluation", () => {
+  test("reports exact upcoming schedule boundaries for the storefront", async () => {
+    const t = convexTest(schema, modules);
+    const qualifierId = await addProduct(t, "Scheduled Kufi", 20);
+    const giftId = await addProduct(t, "Scheduled Ittar", 20, "other");
+    const now = Date.now();
+    const startsAt = now + 10_000;
+    const endsAt = now + 20_000;
+    await addCampaign(t, {
+      name: "Scheduled reward",
+      qualifierId,
+      giftId,
+      priority: 100,
+      startsAt: new Date(startsAt).toISOString(),
+      endsAt: new Date(endsAt).toISOString(),
+    });
+
+    const before = await t.query(api.gifts.evaluateStorefront, {
+      cart: [],
+      evaluation_time: now,
+    });
+    expect(before).toMatchObject({ offers: [], next_change_at: startsAt });
+
+    const live = await t.query(api.gifts.evaluateStorefront, {
+      cart: [],
+      evaluation_time: startsAt + 1,
+    });
+    expect(live.offers).toHaveLength(1);
+    expect(live.next_change_at).toBe(endsAt);
+
+    const ended = await t.query(api.gifts.evaluateStorefront, {
+      cart: [],
+      evaluation_time: endsAt + 1,
+    });
+    expect(ended).toMatchObject({ offers: [], next_change_at: null });
+  });
+
   test("does not promise a gift when purchased units consume the remaining gift stock", async () => {
     const t = convexTest(schema, modules);
     const productId = await addProduct(t, "White Kufi", 2);

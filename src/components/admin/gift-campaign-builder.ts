@@ -154,6 +154,18 @@ export function validateGiftCampaign(
   ) {
     errors.push("The end date must be after the start date.");
   }
+  if (
+    start !== null &&
+    end !== null &&
+    !Number.isNaN(start) &&
+    !Number.isNaN(end) &&
+    end > start &&
+    end - start < 5 * 60_000
+  ) {
+    warnings.push(
+      "This offer runs for less than five minutes. Check that the short window is intentional.",
+    );
+  }
   if (draft.active && end !== null && !Number.isNaN(end) && end <= Date.now()) {
     errors.push("Choose a future end date before making this offer live.");
   }

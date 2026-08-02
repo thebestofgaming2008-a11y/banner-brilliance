@@ -856,7 +856,7 @@ export function GiftCampaignsPanel({
               <StepHeading
                 number={3}
                 title="Choose when the offer runs"
-                description="Save it as a draft while preparing it, or make it live when everything is ready."
+                description="Save it as a draft while preparing it, or make it live when everything is ready. Times use the timezone on this device."
               />
 
               <div className="mt-5 rounded-md border border-[#DDE2E8] px-4">

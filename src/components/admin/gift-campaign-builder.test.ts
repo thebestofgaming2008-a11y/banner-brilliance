@@ -77,4 +77,15 @@ describe("gift campaign builder", () => {
       "Stock is below the maximum this offer could give to one customer.",
     );
   });
+
+  test("warns when a scheduled test window is extremely short", () => {
+    const draft = blankGiftCampaign(1);
+    const startsAt = Date.now() + 60_000;
+    draft.starts_at = new Date(startsAt).toISOString();
+    draft.ends_at = new Date(startsAt + 60_000).toISOString();
+
+    expect(validateGiftCampaign(draft, null).warnings).toContain(
+      "This offer runs for less than five minutes. Check that the short window is intentional.",
+    );
+  });
 });

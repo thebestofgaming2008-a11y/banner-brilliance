@@ -151,6 +151,26 @@ function campaignIsLive(campaign: Doc<"gift_campaigns">, now: number) {
   return !(startsAt !== null && startsAt > now) && !(endsAt !== null && endsAt <= now);
 }
 
+async function activeGiftCampaigns(ctx: QueryCtx | MutationCtx) {
+  return await ctx.db
+    .query("gift_campaigns")
+    .withIndex("by_active", (lookup) => lookup.eq("active", true))
+    .take(50);
+}
+
+function nextCampaignBoundary(campaigns: Doc<"gift_campaigns">[], now: number) {
+  let next: number | null = null;
+  for (const campaign of campaigns) {
+    if (campaign.archived_at) continue;
+    for (const value of [campaign.starts_at, campaign.ends_at]) {
+      const timestamp = value ? Date.parse(value) : Number.NaN;
+      if (!Number.isFinite(timestamp) || timestamp <= now) continue;
+      next = next === null ? timestamp : Math.min(next, timestamp);
+    }
+  }
+  return next;
+}
+
 function validateDateRange(startsAt: string | null | undefined, endsAt: string | null | undefined) {
   const start = startsAt ? Date.parse(startsAt) : null;
   const end = endsAt ? Date.parse(endsAt) : null;
@@ -282,12 +302,9 @@ export async function evaluateGiftCampaigns(
   ctx: QueryCtx | MutationCtx,
   cart: CartLine[],
   evaluationTime = Date.now(),
-  options: { hasDiscount?: boolean } = {},
+  options: { hasDiscount?: boolean; campaigns?: Doc<"gift_campaigns">[] } = {},
 ) {
-  const campaigns = await ctx.db
-    .query("gift_campaigns")
-    .withIndex("by_active", (lookup) => lookup.eq("active", true))
-    .take(50);
+  const campaigns = options.campaigns ?? (await activeGiftCampaigns(ctx));
   const liveCampaigns = campaigns
     .filter((campaign) => campaignIsLive(campaign, evaluationTime))
     .sort(
@@ -460,6 +477,36 @@ export async function evaluateGiftCampaigns(
   );
 }
 
+function storefrontEvaluations(results: Awaited<ReturnType<typeof evaluateGiftCampaigns>>) {
+  return results
+    .sort(
+      (left, right) =>
+        Number(right.earned) - Number(left.earned) ||
+        right.progress - left.progress ||
+        right.priority - left.priority,
+    )
+    .slice(0, 6)
+    .map((result) => ({
+      id: result.id,
+      name: result.name,
+      match_mode: result.match_mode,
+      earned: result.earned,
+      eligible: result.eligible,
+      progress: result.progress,
+      award_count: result.award_count,
+      gift_available: result.gift_available,
+      blocked_reason: result.blocked_reason,
+      requirements: result.requirements.map((requirement) => ({
+        label: requirement.label,
+        scope_type: requirement.scope_type,
+        required_quantity: requirement.required_quantity,
+        current_quantity: requirement.current_quantity,
+        complete: requirement.complete,
+      })),
+      gift: result.gift,
+    }));
+}
+
 export const listAdmin = query({
   args: {},
   returns: v.array(campaignValidator),
@@ -494,33 +541,37 @@ export const evaluateCart = query({
       args.evaluation_time,
       { hasDiscount: args.has_discount ?? false },
     );
-    return results
-      .sort(
-        (left, right) =>
-          Number(right.earned) - Number(left.earned) ||
-          right.progress - left.progress ||
-          right.priority - left.priority,
-      )
-      .slice(0, 6)
-      .map((result) => ({
-        id: result.id,
-        name: result.name,
-        match_mode: result.match_mode,
-        earned: result.earned,
-        eligible: result.eligible,
-        progress: result.progress,
-        award_count: result.award_count,
-        gift_available: result.gift_available,
-        blocked_reason: result.blocked_reason,
-        requirements: result.requirements.map((requirement) => ({
-          label: requirement.label,
-          scope_type: requirement.scope_type,
-          required_quantity: requirement.required_quantity,
-          current_quantity: requirement.current_quantity,
-          complete: requirement.complete,
-        })),
-        gift: result.gift,
-      }));
+    return storefrontEvaluations(results);
+  },
+});
+
+export const evaluateStorefront = query({
+  args: {
+    cart: v.array(v.object({ product_id: v.string(), quantity: v.number() })),
+    evaluation_time: v.number(),
+    has_discount: v.optional(v.boolean()),
+  },
+  returns: v.object({
+    offers: v.array(evaluatedCampaignValidator),
+    next_change_at: v.union(v.number(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const evaluationTime = Math.min(now + 60_000, Math.max(now - 60_000, args.evaluation_time));
+    const campaigns = await activeGiftCampaigns(ctx);
+    const results = await evaluateGiftCampaigns(
+      ctx,
+      args.cart.slice(0, 100).map((line) => ({
+        productId: cleanText(line.product_id, 200),
+        qty: Math.min(99, Math.max(0, Math.floor(line.quantity))),
+      })),
+      evaluationTime,
+      { hasDiscount: args.has_discount ?? false, campaigns },
+    );
+    return {
+      offers: storefrontEvaluations(results),
+      next_change_at: nextCampaignBoundary(campaigns, evaluationTime),
+    };
   },
 });
 

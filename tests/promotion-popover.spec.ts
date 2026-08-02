@@ -25,7 +25,7 @@ test("gift-shaped offer trigger stays circular and opens the discount panel", as
     "src",
     "/fawzaan-logo.png",
   );
-  const trigger = page.getByRole("button", { name: /show current offer/i });
+  const trigger = page.getByRole("button", { name: /show (current offer|gifts and offers)/i });
   await expect(trigger).toBeVisible();
   await expect(page.getByRole("dialog", { name: "Launch special" })).toHaveCount(0);
   const circle = await trigger.evaluate((element) => {
