@@ -1317,8 +1317,10 @@ const Admin = () => {
                   const saved = await saveGiftCampaign(input, id);
                   await refreshGiftCampaigns();
                   notify({
-                    title: id ? "Gift campaign updated" : "Gift campaign created",
-                    description: `${saved.name} is ready.`,
+                    title: id ? "Gift offer updated" : "Gift offer created",
+                    description: saved.active
+                      ? `${saved.name} is active.`
+                      : `${saved.name} was saved as a draft.`,
                   });
                   return saved;
                 }}
