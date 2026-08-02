@@ -90,6 +90,8 @@ import {
   removeCategory,
   listPaymentRecoveries,
   retryPaymentRecovery,
+  getPaymentSystemStatus,
+  checkPaymentConnection,
   listMarketingCampaigns,
   getMarketingConfiguration,
   saveMarketingCampaign,
@@ -110,6 +112,7 @@ import {
   type ShippingRate,
   type StorefrontBanner,
   type PaymentRecovery,
+  type PaymentSystemStatus,
   type MarketingCampaign,
   type MarketingCampaignInput,
   type MarketingConfiguration,
@@ -343,6 +346,7 @@ const Admin = () => {
   const [reviews, setReviews] = useState<AdminReview[]>([]);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [paymentRecoveries, setPaymentRecoveries] = useState<PaymentRecovery[]>([]);
+  const [paymentSystem, setPaymentSystem] = useState<PaymentSystemStatus | null>(null);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [giftCampaigns, setGiftCampaigns] = useState<GiftCampaign[]>([]);
   const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([]);
@@ -384,10 +388,11 @@ const Admin = () => {
       listAllReviews(200),
       listCategories(),
       listPaymentRecoveries(),
+      getPaymentSystemStatus(),
       listPromotions(),
       listGiftCampaigns(),
     ])
-      .then(([p, o, c, r, cats, recoveries, promotionRows, giftRows]) => {
+      .then(([p, o, c, r, cats, recoveries, paymentStatus, promotionRows, giftRows]) => {
         if (cancelled) return;
         setProducts(p);
         setOrders(o);
@@ -395,6 +400,7 @@ const Admin = () => {
         setReviews(r);
         setCategories(cats);
         setPaymentRecoveries(recoveries);
+        setPaymentSystem(paymentStatus);
         setPromotions(promotionRows);
         setGiftCampaigns(giftRows);
         setLoading(false);
@@ -417,6 +423,7 @@ const Admin = () => {
   const refreshOrders = async () => setOrders(await listAllOrders(200));
   const refreshReviews = async () => setReviews(await listAllReviews(200));
   const refreshPaymentRecoveries = async () => setPaymentRecoveries(await listPaymentRecoveries());
+  const refreshPaymentSystem = async () => setPaymentSystem(await getPaymentSystemStatus());
   const refreshPromotions = async () => setPromotions(await listPromotions());
   const refreshGiftCampaigns = async () => setGiftCampaigns(await listGiftCampaigns());
   const refreshCampaigns = async () => setCampaigns(await listMarketingCampaigns());
@@ -1124,6 +1131,31 @@ const Admin = () => {
                     </div>
                   }
                 >
+                  {paymentSystem ? (
+                    <PaymentSystemPanel
+                      status={paymentSystem}
+                      hasPaidRazorpayOrder={orders.some(
+                        (order) =>
+                          order.payment_provider === "RAZORPAY" &&
+                          ["paid", "partially_refunded", "refunded"].includes(
+                            String(order.payment_status ?? ""),
+                          ),
+                      )}
+                      onCheck={async () => {
+                        const result = await checkPaymentConnection();
+                        await refreshPaymentSystem();
+                        notify({
+                          title: result.ok
+                            ? "Razorpay connection is healthy"
+                            : "Razorpay connection failed",
+                          description: result.ok
+                            ? `${result.mode === "live" ? "Live" : "Test"} credentials responded successfully.`
+                            : "Check the Razorpay credentials and Convex logs.",
+                          variant: result.ok ? undefined : "destructive",
+                        });
+                      }}
+                    />
+                  ) : null}
                   {paymentRecoveries.length > 0 && (
                     <PaymentRecoveryPanel
                       rows={paymentRecoveries}
@@ -4350,6 +4382,120 @@ function ImageUploadActions({
         >
           Remove image
         </button>
+      ) : null}
+    </div>
+  );
+}
+
+function PaymentSystemPanel({
+  status,
+  hasPaidRazorpayOrder,
+  onCheck,
+}: {
+  status: PaymentSystemStatus;
+  hasPaidRazorpayOrder: boolean;
+  onCheck: () => Promise<void>;
+}) {
+  const [checking, setChecking] = useState(false);
+  const apiHealthy = status.consecutive_api_failures === 0 && Boolean(status.last_api_success_at);
+  const webhookVerified = Boolean(status.last_webhook_at);
+  const formatTimestamp = (value: number | null) =>
+    value
+      ? new Date(value).toLocaleString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "Not yet";
+  return (
+    <div
+      className="mb-4 rounded-lg border border-[#E5E7EB] bg-white p-4"
+      data-testid="admin-payment-system-panel"
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-[#6B7280]" />
+            <h3 className="text-sm font-semibold text-[#111827]">Payment safeguards</h3>
+            <span
+              className={cn(
+                "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase",
+                status.mode === "live"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-amber-200 bg-amber-50 text-amber-800",
+              )}
+            >
+              {status.mode}
+            </span>
+          </div>
+          <p className="mt-1 text-xs leading-5 text-[#6B7280]">
+            Browser verification, signed webhooks, and automatic payment recovery protect every
+            Razorpay order.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={checking}
+          onClick={async () => {
+            setChecking(true);
+            try {
+              await onCheck();
+            } finally {
+              setChecking(false);
+            }
+          }}
+          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-[#D1D5DB] px-3 text-xs font-semibold hover:bg-[#F9FAFB] disabled:opacity-50"
+        >
+          <RotateCcw className={cn("h-3.5 w-3.5", checking && "animate-spin")} />
+          {checking ? "Checking" : "Check connection"}
+        </button>
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        <div className="rounded-md bg-[#F9FAFB] p-3">
+          <p className="text-[10px] font-semibold uppercase text-[#6B7280]">Razorpay API</p>
+          <p
+            className={cn(
+              "mt-1 text-sm font-semibold",
+              apiHealthy ? "text-emerald-700" : "text-amber-800",
+            )}
+          >
+            {apiHealthy ? "Healthy" : "Awaiting check"}
+          </p>
+          <p className="mt-1 text-[11px] text-[#6B7280]">
+            {formatTimestamp(status.last_api_check_at)}
+          </p>
+        </div>
+        <div className="rounded-md bg-[#F9FAFB] p-3">
+          <p className="text-[10px] font-semibold uppercase text-[#6B7280]">Live webhook</p>
+          <p
+            className={cn(
+              "mt-1 text-sm font-semibold",
+              webhookVerified ? "text-emerald-700" : "text-amber-800",
+            )}
+          >
+            {webhookVerified ? "Verified" : hasPaidRazorpayOrder ? "Needs setup" : "Awaiting test"}
+          </p>
+          <p className="mt-1 text-[11px] text-[#6B7280]">
+            {webhookVerified
+              ? `${status.last_webhook_event} · ${formatTimestamp(status.last_webhook_at)}`
+              : "Send a test event from Razorpay"}
+          </p>
+        </div>
+        <div className="rounded-md bg-[#F9FAFB] p-3">
+          <p className="text-[10px] font-semibold uppercase text-[#6B7280]">Safety sweep</p>
+          <p className="mt-1 text-sm font-semibold text-[#111827]">
+            {status.last_reconciliation_at ? "Running" : "Scheduled"}
+          </p>
+          <p className="mt-1 text-[11px] text-[#6B7280]">
+            {status.last_reconciliation_at
+              ? `${status.last_reconciliation_checked} checked · ${status.last_reconciliation_finalized} recovered`
+              : "Daily fallback"}
+          </p>
+        </div>
+      </div>
+      {status.last_api_error ? (
+        <p className="mt-3 text-xs text-rose-700">{status.last_api_error}</p>
       ) : null}
     </div>
   );

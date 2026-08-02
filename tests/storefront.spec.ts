@@ -125,7 +125,7 @@ test("shop product cart and checkout path uses the live product", async ({ page 
     "700",
   );
   await expect(page.locator("main img, section img").first()).toBeVisible();
-  const addToCartButton = page.getByRole("button", { name: "Add to cart" }).first();
+  const addToCartButton = page.getByRole("button", { name: /^add$/i }).first();
   await expect(addToCartButton).toHaveCSS("color", "rgb(255, 255, 255)");
   await expect(addToCartButton).toHaveCSS(
     "background-image",
@@ -143,7 +143,7 @@ test("shop product cart and checkout path uses the live product", async ({ page 
   await expect(firstRecommendation).toBeVisible();
   await expect(firstRecommendation.locator("img")).toBeVisible();
   await expect(firstRecommendation.locator("h3")).not.toBeEmpty();
-  await page.getByRole("button", { name: "Add to cart" }).first().click();
+  await page.getByRole("button", { name: /^add$/i }).first().click();
   await page.goto("/cart");
   await expect(page.getByRole("article").getByText(productName, { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Proceed to checkout" }).click();
@@ -190,14 +190,14 @@ test("catalog cards support quick add and expose sold-out stock before navigatio
     .first();
   await expect(availableCard).toHaveAttribute("data-product-stock", "available");
   const quickAdd = availableCard.getByRole("button", {
-    name: /^(Add to cart|Choose options):/,
+    name: /^(Add|Choose options and add):/,
   });
   await expect(quickAdd).toBeEnabled();
   await quickAdd.click();
 
   const optionDialog = page.getByRole("dialog", { name: available!.name });
   if (await optionDialog.isVisible().catch(() => false)) {
-    await optionDialog.getByRole("button", { name: "Add to cart", exact: true }).click();
+    await optionDialog.getByRole("button", { name: /^add$/i }).click();
   }
   const cart = page.getByRole("dialog", { name: "Shopping cart" });
   await expect(cart).toBeVisible();
@@ -225,7 +225,7 @@ test("catalog cards support quick add and expose sold-out stock before navigatio
     .first();
   await expect(homepageAvailableCard).toHaveAttribute("data-product-stock", "available");
   await expect(
-    homepageAvailableCard.getByRole("button", { name: /^(Add to cart|Choose options):/ }),
+    homepageAvailableCard.getByRole("button", { name: /^(Add|Choose options and add):/ }),
   ).toBeEnabled();
 
   if (soldOut) {
@@ -370,7 +370,7 @@ test("product choices remain attached to the cart line", async ({ page }) => {
     selectedValues.push(value);
   }
 
-  await page.getByRole("button", { name: "Add to cart" }).first().click();
+  await page.getByRole("button", { name: /^add$/i }).first().click();
   await page.goto("/cart");
   await expect(
     page.getByRole("article").getByText(selectedValues.join(" / "), { exact: true }),

@@ -138,6 +138,13 @@ export default defineSchema({
     refunded_amount_inr: optionalNumber,
     latest_refund_id: optionalString,
     refund_updated_at: optionalString,
+    dispute_status: optionalString,
+    latest_dispute_id: optionalString,
+    dispute_amount_inr: optionalNumber,
+    dispute_reason: optionalString,
+    dispute_phase: optionalString,
+    dispute_respond_by: optionalNumber,
+    dispute_updated_at: optionalString,
     whatsapp_message: optionalString,
     carrier: optionalString,
     items: v.optional(v.array(v.any())),
@@ -192,6 +199,7 @@ export default defineSchema({
     razorpay_order_id: optionalString,
     razorpay_payment_id: optionalString,
     razorpay_refund_id: optionalString,
+    razorpay_dispute_id: optionalString,
     amount_paise: optionalNumber,
     currency: optionalString,
     processing_status: optionalString,
@@ -217,6 +225,37 @@ export default defineSchema({
     .index("by_refund_id", ["refund_id"])
     .index("by_payment_id", ["payment_id"])
     .index("by_order_id", ["order_id"]),
+  razorpay_disputes: defineTable({
+    dispute_id: v.string(),
+    payment_id: v.string(),
+    order_id: v.optional(v.id("orders")),
+    amount_paise: v.number(),
+    currency: v.string(),
+    status: v.string(),
+    phase: optionalString,
+    reason_code: optionalString,
+    respond_by: optionalNumber,
+    event_type: v.string(),
+    created_at: v.string(),
+    updated_at: v.string(),
+  })
+    .index("by_dispute_id", ["dispute_id"])
+    .index("by_payment_id", ["payment_id"])
+    .index("by_order_id", ["order_id"])
+    .index("by_status", ["status"]),
+  payment_system_health: defineTable({
+    provider: v.string(),
+    last_api_check_at: optionalNumber,
+    last_api_success_at: optionalNumber,
+    consecutive_api_failures: optionalNumber,
+    last_api_error: optionalString,
+    last_webhook_at: optionalNumber,
+    last_webhook_event: optionalString,
+    last_reconciliation_at: optionalNumber,
+    last_reconciliation_checked: optionalNumber,
+    last_reconciliation_finalized: optionalNumber,
+    updated_at: v.number(),
+  }).index("by_provider", ["provider"]),
   order_items: defineTable({
     order_id: v.id("orders"),
     product_id: optionalString,

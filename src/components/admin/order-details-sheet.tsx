@@ -70,6 +70,11 @@ function statusClasses(value: string | null | undefined) {
     return "border-emerald-200 bg-emerald-50 text-emerald-800";
   if (status === "partially_refunded" || status === "pending")
     return "border-amber-200 bg-amber-50 text-amber-800";
+  if (["open", "action_required", "under_review"].includes(status))
+    return "border-rose-200 bg-rose-50 text-rose-800";
+  if (status === "won" || status === "closed")
+    return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  if (status === "lost") return "border-rose-200 bg-rose-50 text-rose-800";
   if (status === "refunded") return "border-violet-200 bg-violet-50 text-violet-800";
   if (status === "cancelled" || status === "returned" || status === "failed")
     return "border-rose-200 bg-rose-50 text-rose-800";
@@ -431,6 +436,50 @@ export function OrderDetailsSheet({
                       aria-label="Copy refund ID"
                       title="Copy refund ID"
                       onClick={() => void copyText(order.latest_refund_id!, "Refund ID")}
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded hover:bg-[#F3F4F6]"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  </dd>
+                </div>
+              ) : null}
+              {order.dispute_status ? (
+                <div>
+                  <dt className="text-xs text-[#6B7280]">Dispute status</dt>
+                  <dd className="mt-1 flex flex-wrap items-center gap-2">
+                    <StatusPill value={order.dispute_status} />
+                    {Number(order.dispute_amount_inr ?? 0) > 0 ? (
+                      <span className="text-xs font-medium text-[#111827]">
+                        {formatPrice(order.dispute_amount_inr)} disputed
+                      </span>
+                    ) : null}
+                  </dd>
+                  {order.dispute_reason ? (
+                    <p className="mt-2 text-xs text-[#6B7280]">
+                      {titleCase(order.dispute_reason)}
+                      {order.dispute_phase ? ` · ${titleCase(order.dispute_phase)}` : ""}
+                    </p>
+                  ) : null}
+                  {order.dispute_respond_by ? (
+                    <p className="mt-1 text-xs font-semibold text-rose-700">
+                      Respond in Razorpay by{" "}
+                      {formatDate(new Date(order.dispute_respond_by * 1000).toISOString())}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+              {order.latest_dispute_id ? (
+                <div className="min-w-0">
+                  <dt className="text-xs text-[#6B7280]">Latest dispute ID</dt>
+                  <dd className="mt-1 flex items-center gap-2">
+                    <span className="min-w-0 break-all font-mono text-xs">
+                      {order.latest_dispute_id}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label="Copy dispute ID"
+                      title="Copy dispute ID"
+                      onClick={() => void copyText(order.latest_dispute_id!, "Dispute ID")}
                       className="grid h-8 w-8 shrink-0 place-items-center rounded hover:bg-[#F3F4F6]"
                     >
                       <Copy className="h-3.5 w-3.5" />

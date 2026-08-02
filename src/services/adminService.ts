@@ -599,6 +599,13 @@ export interface AdminOrder {
   refunded_amount_inr?: number | null;
   latest_refund_id?: string | null;
   refund_updated_at?: string | null;
+  dispute_status?: string | null;
+  latest_dispute_id?: string | null;
+  dispute_amount_inr?: number | null;
+  dispute_reason?: string | null;
+  dispute_phase?: string | null;
+  dispute_respond_by?: number | null;
+  dispute_updated_at?: string | null;
   whatsapp_message?: string | null;
   tracking_carrier?: string | null;
   tracking_number?: string | null;
@@ -640,6 +647,36 @@ export interface PaymentRecovery {
 
 export async function listPaymentRecoveries(): Promise<PaymentRecovery[]> {
   return (await convex.query(api.orders.listPaymentRecoveries, {})) as PaymentRecovery[];
+}
+
+export interface PaymentSystemStatus {
+  mode: "live" | "test" | "missing";
+  webhook_secret_configured: boolean;
+  last_api_check_at: number | null;
+  last_api_success_at: number | null;
+  consecutive_api_failures: number;
+  last_api_error: string | null;
+  last_webhook_at: number | null;
+  last_webhook_event: string | null;
+  last_reconciliation_at: number | null;
+  last_reconciliation_checked: number;
+  last_reconciliation_finalized: number;
+}
+
+export async function getPaymentSystemStatus(): Promise<PaymentSystemStatus> {
+  return (await convex.query(api.orders.getRazorpaySystemStatus, {})) as PaymentSystemStatus;
+}
+
+export async function checkPaymentConnection(): Promise<{
+  ok: boolean;
+  mode: "live" | "test";
+  webhookConfigured: boolean;
+}> {
+  return (await convex.action(api.orders.checkRazorpayConnection, {})) as {
+    ok: boolean;
+    mode: "live" | "test";
+    webhookConfigured: boolean;
+  };
 }
 
 export async function retryPaymentRecovery(razorpayOrderId: string): Promise<{

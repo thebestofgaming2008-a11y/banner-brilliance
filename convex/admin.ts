@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { isActiveDisputeStatus } from "./paymentRules";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import { nowIso, requireAdmin, writeAuditLog } from "./lib";
 
@@ -647,24 +648,41 @@ export const launchReadiness = query({
   args: {},
   handler: async (ctx) => {
     await requireAdmin(ctx);
-    const [products, orders, recoveries, pendingReviews, categories, settingsRows] =
-      await Promise.all([
-        ctx.db.query("products").take(2_000),
-        ctx.db.query("orders").take(5_000),
-        ctx.db
-          .query("checkout_intents")
-          .withIndex("by_status", (q) => q.eq("status", "recovery_required"))
-          .take(500),
-        ctx.db
-          .query("reviews")
-          .withIndex("by_status", (q) => q.eq("status", "pending"))
-          .take(1_000),
-        ctx.db.query("categories").take(500),
-        ctx.db.query("store_settings").take(200),
-      ]);
+    const [
+      products,
+      orders,
+      recoveries,
+      pendingReviews,
+      categories,
+      settingsRows,
+      paymentHealth,
+      disputes,
+    ] = await Promise.all([
+      ctx.db.query("products").take(2_000),
+      ctx.db.query("orders").take(5_000),
+      ctx.db
+        .query("checkout_intents")
+        .withIndex("by_status", (q) => q.eq("status", "recovery_required"))
+        .take(500),
+      ctx.db
+        .query("reviews")
+        .withIndex("by_status", (q) => q.eq("status", "pending"))
+        .take(1_000),
+      ctx.db.query("categories").take(500),
+      ctx.db.query("store_settings").take(200),
+      ctx.db
+        .query("payment_system_health")
+        .withIndex("by_provider", (q) => q.eq("provider", "razorpay"))
+        .first(),
+      ctx.db.query("razorpay_disputes").take(500),
+    ]);
     const settings = Object.fromEntries(settingsRows.map((row) => [row.key, row.value]));
     const checkoutMode = String(settings.checkout_mode ?? "whatsapp").toLowerCase();
     const usesRazorpay = checkoutMode !== "whatsapp";
+    const razorpayOrders = orders.filter(
+      (order) => order.payment_provider === "RAZORPAY" && order.payment_status === "paid",
+    );
+    const activeDisputes = disputes.filter((dispute) => isActiveDisputeStatus(dispute.status));
     const active = products.filter((product) => product.is_active !== false);
     const missingCover = active
       .filter((product) => !product.cover_image_url)
@@ -707,6 +725,11 @@ export const launchReadiness = query({
       ...(usesRazorpay && !env.checkoutApiSecret
         ? ["The server-to-server checkout secret is not configured."]
         : []),
+      ...(usesRazorpay && razorpayOrders.length > 0 && !paymentHealth?.last_webhook_at
+        ? [
+            "No live Razorpay webhook has reached the store. Enable and test the production webhook before launch.",
+          ]
+        : []),
       ...(!env.adminUploadToken ? ["ADMIN_UPLOAD_TOKEN is not configured for product media."] : []),
       ...(recoveries.length
         ? [`${recoveries.length} paid checkout recovery item(s) need manual attention.`]
@@ -737,6 +760,12 @@ export const launchReadiness = query({
         ...(orders.some((order) => order.refund_status === "failed")
           ? ["One or more Razorpay refunds failed and need attention."]
           : []),
+        ...(Number(paymentHealth?.consecutive_api_failures ?? 0) > 0
+          ? ["The latest Razorpay connection health check failed."]
+          : []),
+        ...(activeDisputes.length
+          ? [`${activeDisputes.length} Razorpay dispute(s) need review in the Razorpay Dashboard.`]
+          : []),
         ...(categories.length === 0 ? ["Default categories/subjects have not been seeded."] : []),
       ],
       counts: {
@@ -745,6 +774,7 @@ export const launchReadiness = query({
         recoveries: recoveries.length,
         pendingReviews: pendingReviews.length,
         categories: categories.length,
+        activeDisputes: activeDisputes.length,
       },
       checkoutMode,
       samples: {
@@ -762,20 +792,26 @@ export const notifications = query({
   args: {},
   handler: async (ctx) => {
     await requireAdmin(ctx);
-    const [orders, products, reviews, rates, recoveries, lowStockSetting] = await Promise.all([
-      ctx.db.query("orders").take(1_000),
-      ctx.db.query("products").take(2_000),
-      ctx.db.query("reviews").take(1_000),
-      ctx.db.query("shipping_rates").take(200),
-      ctx.db
-        .query("checkout_intents")
-        .withIndex("by_status", (q) => q.eq("status", "recovery_required"))
-        .take(500),
-      ctx.db
-        .query("store_settings")
-        .withIndex("by_key", (q) => q.eq("key", "lowStock"))
-        .first(),
-    ]);
+    const [orders, products, reviews, rates, recoveries, lowStockSetting, paymentHealth, disputes] =
+      await Promise.all([
+        ctx.db.query("orders").take(1_000),
+        ctx.db.query("products").take(2_000),
+        ctx.db.query("reviews").take(1_000),
+        ctx.db.query("shipping_rates").take(200),
+        ctx.db
+          .query("checkout_intents")
+          .withIndex("by_status", (q) => q.eq("status", "recovery_required"))
+          .take(500),
+        ctx.db
+          .query("store_settings")
+          .withIndex("by_key", (q) => q.eq("key", "lowStock"))
+          .first(),
+        ctx.db
+          .query("payment_system_health")
+          .withIndex("by_provider", (q) => q.eq("provider", "razorpay"))
+          .first(),
+        ctx.db.query("razorpay_disputes").take(500),
+      ]);
     const lowStockThreshold = Math.max(0, Number(lowStockSetting?.value ?? 5) || 0);
     const now = Date.now();
     const rateTimes = rates
@@ -841,6 +877,32 @@ export const notifications = query({
         count: orders.filter((order) => order.refund_status === "failed").length,
         title: "Refunds need attention",
         body: "failed refunds need review in Razorpay",
+        section: "orders",
+      },
+      {
+        id: "payment-health",
+        count: Number(paymentHealth?.consecutive_api_failures ?? 0) > 0 ? 1 : 0,
+        title: "Razorpay connection needs attention",
+        body: "payment connection health check failed",
+        section: "orders",
+      },
+      {
+        id: "payment-webhook",
+        count:
+          orders.some(
+            (order) => order.payment_provider === "RAZORPAY" && order.payment_status === "paid",
+          ) && !paymentHealth?.last_webhook_at
+            ? 1
+            : 0,
+        title: "Razorpay webhook not verified",
+        body: "production webhook needs a successful test delivery",
+        section: "orders",
+      },
+      {
+        id: "payment-disputes",
+        count: disputes.filter((dispute) => isActiveDisputeStatus(dispute.status)).length,
+        title: "Payment disputes need attention",
+        body: "Razorpay disputes need review",
         section: "orders",
       },
       {

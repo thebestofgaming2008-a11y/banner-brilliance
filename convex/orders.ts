@@ -29,6 +29,11 @@ import {
 } from "./promotionRules";
 import { evaluateGiftCampaigns } from "./gifts";
 import { summarizeRefundLifecycle } from "./refundRules";
+import {
+  CHECKOUT_RECONCILIATION_INITIAL_DELAY_MS,
+  CHECKOUT_RECONCILIATION_RETRY_DELAYS_MS,
+  PAYMENT_TECHNICAL_RETENTION_MS,
+} from "./paymentRules";
 
 const cartItem = v.object({
   cartKey: v.optional(v.string()),
@@ -88,7 +93,7 @@ const WHATSAPP_STOCK_STATUSES = new Set([
   "delivered",
 ]);
 const CHECKOUT_RESERVATION_MS = 30 * 60 * 1000;
-const WEBHOOK_EVENT_RETENTION_MS = 180 * 24 * 60 * 60 * 1000;
+const WEBHOOK_EVENT_RETENTION_MS = PAYMENT_TECHNICAL_RETENTION_MS;
 
 function cleanText(value: string | null | undefined, max = 160) {
   return String(value ?? "")
@@ -480,6 +485,7 @@ async function savePaidOrder(
     razorpay_order_id: string;
     razorpay_payment_id: string;
     razorpay_signature: string;
+    payment_method?: string | null;
     locked_amount_paise?: number;
     locked_discount?: number;
     locked_promotion_id?: Id<"discounts"> | null;
@@ -496,6 +502,12 @@ async function savePaidOrder(
   if (existingByPayment) {
     if (existingByPayment.payment_order_id !== args.razorpay_order_id)
       throw new Error("Payment order mismatch.");
+    if (!existingByPayment.payment_method && args.payment_method) {
+      await ctx.db.patch(existingByPayment._id, {
+        payment_method: cleanNullable(args.payment_method, 40),
+        updated_at: nowIso(),
+      });
+    }
     return publicOrder(existingByPayment);
   }
   const existingByRazorpayOrder = await ctx.db
@@ -505,6 +517,12 @@ async function savePaidOrder(
   if (existingByRazorpayOrder) {
     if (existingByRazorpayOrder.payment_id !== args.razorpay_payment_id)
       throw new Error("This Razorpay order is already linked to another payment.");
+    if (!existingByRazorpayOrder.payment_method && args.payment_method) {
+      await ctx.db.patch(existingByRazorpayOrder._id, {
+        payment_method: cleanNullable(args.payment_method, 40),
+        updated_at: nowIso(),
+      });
+    }
     return publicOrder(existingByRazorpayOrder);
   }
   if (!args.cart.length) throw new Error("Cart is empty.");
@@ -672,6 +690,7 @@ async function savePaidOrder(
     currency: "INR",
     shipping_address: customer,
     payment_provider: "RAZORPAY",
+    payment_method: cleanNullable(args.payment_method, 40),
     payment_order_id: cleanText(args.razorpay_order_id, 120),
     payment_id: cleanText(args.razorpay_payment_id, 120),
     stock_adjusted_at: timestamp,
@@ -1142,6 +1161,7 @@ export const reserveCheckoutIntent = internalMutation({
     amount_paise: v.number(),
     promotion_code: v.optional(v.string()),
   },
+  returns: v.id("checkout_intents"),
   handler: async (ctx, args) => {
     await releaseExpiredReservations(ctx);
     const existing = await ctx.db
@@ -1167,7 +1187,7 @@ export const reserveCheckoutIntent = internalMutation({
         updated_at: timestamp,
       });
     }
-    return await ctx.db.insert("checkout_intents", {
+    const intentId = await ctx.db.insert("checkout_intents", {
       razorpay_order_id: args.razorpay_order_id,
       user_id: args.user_id ?? null,
       payment_id: null,
@@ -1189,6 +1209,12 @@ export const reserveCheckoutIntent = internalMutation({
       created_at: timestamp,
       updated_at: timestamp,
     });
+    await ctx.scheduler.runAfter(
+      CHECKOUT_RECONCILIATION_INITIAL_DELAY_MS,
+      internal.orders.reconcileCheckoutIntent,
+      { razorpay_order_id: args.razorpay_order_id, attempt: 0 },
+    );
+    return intentId;
   },
 });
 
@@ -1205,6 +1231,7 @@ export const finalizeCheckoutIntent = internalMutation({
     razorpay_payment_id: v.string(),
     amount_paise: v.optional(v.number()),
     currency: v.optional(v.string()),
+    payment_method: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => finalizeCheckoutIntentHandler(ctx, args),
 });
@@ -1248,6 +1275,7 @@ async function finalizeCheckoutIntentHandler(
     razorpay_payment_id: string;
     amount_paise?: number;
     currency?: string;
+    payment_method?: string | null;
   },
 ) {
   const intent = await ctx.db
@@ -1270,12 +1298,20 @@ async function finalizeCheckoutIntentHandler(
     return null;
   }
   if (intent.status === "completed") {
-    return await ctx.db
+    const existingOrder = await ctx.db
       .query("orders")
       .withIndex("by_payment_order_id", (q: any) =>
         q.eq("payment_order_id", args.razorpay_order_id),
       )
       .first();
+    if (existingOrder && !existingOrder.payment_method && args.payment_method) {
+      await ctx.db.patch(existingOrder._id, {
+        payment_method: cleanNullable(args.payment_method, 40),
+        updated_at: nowIso(),
+      });
+      return await ctx.db.get(existingOrder._id);
+    }
+    return existingOrder;
   }
   const hasServerSnapshot = intent.stock_reserved !== undefined;
   const stockAlreadyReserved = intent.stock_reserved ?? intent.status === "pending";
@@ -1286,6 +1322,7 @@ async function finalizeCheckoutIntentHandler(
     razorpay_order_id: args.razorpay_order_id,
     razorpay_payment_id: args.razorpay_payment_id,
     razorpay_signature: "verified-by-server",
+    payment_method: args.payment_method,
     locked_amount_paise: hasServerSnapshot ? intent.amount_paise : undefined,
     locked_discount: hasServerSnapshot ? Number(intent.discount_inr ?? 0) : undefined,
     locked_promotion_id: hasServerSnapshot ? (intent.promotion_id ?? null) : undefined,
@@ -1311,6 +1348,7 @@ export const saveVerifiedGuestOrder = internalMutation({
     razorpay_order_id: v.string(),
     razorpay_payment_id: v.string(),
     razorpay_signature: v.string(),
+    payment_method: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     return await savePaidOrder(ctx, args);
@@ -1390,6 +1428,7 @@ export const verifyRazorpayPayment = action({
         razorpay_payment_id: args.razorpay_payment_id,
         amount_paise: fetchedPayment.amount,
         currency: fetchedPayment.currency,
+        payment_method: cleanNullable(payment.method, 40),
       });
     } catch (error) {
       await ctx.runMutation(internal.orders.markCheckoutRecovery, {
@@ -1416,6 +1455,7 @@ export const verifyRazorpayPayment = action({
       razorpay_order_id: args.razorpay_order_id,
       razorpay_payment_id: args.razorpay_payment_id,
       razorpay_signature: args.razorpay_signature,
+      payment_method: cleanNullable(payment.method, 40),
     });
   },
 });
@@ -1519,6 +1559,7 @@ export const attachPaidOrderToCurrentUser = mutation({
 
 export const recordReconciliationAttempt = internalMutation({
   args: { razorpay_order_id: v.string() },
+  returns: v.boolean(),
   handler: async (ctx, args) => {
     const intent = await ctx.db
       .query("checkout_intents")
@@ -1535,24 +1576,21 @@ export const recordReconciliationAttempt = internalMutation({
 });
 
 export const listUnresolvedCheckoutIntents = internalQuery({
-  args: { limit: v.optional(v.number()) },
+  args: { limit: v.optional(v.number()), cutoff: v.number() },
+  returns: v.array(v.any()),
   handler: async (ctx, args) => {
     const limit = Math.min(Math.max(args.limit ?? 50, 1), 100);
     const statuses = ["pending", "released", "failed", "recovery_required"];
     const rows = [];
-    const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
     for (const status of statuses) {
       const matches = await ctx.db
         .query("checkout_intents")
-        .withIndex("by_status", (q) => q.eq("status", status))
+        .withIndex("by_status_expires_at", (q) =>
+          q.eq("status", status).gte("expires_at", args.cutoff),
+        )
         .order("desc")
         .take(100);
-      rows.push(
-        ...matches.filter(
-          (intent) =>
-            intent.expires_at >= cutoff && Number(intent.reconciliation_attempts ?? 0) < 12,
-        ),
-      );
+      rows.push(...matches.filter((intent) => Number(intent.reconciliation_attempts ?? 0) < 12));
     }
     return rows.sort((a, b) => b._creationTime - a._creationTime).slice(0, limit);
   },
@@ -1581,11 +1619,76 @@ async function capturedPaymentForIntent(ctx: any, intent: any) {
   return payment?.status === "captured" ? payment : null;
 }
 
+async function finalizeReconciledIntent(ctx: any, intent: any, captured: any) {
+  try {
+    return await ctx.runMutation(internal.orders.finalizeCheckoutIntent, {
+      razorpay_order_id: intent.razorpay_order_id,
+      razorpay_payment_id: cleanText(captured.id, 120),
+      amount_paise: captured.amount,
+      currency: captured.currency,
+      payment_method: cleanNullable(captured.method, 40),
+    });
+  } catch (error) {
+    await ctx.runMutation(internal.orders.markCheckoutRecovery, {
+      razorpay_order_id: intent.razorpay_order_id,
+      razorpay_payment_id: cleanText(captured.id, 120),
+      error: error instanceof Error ? error.message : "Reconciliation failed.",
+    });
+    throw error;
+  }
+}
+
+export const reconcileCheckoutIntent = internalAction({
+  args: { razorpay_order_id: v.string(), attempt: v.number() },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const intent: any = await ctx.runQuery(internal.orders.findCheckoutIntent, {
+      razorpay_order_id: cleanText(args.razorpay_order_id, 120),
+    });
+    if (!intent || intent.status === "completed") return null;
+
+    await ctx.runMutation(internal.orders.recordReconciliationAttempt, {
+      razorpay_order_id: intent.razorpay_order_id,
+    });
+    try {
+      const captured = await capturedPaymentForIntent(ctx, intent);
+      if (captured?.id) {
+        await finalizeReconciledIntent(ctx, intent, captured);
+        return null;
+      }
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          event: "razorpay_checkout_reconciliation_error",
+          razorpayOrderId: intent.razorpay_order_id,
+          attempt: args.attempt,
+          message: error instanceof Error ? cleanText(error.message, 200) : "Unknown error",
+        }),
+      );
+    }
+
+    const retryDelay = CHECKOUT_RECONCILIATION_RETRY_DELAYS_MS[args.attempt];
+    if (retryDelay !== undefined) {
+      await ctx.scheduler.runAfter(retryDelay, internal.orders.reconcileCheckoutIntent, {
+        razorpay_order_id: intent.razorpay_order_id,
+        attempt: args.attempt + 1,
+      });
+    }
+    return null;
+  },
+});
+
 export const reconcileCapturedPayments = internalAction({
   args: {},
+  returns: v.object({
+    checked: v.number(),
+    finalized: v.number(),
+    errors: v.array(v.string()),
+  }),
   handler: async (ctx) => {
     const intents: any[] = await ctx.runQuery(internal.orders.listUnresolvedCheckoutIntents, {
       limit: 75,
+      cutoff: Date.now() - 14 * 24 * 60 * 60 * 1000,
     });
     let finalized = 0;
     let checked = 0;
@@ -1598,22 +1701,7 @@ export const reconcileCapturedPayments = internalAction({
       try {
         const captured = await capturedPaymentForIntent(ctx, intent);
         if (!captured?.id) continue;
-        let order;
-        try {
-          order = await ctx.runMutation(internal.orders.finalizeCheckoutIntent, {
-            razorpay_order_id: intent.razorpay_order_id,
-            razorpay_payment_id: cleanText(captured.id, 120),
-            amount_paise: captured.amount,
-            currency: captured.currency,
-          });
-        } catch (error) {
-          await ctx.runMutation(internal.orders.markCheckoutRecovery, {
-            razorpay_order_id: intent.razorpay_order_id,
-            razorpay_payment_id: cleanText(captured.id, 120),
-            error: error instanceof Error ? error.message : "Reconciliation failed.",
-          });
-          throw error;
-        }
+        const order = await finalizeReconciledIntent(ctx, intent, captured);
         if (order) finalized += 1;
       } catch (error) {
         errors.push(
@@ -1623,6 +1711,10 @@ export const reconcileCapturedPayments = internalAction({
         );
       }
     }
+    await ctx.runMutation(internal.orders.recordRazorpayReconciliationHealth, {
+      checked,
+      finalized,
+    });
     return { checked, finalized, errors: errors.slice(0, 10) };
   },
 });
@@ -1649,6 +1741,7 @@ export const retryPaymentRecovery = action({
         razorpay_payment_id: cleanText(payment.id, 120),
         amount_paise: payment.amount,
         currency: payment.currency,
+        payment_method: cleanNullable(payment.method, 40),
       });
       return { status: order ? "completed" : "recovery_required", order };
     } catch (error) {
@@ -1662,17 +1755,133 @@ export const retryPaymentRecovery = action({
   },
 });
 
+export const recordRazorpayApiHealth = internalMutation({
+  args: { ok: v.boolean(), error: v.optional(v.union(v.string(), v.null())) },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const timestamp = Date.now();
+    const existing = await ctx.db
+      .query("payment_system_health")
+      .withIndex("by_provider", (q) => q.eq("provider", "razorpay"))
+      .first();
+    const patch = {
+      last_api_check_at: timestamp,
+      ...(args.ok ? { last_api_success_at: timestamp } : {}),
+      consecutive_api_failures: args.ok ? 0 : Number(existing?.consecutive_api_failures ?? 0) + 1,
+      last_api_error: args.ok ? null : cleanNullable(args.error, 500),
+      updated_at: timestamp,
+    };
+    if (existing) await ctx.db.patch(existing._id, patch);
+    else await ctx.db.insert("payment_system_health", { provider: "razorpay", ...patch });
+    return true;
+  },
+});
+
+export const recordRazorpayReconciliationHealth = internalMutation({
+  args: { checked: v.number(), finalized: v.number() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const timestamp = Date.now();
+    const existing = await ctx.db
+      .query("payment_system_health")
+      .withIndex("by_provider", (q) => q.eq("provider", "razorpay"))
+      .first();
+    const patch = {
+      last_reconciliation_at: timestamp,
+      last_reconciliation_checked: Math.max(0, Math.floor(args.checked)),
+      last_reconciliation_finalized: Math.max(0, Math.floor(args.finalized)),
+      updated_at: timestamp,
+    };
+    if (existing) await ctx.db.patch(existing._id, patch);
+    else await ctx.db.insert("payment_system_health", { provider: "razorpay", ...patch });
+    return true;
+  },
+});
+
+async function checkRazorpayApiAndRecord(ctx: any) {
+  try {
+    const result = await razorpayRequest(ctx, "/orders?count=1");
+    const ok = Array.isArray(result?.items);
+    await ctx.runMutation(internal.orders.recordRazorpayApiHealth, {
+      ok,
+      error: ok ? null : "Razorpay returned an unexpected response.",
+    });
+    return ok;
+  } catch (error) {
+    await ctx.runMutation(internal.orders.recordRazorpayApiHealth, {
+      ok: false,
+      error: error instanceof Error ? error.message : "Razorpay connection failed.",
+    });
+    return false;
+  }
+}
+
+export const monitorRazorpayHealth = internalAction({
+  args: {},
+  returns: v.boolean(),
+  handler: async (ctx) => await checkRazorpayApiAndRecord(ctx),
+});
+
 export const checkRazorpayConnection = action({
   args: {},
+  returns: v.object({
+    ok: v.boolean(),
+    mode: v.union(v.literal("live"), v.literal("test")),
+    webhookConfigured: v.boolean(),
+  }),
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!isAdminEmail(identity?.email)) throw new Error("Admin access required.");
     const { keyId } = razorpayKeys();
-    const result = await razorpayRequest(ctx, "/orders?count=1");
+    const ok = await checkRazorpayApiAndRecord(ctx);
+    const mode: "live" | "test" = keyId.startsWith("rzp_live_") ? "live" : "test";
     return {
-      ok: Array.isArray(result?.items),
-      mode: keyId.startsWith("rzp_live_") ? "live" : "test",
+      ok,
+      mode,
       webhookConfigured: Boolean(process.env.RAZORPAY_WEBHOOK_SECRET?.trim()),
+    };
+  },
+});
+
+export const getRazorpaySystemStatus = query({
+  args: {},
+  returns: v.object({
+    mode: v.union(v.literal("live"), v.literal("test"), v.literal("missing")),
+    webhook_secret_configured: v.boolean(),
+    last_api_check_at: v.union(v.number(), v.null()),
+    last_api_success_at: v.union(v.number(), v.null()),
+    consecutive_api_failures: v.number(),
+    last_api_error: v.union(v.string(), v.null()),
+    last_webhook_at: v.union(v.number(), v.null()),
+    last_webhook_event: v.union(v.string(), v.null()),
+    last_reconciliation_at: v.union(v.number(), v.null()),
+    last_reconciliation_checked: v.number(),
+    last_reconciliation_finalized: v.number(),
+  }),
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const health = await ctx.db
+      .query("payment_system_health")
+      .withIndex("by_provider", (q) => q.eq("provider", "razorpay"))
+      .first();
+    const keyId = process.env.RAZORPAY_KEY_ID?.trim() ?? "";
+    const mode: "live" | "test" | "missing" = keyId.startsWith("rzp_live_")
+      ? "live"
+      : keyId
+        ? "test"
+        : "missing";
+    return {
+      mode,
+      webhook_secret_configured: Boolean(process.env.RAZORPAY_WEBHOOK_SECRET?.trim()),
+      last_api_check_at: health?.last_api_check_at ?? null,
+      last_api_success_at: health?.last_api_success_at ?? null,
+      consecutive_api_failures: Number(health?.consecutive_api_failures ?? 0),
+      last_api_error: health?.last_api_error ?? null,
+      last_webhook_at: health?.last_webhook_at ?? null,
+      last_webhook_event: health?.last_webhook_event ?? null,
+      last_reconciliation_at: health?.last_reconciliation_at ?? null,
+      last_reconciliation_checked: Number(health?.last_reconciliation_checked ?? 0),
+      last_reconciliation_finalized: Number(health?.last_reconciliation_finalized ?? 0),
     };
   },
 });
@@ -1723,6 +1932,7 @@ export const recordRazorpayWebhook = internalMutation({
     razorpay_order_id: v.optional(v.string()),
     razorpay_payment_id: v.optional(v.string()),
     razorpay_refund_id: v.optional(v.string()),
+    razorpay_dispute_id: v.optional(v.string()),
     amount_paise: v.optional(v.number()),
     currency: v.optional(v.string()),
   },
@@ -1739,12 +1949,29 @@ export const recordRazorpayWebhook = internalMutation({
       razorpay_order_id: args.razorpay_order_id,
       razorpay_payment_id: args.razorpay_payment_id,
       razorpay_refund_id: args.razorpay_refund_id,
+      razorpay_dispute_id: args.razorpay_dispute_id,
       amount_paise: args.amount_paise,
       currency: args.currency,
       processing_status: "received",
       expires_at: Date.now() + WEBHOOK_EVENT_RETENTION_MS,
       created_at: nowIso(),
     });
+    const timestamp = Date.now();
+    const health = await ctx.db
+      .query("payment_system_health")
+      .withIndex("by_provider", (q) => q.eq("provider", "razorpay"))
+      .first();
+    const healthPatch = {
+      last_webhook_at: timestamp,
+      last_webhook_event: cleanText(args.event_type, 80),
+      updated_at: timestamp,
+    };
+    if (health) await ctx.db.patch(health._id, healthPatch);
+    else
+      await ctx.db.insert("payment_system_health", {
+        provider: "razorpay",
+        ...healthPatch,
+      });
     return { duplicate: false, status: "received" };
   },
 });
@@ -1870,6 +2097,78 @@ export const syncRazorpayRefund = internalMutation({
   },
 });
 
+export const syncRazorpayDispute = internalMutation({
+  args: {
+    dispute_id: v.string(),
+    payment_id: v.string(),
+    amount_paise: v.number(),
+    currency: v.string(),
+    status: v.string(),
+    phase: v.optional(v.union(v.string(), v.null())),
+    reason_code: v.optional(v.union(v.string(), v.null())),
+    respond_by: v.optional(v.union(v.number(), v.null())),
+    event_type: v.string(),
+  },
+  returns: v.object({ linked: v.boolean(), dispute_status: v.string() }),
+  handler: async (ctx, args) => {
+    const disputeId = cleanText(args.dispute_id, 120);
+    const paymentId = cleanText(args.payment_id, 120);
+    const amountPaise = Math.max(0, Math.floor(args.amount_paise));
+    const currency = cleanText(args.currency, 12).toUpperCase() || "INR";
+    const status = cleanText(args.status, 40).toLowerCase() || "open";
+    if (!disputeId || !paymentId) throw new Error("Razorpay dispute payload is incomplete.");
+
+    const order = await ctx.db
+      .query("orders")
+      .withIndex("by_payment_id", (q) => q.eq("payment_id", paymentId))
+      .first();
+    const existing = await ctx.db
+      .query("razorpay_disputes")
+      .withIndex("by_dispute_id", (q) => q.eq("dispute_id", disputeId))
+      .first();
+    const timestamp = nowIso();
+    const disputeRecord = {
+      payment_id: paymentId,
+      ...(order ? { order_id: order._id } : {}),
+      amount_paise: amountPaise,
+      currency,
+      status,
+      phase: cleanNullable(args.phase, 40),
+      reason_code: cleanNullable(args.reason_code, 120),
+      respond_by:
+        typeof args.respond_by === "number" && Number.isFinite(args.respond_by)
+          ? Math.floor(args.respond_by)
+          : null,
+      event_type: cleanText(args.event_type, 80),
+      updated_at: timestamp,
+    };
+    if (existing) await ctx.db.patch(existing._id, disputeRecord);
+    else
+      await ctx.db.insert("razorpay_disputes", {
+        dispute_id: disputeId,
+        ...disputeRecord,
+        created_at: timestamp,
+      });
+
+    if (order) {
+      await ctx.db.patch(order._id, {
+        dispute_status: status,
+        latest_dispute_id: disputeId,
+        dispute_amount_inr: amountPaise / 100,
+        dispute_reason: cleanNullable(args.reason_code, 120),
+        dispute_phase: cleanNullable(args.phase, 40),
+        dispute_respond_by:
+          typeof args.respond_by === "number" && Number.isFinite(args.respond_by)
+            ? Math.floor(args.respond_by)
+            : null,
+        dispute_updated_at: timestamp,
+        updated_at: timestamp,
+      });
+    }
+    return { linked: Boolean(order), dispute_status: status };
+  },
+});
+
 export const cleanupRazorpayWebhookEvents = internalMutation({
   args: {},
   returns: v.number(),
@@ -1880,6 +2179,29 @@ export const cleanupRazorpayWebhookEvents = internalMutation({
       .take(250);
     for (const event of expired) await ctx.db.delete(event._id);
     return expired.length;
+  },
+});
+
+export const cleanupPaymentTechnicalRecords = internalMutation({
+  args: {},
+  returns: v.object({ checkout_intents: v.number(), webhook_events: v.number() }),
+  handler: async (ctx) => {
+    const cutoff = Date.now() - PAYMENT_TECHNICAL_RETENTION_MS;
+    let deletedIntents = 0;
+    for (const status of ["completed", "released", "failed"]) {
+      const rows = await ctx.db
+        .query("checkout_intents")
+        .withIndex("by_status_expires_at", (q) => q.eq("status", status).lt("expires_at", cutoff))
+        .take(250);
+      for (const row of rows) await ctx.db.delete(row._id);
+      deletedIntents += rows.length;
+    }
+    const webhookRows = await ctx.db
+      .query("razorpay_webhook_events")
+      .withIndex("by_expires_at", (q) => q.lt("expires_at", Date.now()))
+      .take(500);
+    for (const row of webhookRows) await ctx.db.delete(row._id);
+    return { checkout_intents: deletedIntents, webhook_events: webhookRows.length };
   },
 });
 
@@ -1901,6 +2223,7 @@ export const razorpayWebhook = httpAction(async (ctx, request) => {
   }
   let payment = payload?.payload?.payment?.entity;
   const refund = payload?.payload?.refund?.entity;
+  const dispute = payload?.payload?.dispute?.entity;
   const order = payload?.payload?.order?.entity;
   const eventType = cleanText(payload?.event, 80);
   if (eventType === "order.paid" && !payment?.id && order?.id) {
@@ -1923,12 +2246,14 @@ export const razorpayWebhook = httpAction(async (ctx, request) => {
       : undefined;
   const razorpayPaymentId = payment?.id ? cleanText(payment.id, 120) : undefined;
   const razorpayRefundId = refund?.id ? cleanText(refund.id, 120) : undefined;
+  const razorpayDisputeId = dispute?.id ? cleanText(dispute.id, 120) : undefined;
   const recorded = await ctx.runMutation(internal.orders.recordRazorpayWebhook, {
     event_id: eventId,
     event_type: effectiveEventType,
     razorpay_order_id: razorpayOrderId,
     razorpay_payment_id: razorpayPaymentId,
     razorpay_refund_id: razorpayRefundId,
+    razorpay_dispute_id: razorpayDisputeId,
     amount_paise: Number.isFinite(payment?.amount) ? payment.amount : undefined,
     currency: payment?.currency ? cleanText(payment.currency, 12) : undefined,
   });
@@ -1938,6 +2263,27 @@ export const razorpayWebhook = httpAction(async (ctx, request) => {
 
   try {
     if (
+      effectiveEventType.startsWith("payment.dispute.") &&
+      razorpayDisputeId &&
+      dispute?.payment_id
+    ) {
+      const synced = await ctx.runMutation(internal.orders.syncRazorpayDispute, {
+        dispute_id: razorpayDisputeId,
+        payment_id: cleanText(dispute.payment_id, 120),
+        amount_paise: Math.max(0, Math.floor(Number(dispute.amount ?? 0))),
+        currency: cleanText(dispute.currency ?? payment?.currency ?? "INR", 12) || "INR",
+        status: cleanText(dispute.status ?? effectiveEventType.replace("payment.dispute.", ""), 40),
+        phase: cleanNullable(dispute.phase, 40),
+        reason_code: cleanNullable(dispute.reason_code, 120),
+        respond_by: Number.isFinite(dispute.respond_by) ? dispute.respond_by : null,
+        event_type: effectiveEventType,
+      });
+      await ctx.runMutation(internal.orders.updateRazorpayWebhookEvent, {
+        event_id: eventId,
+        processing_status: synced.linked ? "processed" : "ignored",
+        error: synced.linked ? null : "No store order matched this disputed payment.",
+      });
+    } else if (
       ["refund.created", "refund.processed", "refund.failed"].includes(effectiveEventType) &&
       razorpayRefundId &&
       refund?.payment_id
@@ -2001,6 +2347,7 @@ export const razorpayWebhook = httpAction(async (ctx, request) => {
           razorpay_payment_id: razorpayPaymentId,
           amount_paise: captured.amount,
           currency: captured.currency,
+          payment_method: cleanNullable(captured.method, 40),
         });
         await ctx.runMutation(internal.orders.updateRazorpayWebhookEvent, {
           event_id: eventId,
@@ -2013,6 +2360,7 @@ export const razorpayWebhook = httpAction(async (ctx, request) => {
         razorpay_payment_id: razorpayPaymentId,
         amount_paise: Number.isFinite(payment?.amount) ? payment.amount : undefined,
         currency: payment?.currency ? cleanText(payment.currency, 12) : undefined,
+        payment_method: cleanNullable(payment?.method, 40),
       });
       await ctx.runMutation(internal.orders.updateRazorpayWebhookEvent, {
         event_id: eventId,
