@@ -42,6 +42,7 @@ export type StoreProduct = {
   mediaFit?: "cover" | "contain";
   mediaPosition?: string;
   inStock?: boolean;
+  stockQuantity?: number;
 };
 
 export const storeProducts: StoreProduct[] = [
@@ -277,7 +278,10 @@ export function toStoreProduct(product: Product): StoreProduct {
       : undefined,
     mediaFit: product.mediaFit ?? visualFallback?.mediaFit ?? "cover",
     mediaPosition: product.mediaPosition ?? "center",
-    inStock: product.inStock !== false,
+    inStock:
+      product.inStock !== false &&
+      (product.stockQuantity === undefined || product.stockQuantity > 0),
+    stockQuantity: product.stockQuantity,
   };
 }
 

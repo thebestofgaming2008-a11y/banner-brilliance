@@ -74,12 +74,12 @@ test("home and live catalog render without browser errors", async ({ page }) => 
     const filterTab = page.getByRole("tab", { name: managedFilter.name, exact: true });
     await expect(filterTab).toBeVisible();
     await filterTab.click();
-    await expect(page.locator("#shop-all a.product-card")).toHaveCount(
+    await expect(page.locator("#shop-all .product-card")).toHaveCount(
       catalog.filter((product) => product.tags?.includes(managedFilter.slug)).length,
     );
     await page.getByRole("tab", { name: "All", exact: true }).click();
   }
-  await expect(page.locator("#shop-all a.product-card").first()).toBeVisible();
+  await expect(page.locator("#shop-all .product-card").first()).toBeVisible();
   const mosaic = page.getByTestId("homepage-collection-mosaic");
   await expect(mosaic.locator("[data-mosaic-card]")).toHaveCount(7);
   await expect(mosaic.locator('[data-mosaic-card="SHOP ALL"]')).toHaveAttribute("href", "/shop");
@@ -167,6 +167,76 @@ test("shop product cart and checkout path uses the live product", async ({ page 
   await page.getByRole("option", { name: /United States/ }).click();
   await expect(countryButton).toHaveAccessibleName("Country: United States");
   expect(errors).toEqual([]);
+});
+
+test("catalog cards support quick add and expose sold-out stock before navigation", async ({
+  page,
+}) => {
+  const catalogResponse = await page.request.get("/api/catalog/products");
+  const catalog = (await catalogResponse.json()) as Array<{
+    name: string;
+    slug: string;
+    stock_quantity?: number;
+    is_active?: boolean;
+  }>;
+  const available = catalog.find(
+    (product) => product.is_active !== false && Number(product.stock_quantity ?? 0) > 0,
+  );
+  expect(available, "The live catalog needs an in-stock product for quick add").toBeTruthy();
+
+  await page.goto("/shop", { waitUntil: "domcontentloaded", timeout: 60_000 });
+  const availableCard = page
+    .locator(`article.store-product-card:has(a[href="/products/${available!.slug}"])`)
+    .first();
+  await expect(availableCard).toHaveAttribute("data-product-stock", "available");
+  const quickAdd = availableCard.getByRole("button", {
+    name: /^(Add to cart|Choose options):/,
+  });
+  await expect(quickAdd).toBeEnabled();
+  await quickAdd.click();
+
+  const optionDialog = page.getByRole("dialog", { name: available!.name });
+  if (await optionDialog.isVisible().catch(() => false)) {
+    await optionDialog.getByRole("button", { name: "Add to cart", exact: true }).click();
+  }
+  const cart = page.getByRole("dialog", { name: "Shopping cart" });
+  await expect(cart).toBeVisible();
+  await expect(cart.getByText(available!.name, { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(cart).toBeHidden();
+
+  const soldOut = catalog.find(
+    (product) => product.is_active !== false && Number(product.stock_quantity ?? 0) <= 0,
+  );
+  if (soldOut) {
+    const soldOutCard = page
+      .locator(`article.store-product-card:has(a[href="/products/${soldOut.slug}"])`)
+      .first();
+    await expect(soldOutCard).toHaveAttribute("data-product-stock", "sold-out");
+    await expect(soldOutCard.locator("span", { hasText: "Sold out" })).toBeVisible();
+    await expect(
+      soldOutCard.getByRole("button", { name: `Sold out: ${soldOut.name}` }),
+    ).toBeDisabled();
+  }
+
+  await page.goto("/", { waitUntil: "domcontentloaded", timeout: 60_000 });
+  const homepageAvailableCard = page
+    .locator(`#shop-all article.product-card:has(a[href="/products/${available!.slug}"])`)
+    .first();
+  await expect(homepageAvailableCard).toHaveAttribute("data-product-stock", "available");
+  await expect(
+    homepageAvailableCard.getByRole("button", { name: /^(Add to cart|Choose options):/ }),
+  ).toBeEnabled();
+
+  if (soldOut) {
+    const homepageSoldOutCard = page
+      .locator(`#shop-all article.product-card:has(a[href="/products/${soldOut.slug}"])`)
+      .first();
+    await expect(homepageSoldOutCard).toHaveAttribute("data-product-stock", "sold-out");
+    await expect(
+      homepageSoldOutCard.getByRole("button", { name: `Sold out: ${soldOut.name}` }),
+    ).toBeDisabled();
+  }
 });
 
 test("cart drawer opens after an add request, traps focus, and offers a checkout path", async ({

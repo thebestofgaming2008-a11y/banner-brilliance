@@ -30,6 +30,7 @@ import {
 } from "@/services/catalogPresentation";
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, seo } from "@/lib/seo";
 import { PromotionPopover } from "@/components/store/promotion-popover";
+import { ProductQuickAdd } from "@/components/store/product-quick-add";
 import { productCountLabel } from "@/lib/catalog-copy";
 
 import heroNiqabFull from "@/assets/hero-products/hero-niqab-full.webp";
@@ -637,47 +638,61 @@ function ProductTile({
   const { formatPrice } = useCurrency();
   const price = formatPrice(product.price);
   const compareAt = product.compareAt ? formatPrice(product.compareAt) : undefined;
+  const available = product.inStock !== false && Number(product.stockQuantity ?? 1) > 0;
+  const lowStock =
+    available &&
+    typeof product.stockQuantity === "number" &&
+    product.stockQuantity > 0 &&
+    product.stockQuantity <= 3;
 
   return (
-    <a
-      href={`/products/${product.slug}`}
-      className="product-card group block min-w-0"
+    <article
+      className="product-card group flex min-w-0 flex-col"
       data-reveal={reveal ? "" : undefined}
+      data-product-stock={available ? "available" : "sold-out"}
     >
-      <div className="product-card__media relative aspect-[3/4] overflow-hidden bg-white">
-        <img
-          src={product.images[0]}
-          alt={product.name}
-          loading={priority ? "eager" : "lazy"}
-          className={`${productImageClassName(product)} transition-opacity duration-300 ${
-            product.images[1] ? "group-hover:opacity-0" : ""
-          }`}
-        />
-        {product.images[1] ? (
+      <a href={`/products/${product.slug}`} aria-label={`View ${product.name}`}>
+        <div className="product-card__media relative aspect-[3/4] overflow-hidden bg-white">
           <img
-            src={product.images[1]}
-            alt=""
-            aria-hidden
-            loading="lazy"
-            className={`absolute inset-0 ${productImageClassName(product)} opacity-0 transition-opacity duration-300 group-hover:opacity-100`}
+            src={product.images[0]}
+            alt={product.name}
+            loading={priority ? "eager" : "lazy"}
+            className={`${productImageClassName(product)} transition-[filter,opacity] duration-300 ${
+              product.images[1] && available ? "group-hover:opacity-0" : ""
+            } ${available ? "" : "opacity-70 grayscale-[18%]"}`}
           />
-        ) : null}
-        {discount ? (
-          <span className="absolute left-2 top-2 bg-white px-2 py-1 text-[9px] font-bold uppercase tracking-normal">
-            {discount}
-          </span>
-        ) : null}
-        <div className="absolute inset-x-2 bottom-2 hidden translate-y-2 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 md:block">
-          <span className="flex h-9 items-center justify-center bg-black text-[10px] font-bold uppercase tracking-normal text-white">
-            View product
-          </span>
+          {product.images[1] && available ? (
+            <img
+              src={product.images[1]}
+              alt=""
+              aria-hidden
+              loading="lazy"
+              className={`absolute inset-0 ${productImageClassName(product)} opacity-0 transition-opacity duration-300 group-hover:opacity-100`}
+            />
+          ) : null}
+          {!available ? (
+            <span className="absolute left-2 top-2 rounded-md bg-black px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-normal text-white shadow-sm">
+              Sold out
+            </span>
+          ) : discount ? (
+            <span className="absolute left-2 top-2 bg-white px-2 py-1 text-[9px] font-bold uppercase tracking-normal">
+              {discount}
+            </span>
+          ) : null}
+          <div className="absolute inset-x-2 bottom-2 hidden translate-y-2 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 md:block">
+            <span className="flex h-9 items-center justify-center bg-black text-[10px] font-bold uppercase tracking-normal text-white">
+              View product
+            </span>
+          </div>
         </div>
-      </div>
-      <div className="mt-3 text-left">
+      </a>
+      <div className="mt-3 flex flex-1 flex-col text-left">
         <p className="section-kicker text-black/60">{product.collection}</p>
-        <h3 className="product-name mt-1 min-h-8 text-[15px] leading-4 text-current md:text-[16px]">
-          {product.name}
-        </h3>
+        <a href={`/products/${product.slug}`} className="block">
+          <h3 className="product-name mt-1 min-h-8 text-[15px] leading-4 text-current md:text-[16px]">
+            {product.name}
+          </h3>
+        </a>
         {product.reviews > 0 ? (
           <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-current/55">
             <Star size={11} fill="currentColor" />
@@ -691,8 +706,16 @@ function ProductTile({
             <p className="text-[12px] leading-tight text-current/60 line-through">{compareAt}</p>
           ) : null}
         </div>
+        {lowStock ? (
+          <p className="mt-2 text-[9px] font-bold uppercase text-[#A84624]">
+            Only {product.stockQuantity} left
+          </p>
+        ) : null}
+        <div className="mt-auto">
+          <ProductQuickAdd product={product} />
+        </div>
       </div>
-    </a>
+    </article>
   );
 }
 
