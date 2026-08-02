@@ -23,6 +23,7 @@ test("promotion trigger stays circular and opens the branded offer panel", async
   await page.goto("/");
   const trigger = page.getByRole("button", { name: /current offer/i });
   await expect(trigger).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Launch special" })).toHaveCount(0);
   const circle = await trigger.evaluate((element) => {
     const styles = getComputedStyle(element);
     const rect = element.getBoundingClientRect();
@@ -39,7 +40,7 @@ test("promotion trigger stays circular and opens the branded offer panel", async
   const dialog = page.getByRole("dialog", { name: "Launch special" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText("12% off", { exact: true })).toBeVisible();
-  const copyCode = dialog.getByRole("button", { name: "Copy promotion code L12" });
+  const copyCode = dialog.getByRole("button", { name: "Copy code L12" });
   await expect(copyCode).toContainText("Copy code L12");
   await expect(dialog.getByRole("link")).toHaveCount(0);
 

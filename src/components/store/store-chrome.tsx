@@ -9,7 +9,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 
 import { MangoMenuIcon } from "@/components/store/mango-menu-icon";
 import { CurrencySelector } from "@/components/store/currency-selector";
@@ -19,15 +19,18 @@ import { STORE_LOGO_URL } from "@/lib/store-config";
 import { useCurrency } from "@/hooks/use-currency";
 import { useStoreReveal } from "@/hooks/use-store-reveal";
 import { useCatalogPresentation } from "@/services/catalogPresentation";
+import { useStoreProducts } from "@/data/store";
 
 function ChromeButton({
   label,
   children,
   onClick,
+  buttonRef,
 }: {
   label: string;
   children: ReactNode;
   onClick: () => void;
+  buttonRef?: Ref<HTMLButtonElement>;
 }) {
   return (
     <button
@@ -35,6 +38,7 @@ function ChromeButton({
       aria-label={label}
       title={label}
       onClick={onClick}
+      ref={buttonRef}
       className="grid h-9 w-9 place-items-center text-[#C85F22] transition-opacity hover:opacity-65"
     >
       {children}
@@ -44,29 +48,109 @@ function ChromeButton({
 
 export function StoreHeader() {
   const [drawer, setDrawer] = useState<"menu" | "cart" | null>(null);
-  const { items: cartLines, count, subtotal, setQty, remove } = useCart();
+  const {
+    items: cartLines,
+    count,
+    subtotal,
+    setQty,
+    remove,
+    isOpen: cartRequestedOpen,
+    open: requestCart,
+    close: closeRequestedCart,
+  } = useCart();
   const { formatPrice } = useCurrency();
   const { isAdmin } = useAccount();
   const { taxonomy } = useCatalogPresentation();
+  const { products } = useStoreProducts();
   const collections = taxonomy.filter((item) => item.type === "collection");
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const cartTriggerRef = useRef<HTMLButtonElement>(null);
+  const menuDialogRef = useRef<HTMLElement>(null);
+  const cartDialogRef = useRef<HTMLElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const cartSlugs = useMemo(
+    () => new Set(cartLines.map((line) => line.slug ?? line.id.split("__")[0])),
+    [cartLines],
+  );
+  const cartCollections = useMemo(
+    () =>
+      new Set(
+        products
+          .filter((product) => cartSlugs.has(product.slug))
+          .map((product) => product.collectionSlug || product.collection),
+      ),
+    [cartSlugs, products],
+  );
+  const recommendations = useMemo(
+    () =>
+      products
+        .filter((product) => product.inStock !== false && !cartSlugs.has(product.slug))
+        .sort((left, right) => {
+          const leftMatch = cartCollections.has(left.collectionSlug || left.collection) ? 1 : 0;
+          const rightMatch = cartCollections.has(right.collectionSlug || right.collection) ? 1 : 0;
+          return rightMatch - leftMatch;
+        })
+        .slice(0, 2),
+    [cartCollections, cartSlugs, products],
+  );
+
+  useEffect(() => {
+    if (cartRequestedOpen) setDrawer("cart");
+  }, [cartRequestedOpen]);
 
   useEffect(() => {
     if (!drawer) return;
     const previousOverflow = document.body.style.overflow;
-    const closeOnEscape = (event: KeyboardEvent) => event.key === "Escape" && setDrawer(null);
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
+    const dialog = drawer === "menu" ? menuDialogRef.current : cartDialogRef.current;
+    returnFocusRef.current = document.activeElement as HTMLElement | null;
+    const focusFrame = window.requestAnimationFrame(() => {
+      dialog?.querySelector<HTMLElement>("button, a, input, select, [tabindex='0']")?.focus();
+    });
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (drawer === "cart") closeRequestedCart();
+        setDrawer(null);
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          "a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex='0']",
+        ),
+      ).filter((element) => !element.hidden && element.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable.at(-1)!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-  }, [drawer]);
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+      window.requestAnimationFrame(() => returnFocusRef.current?.focus());
+    };
+  }, [closeRequestedCart, drawer]);
 
   return (
     <>
       <header className="site-header sticky top-0 z-50 bg-white">
         <div className="relative mx-auto flex h-[65px] max-w-[1440px] items-center justify-between px-5 sm:px-6 md:px-8">
-          <ChromeButton label="Open menu" onClick={() => setDrawer("menu")}>
+          <ChromeButton
+            label="Open menu"
+            onClick={() => {
+              closeRequestedCart();
+              setDrawer("menu");
+            }}
+            buttonRef={menuTriggerRef}
+          >
             <MangoMenuIcon />
           </ChromeButton>
           <a
@@ -74,7 +158,13 @@ export function StoreHeader() {
             aria-label="Fawzaan home"
             className="absolute left-1/2 top-1/2 h-[42px] w-[100px] -translate-x-1/2 -translate-y-1/2 sm:h-[44px] sm:w-[105px]"
           >
-            <img src={STORE_LOGO_URL} alt="Fawzaan" className="h-full w-full object-contain" />
+            <img
+              src={STORE_LOGO_URL}
+              alt="Fawzaan"
+              width={640}
+              height={180}
+              className="h-full w-full object-contain"
+            />
           </a>
           <div className="flex items-center gap-2">
             {isAdmin ? (
@@ -98,10 +188,17 @@ export function StoreHeader() {
                 </a>
               </div>
             ) : null}
-            <ChromeButton label="Open cart" onClick={() => setDrawer("cart")}>
+            <ChromeButton
+              label={`Open cart, ${count} ${count === 1 ? "item" : "items"}`}
+              onClick={requestCart}
+              buttonRef={cartTriggerRef}
+            >
               <span className="relative">
                 <ShoppingBag size={23} />
-                <span className="brand-mango-bg absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9px] font-bold text-white">
+                <span
+                  aria-hidden="true"
+                  className="brand-mango-bg absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9px] font-bold text-white"
+                >
                   {count}
                 </span>
               </span>
@@ -113,11 +210,15 @@ export function StoreHeader() {
       <button
         type="button"
         aria-label="Close drawer"
-        onClick={() => setDrawer(null)}
+        onClick={() => {
+          closeRequestedCart();
+          setDrawer(null);
+        }}
         className={`drawer-scrim fixed inset-0 z-[60] bg-black/45 ${drawer ? "is-open pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
       />
 
       <aside
+        ref={menuDialogRef}
         role="dialog"
         aria-modal={drawer === "menu"}
         aria-label="Store menu"
@@ -126,7 +227,7 @@ export function StoreHeader() {
         className={`store-drawer store-drawer--menu fixed inset-y-0 left-0 z-[70] flex h-[100dvh] w-full max-w-[420px] flex-col bg-white ${drawer === "menu" ? "is-open" : ""}`}
       >
         <div className="drawer-reveal flex h-[65px] items-center justify-between border-b border-black/10 px-6">
-          <img src={STORE_LOGO_URL} alt="Fawzaan" className="h-9 w-auto" />
+          <img src={STORE_LOGO_URL} alt="Fawzaan" width={640} height={180} className="h-9 w-auto" />
           <ChromeButton label="Close menu" onClick={() => setDrawer(null)}>
             <X size={23} />
           </ChromeButton>
@@ -150,7 +251,7 @@ export function StoreHeader() {
               </button>
             </label>
           </form>
-          <p className="section-kicker text-black/45">Shop</p>
+          <p className="section-kicker text-black/60">Shop</p>
           <ul className="mt-5 divide-y divide-black/10">
             {[
               ["Home", "/"],
@@ -171,7 +272,7 @@ export function StoreHeader() {
               </li>
             ))}
           </ul>
-          <p className="section-kicker mt-7 text-black/45">Information</p>
+          <p className="section-kicker mt-7 text-black/60">Information</p>
           <ul className="mt-4 flex flex-wrap gap-x-6 gap-y-3 text-[13px] sm:text-[14px]">
             <li>
               <a href="/account">Account</a>
@@ -202,6 +303,7 @@ export function StoreHeader() {
       </aside>
 
       <aside
+        ref={cartDialogRef}
         role="dialog"
         aria-modal={drawer === "cart"}
         aria-label="Shopping cart"
@@ -212,9 +314,17 @@ export function StoreHeader() {
         <div className="drawer-reveal flex h-[65px] items-center justify-between border-b border-black/10 px-6">
           <div>
             <p className="text-[17px] font-bold uppercase">Your cart</p>
-            <p className="text-[11px] text-black/50">{count} items</p>
+            <p className="text-[11px] text-black/60">
+              {count} {count === 1 ? "item" : "items"}
+            </p>
           </div>
-          <ChromeButton label="Close cart" onClick={() => setDrawer(null)}>
+          <ChromeButton
+            label="Close cart"
+            onClick={() => {
+              closeRequestedCart();
+              setDrawer(null);
+            }}
+          >
             <X size={23} />
           </ChromeButton>
         </div>
@@ -232,7 +342,7 @@ export function StoreHeader() {
                   <img src={line.img} alt={line.name} className="h-full w-full object-cover" />
                 </a>
                 <div className="min-w-0">
-                  <p className="section-kicker text-black/45">Fawzaan</p>
+                  <p className="section-kicker text-black/60">Fawzaan</p>
                   <a
                     href={`/products/${line.slug ?? line.id.split("__")[0]}`}
                     className="product-name mt-1 block text-[16px] leading-4"
@@ -289,6 +399,38 @@ export function StoreHeader() {
               </a>
             </div>
           )}
+          {cartLines.length && recommendations.length ? (
+            <section
+              className="border-b border-black/10 py-5"
+              aria-labelledby="cart-recommendations"
+            >
+              <h2 id="cart-recommendations" className="text-[11px] font-bold uppercase">
+                Complete your order
+              </h2>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                {recommendations.map((product) => (
+                  <a
+                    key={product.slug}
+                    href={`/products/${product.slug}`}
+                    className="group min-w-0"
+                  >
+                    <div className="aspect-[4/3] overflow-hidden rounded-[4px] bg-[#F7F7F5]">
+                      <img
+                        src={product.images[0]}
+                        alt=""
+                        loading="lazy"
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                      />
+                    </div>
+                    <p className="product-name mt-2 line-clamp-2 text-[12px] leading-3.5">
+                      {product.name}
+                    </p>
+                    <p className="mt-1 text-[11px] font-semibold">{formatPrice(product.price)}</p>
+                  </a>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
         {cartLines.length ? (
           <div className="drawer-reveal drawer-safe-bottom border-t border-black/10 px-4 pt-4 sm:px-5 sm:pt-5">
@@ -298,8 +440,14 @@ export function StoreHeader() {
             </div>
             <p className="mt-2 text-[11px] text-black/50">Shipping calculated at checkout.</p>
             <a
-              href="/cart"
+              href="/checkout"
               className="brand-mango-bg mt-5 flex h-12 items-center justify-center text-[11px] font-bold uppercase"
+            >
+              Proceed to checkout
+            </a>
+            <a
+              href="/cart"
+              className="mt-3 flex h-11 items-center justify-center rounded-[4px] border border-black text-[11px] font-bold uppercase"
             >
               View cart
             </a>
@@ -318,7 +466,13 @@ export function StoreHeaderPreview() {
           <MangoMenuIcon />
         </span>
         <span className="absolute left-1/2 top-1/2 h-[42px] w-[100px] -translate-x-1/2 -translate-y-1/2 sm:h-[44px] sm:w-[105px]">
-          <img src={STORE_LOGO_URL} alt="Fawzaan" className="h-full w-full object-contain" />
+          <img
+            src={STORE_LOGO_URL}
+            alt="Fawzaan"
+            width={640}
+            height={180}
+            className="h-full w-full object-contain"
+          />
         </span>
         <span className="grid h-9 w-9 place-items-center text-[#C85F22]" aria-hidden="true">
           <span className="relative">
@@ -345,7 +499,13 @@ export function StoreFooter() {
         data-store-reveal
       >
         <div>
-          <img src={STORE_LOGO_URL} alt="Fawzaan" className="-ml-[26px] h-14 w-auto" />
+          <img
+            src={STORE_LOGO_URL}
+            alt="Fawzaan"
+            width={640}
+            height={180}
+            className="-ml-[26px] h-14 w-auto"
+          />
           <p className="mt-5 max-w-sm text-[13px] leading-5 text-white/60">
             Premium modest essentials selected for faith, heritage, and everyday quality.
           </p>
@@ -396,7 +556,7 @@ export function StoreFooter() {
           </a>
         </div>
       </div>
-      <div className="mx-auto mt-12 max-w-[1280px] border-t border-white/15 pt-6 text-[10px] uppercase text-white/40">
+      <div className="mx-auto mt-12 max-w-[1280px] border-t border-white/15 pt-6 text-[10px] uppercase text-white/65">
         <p>© 2026 Fawzaan Store. All rights reserved.</p>
       </div>
     </footer>

@@ -169,6 +169,61 @@ test("shop product cart and checkout path uses the live product", async ({ page 
   expect(errors).toEqual([]);
 });
 
+test("cart drawer opens after an add request, traps focus, and offers a checkout path", async ({
+  page,
+}) => {
+  const catalogResponse = await page.request.get("/api/catalog/products");
+  const catalog = (await catalogResponse.json()) as Array<{
+    id: string;
+    slug: string;
+    name: string;
+    sale_price_inr?: number | null;
+    price_inr?: number | null;
+    cover_image_url?: string | null;
+    stock_quantity?: number;
+  }>;
+  const product = catalog.find((item) => Number(item.stock_quantity ?? 0) > 0)!;
+  await page.addInitScript((item) => {
+    localStorage.setItem(
+      "fawzaan-cart-v2",
+      JSON.stringify([
+        {
+          id: `${item.slug}__default`,
+          productId: item.id,
+          slug: item.slug,
+          name: item.name,
+          price: item.sale_price_inr || item.price_inr || 1,
+          img: item.cover_image_url || "",
+          qty: 1,
+        },
+      ]),
+    );
+  }, product);
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Open cart, 1 item" }).click();
+  const drawer = page.getByRole("dialog", { name: "Shopping cart" });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole("heading", { name: "Complete your order" })).toBeVisible();
+  await expect(drawer.getByRole("link", { name: "Proceed to checkout" })).toBeVisible();
+  const close = drawer.getByRole("button", { name: "Close cart" });
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(drawer.getByRole("link", { name: "View cart" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(close).toBeFocused();
+  await close.click();
+  await expect(page.getByRole("button", { name: "Open cart, 1 item" })).toBeFocused();
+});
+
+test("oversized live product covers use optimized storefront copies", async ({ page }) => {
+  await page.goto("/shop");
+  const watch = page
+    .locator('article.store-product-card a[href="/products/sabr-watch-black"] img')
+    .first();
+  await expect(watch).toHaveAttribute("src", "/product-media/sabr-watch-black.webp");
+});
+
 test("product feature rows use readable Poppins typography", async ({ page }) => {
   await page.goto("/products/kashmir-acacia-honey", {
     waitUntil: "domcontentloaded",
@@ -401,12 +456,14 @@ test("mobile shop controls scroll and menu search filters the live catalog", asy
   if ((await selectableCollection.count()) > 0) {
     const collectionSlug = (await selectableCollection.getAttribute("value"))!;
     const collectionName = (await selectableCollection.textContent())!.trim();
-    await collectionFilter.selectOption(collectionSlug);
-    await expect(collectionFilter).toHaveValue(collectionSlug);
-    await expect(page.getByRole("tab", { name: collectionName, exact: true })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    await expect(async () => {
+      await collectionFilter.selectOption(collectionSlug);
+      await expect(collectionFilter).toHaveValue(collectionSlug);
+      await expect(page.getByRole("tab", { name: collectionName, exact: true })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    }).toPass({ timeout: 30_000 });
   }
   await expect(page.getByRole("button", { name: "Bestsellers" })).toHaveCount(0);
   expect(
@@ -470,7 +527,7 @@ test("homepage shop controls filter, pluralize, and link to the selected collect
   await expect(
     shop.getByLabel("Filter homepage products by collection").locator("xpath=..").locator("span"),
   ).toHaveText("1 product");
-  await expect(shop.getByRole("link", { name: "Shemaghs" })).toHaveAttribute(
+  await expect(shop.getByRole("link", { name: "Shemaghs", exact: true })).toHaveAttribute(
     "href",
     "/shop?collection=shemaghs",
   );

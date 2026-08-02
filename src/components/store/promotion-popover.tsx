@@ -33,11 +33,27 @@ export function PromotionPopover() {
     if (!promotion) return;
     const key = `fawzaan.promotion-seen.${promotion.id}`;
     if (window.sessionStorage.getItem(key)) return;
-    const timer = window.setTimeout(() => {
+    let scrollTimer: number | undefined;
+    let opened = false;
+    const showOffer = () => {
+      if (opened) return;
+      opened = true;
       window.sessionStorage.setItem(key, "1");
       setOpen(true);
-    }, 900);
-    return () => window.clearTimeout(timer);
+    };
+    const onScroll = () => {
+      const scrollable = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+      if (window.scrollY / scrollable < 0.28) return;
+      scrollTimer = window.setTimeout(showOffer, 900);
+      window.removeEventListener("scroll", onScroll);
+    };
+    const autoTimer = window.setTimeout(showOffer, 7_000);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.clearTimeout(autoTimer);
+      if (scrollTimer) window.clearTimeout(scrollTimer);
+      window.removeEventListener("scroll", onScroll);
+    };
   }, [promotion]);
 
   useEffect(() => {
@@ -105,8 +121,9 @@ export function PromotionPopover() {
             <button
               type="button"
               onClick={() => void copyCode()}
-              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-[4px] bg-white px-5 text-[10px] font-bold uppercase text-[#D75631] shadow-[0_8px_22px_rgba(80,20,0,0.12)] transition-colors hover:bg-white/90 focus:outline-none focus:ring-2 focus:ring-white/70 focus:ring-offset-2 focus:ring-offset-[#E8653D]"
-              aria-label={`Copy promotion code ${promotion.code}`}
+              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-[4px] bg-white px-5 text-[10px] font-bold uppercase text-[#8C2E1C] shadow-[0_8px_22px_rgba(80,20,0,0.12)] transition-colors hover:bg-white/90 focus:outline-none focus:ring-2 focus:ring-white/70 focus:ring-offset-2 focus:ring-offset-[#E8653D]"
+              aria-live="polite"
+              aria-label={copied ? "Code copied" : `Copy code ${promotion.code}`}
             >
               {copied ? (
                 <>

@@ -101,7 +101,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       links: [
         { rel: "stylesheet", href: appCss },
         ...defaultSeo.links,
-        { rel: "icon", href: "/fawzaan-logo.png", type: "image/png", sizes: "280x132" },
+        { rel: "icon", href: "/fawzaan-logo.svg", type: "image/svg+xml" },
         { rel: "apple-touch-icon", href: "/fawzaan-logo.png" },
         { rel: "manifest", href: "/site.webmanifest" },
         { rel: "preconnect", href: "https://fonts.googleapis.com" },

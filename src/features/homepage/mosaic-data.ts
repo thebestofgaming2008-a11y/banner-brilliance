@@ -1,8 +1,8 @@
-import honeyMulti from "@/assets/product-photos/honey-kashmir-multiflora.jpg";
-import kufiSide from "@/assets/product-photos/kufi-side.jpg";
-import niqabBlackFront from "@/assets/product-photos/niqab-black-front.jpg";
-import shemaghManBack from "@/assets/product-photos/shemagh-man-back.jpg";
-import shemaghRedFull from "@/assets/product-photos/shemagh-red-full.jpg";
+import honeyMulti from "@/assets/product-photos/honey-kashmir-multiflora.webp";
+import kufiSide from "@/assets/product-photos/kufi-side.webp";
+import niqabBlackFront from "@/assets/product-photos/niqab-black-front.webp";
+import shemaghManBack from "@/assets/product-photos/shemagh-man-back.webp";
+import shemaghRedFull from "@/assets/product-photos/shemagh-red-full.webp";
 
 import type { HomepageData, HomepageMosaicCard } from "./types";
 

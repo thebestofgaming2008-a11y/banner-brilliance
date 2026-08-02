@@ -14,7 +14,7 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
     "content",
     "https://fawzaanstore.pages.dev/og-image-v2.jpg",
   );
-  await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "/fawzaan-logo.png");
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "/fawzaan-logo.svg");
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute(
     "href",
     "/fawzaan-logo.png",
@@ -100,6 +100,9 @@ test("home page launch performance snapshot", async ({ page }) => {
         resources.reduce((total, entry) => total + entry.transferSize, 0) / 1024,
       ),
       resourceCount: resources.length,
+      heroImages: resources
+        .map((entry) => entry.name.replace(window.location.origin, ""))
+        .filter((name) => name.includes("hero-shemagh")),
       largestResources: resources
         .map((entry) => ({
           name: entry.name.replace(window.location.origin, ""),
@@ -113,4 +116,5 @@ test("home page launch performance snapshot", async ({ page }) => {
   expect(snapshot.lcpMs).toBeLessThan(5_000);
   expect(snapshot.cls).toBeLessThan(0.1);
   expect(snapshot.transferredKb).toBeLessThan(5_000);
+  expect(snapshot.heroImages).toHaveLength(1);
 });

@@ -1,4 +1,5 @@
 import { catalog, type Collection, type Gender, type Product } from "@/lib/products";
+import { storefrontImageUrl } from "@/lib/storefront-image";
 
 export type BackendProduct = {
   id?: string;
@@ -180,7 +181,7 @@ export function backendProductToProduct(product: BackendProduct): Product {
     compareAt: hasSale ? regular : fallback?.compareAt,
     rating: Number(product.rating ?? (product.id ? 0 : fallback?.rating) ?? 0),
     reviews: Number(product.reviews_count ?? (product.id ? 0 : fallback?.reviews) ?? 0),
-    images: images.length ? Array.from(new Set(images)) : fallbackImages,
+    images: (images.length ? Array.from(new Set(images)) : fallbackImages).map(storefrontImageUrl),
     colors:
       product.color_options?.map((name) => ({
         name,

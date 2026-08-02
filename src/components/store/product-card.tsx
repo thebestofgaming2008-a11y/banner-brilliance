@@ -51,7 +51,7 @@ export function StoreProductCard({
         )}
       </div>
       <div className="mt-3">
-        <p className="section-kicker text-black/45">{product.collection}</p>
+        <p className="section-kicker text-black/60">{product.collection}</p>
         <a
           href={interactive ? `/products/${product.slug}` : undefined}
           className="block"
@@ -71,7 +71,7 @@ export function StoreProductCard({
         <div className="mt-1.5 flex items-center gap-2">
           <span className="text-[13px] font-semibold">{formatPrice(product.price)}</span>
           {product.compareAt ? (
-            <span className="text-[12px] text-black/35 line-through">
+            <span className="text-[12px] text-black/60 line-through">
               {formatPrice(product.compareAt)}
             </span>
           ) : null}

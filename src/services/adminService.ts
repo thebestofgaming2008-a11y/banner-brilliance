@@ -123,7 +123,7 @@ export async function refreshPublicCatalog(product?: Pick<Product, "id" | "slug"
 }
 
 export async function uploadProductImage(file: File): Promise<string | null> {
-  const uploadFile = file;
+  const uploadFile = await optimizeProductImage(file);
   const contentType = inferProductMediaType(uploadFile);
   if (uploadFile.size > 25 * 1024 * 1024) {
     throw new Error("Product media must be 25 MB or smaller.");
@@ -161,6 +161,41 @@ export async function uploadProductImage(file: File): Promise<string | null> {
   const url = media.publicUrl || payload?.url;
   if (!url) throw new Error("Upload finished, but no media URL was returned.");
   return `${url}#${encodeURIComponent(uploadFile.name)}`;
+}
+
+const PRODUCT_IMAGE_MAX_EDGE = 1800;
+const PRODUCT_IMAGE_TARGET_BYTES = 700 * 1024;
+
+async function optimizeProductImage(file: File): Promise<File> {
+  if (!file.type.startsWith("image/") || file.type === "image/gif" || file.type === "image/avif") {
+    return file;
+  }
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, PRODUCT_IMAGE_MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d", { alpha: true });
+    if (!context) return file;
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+
+    const encode = (quality: number) =>
+      new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", quality));
+    let blob = await encode(0.84);
+    if (blob && blob.size > PRODUCT_IMAGE_TARGET_BYTES) blob = await encode(0.76);
+    if (!blob || (blob.size >= file.size && scale === 1)) return file;
+
+    const baseName = file.name.replace(/\.[^.]+$/, "") || "product-image";
+    return new File([blob], `${baseName}.webp`, {
+      type: "image/webp",
+      lastModified: file.lastModified,
+    });
+  } catch {
+    return file;
+  }
 }
 
 function inferProductMediaType(file: File) {

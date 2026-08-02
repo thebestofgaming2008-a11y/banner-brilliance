@@ -238,7 +238,7 @@ function ShopPage() {
                     role="tab"
                     aria-selected={collection === item.slug}
                     onClick={() => setCollection(item.slug)}
-                    className={`shop-collection-tab relative flex h-9 shrink-0 snap-start items-center text-[11px] font-bold uppercase ${collection === item.slug ? "text-black" : "text-black/40"}`}
+                    className={`shop-collection-tab relative flex h-9 shrink-0 snap-start items-center text-[11px] font-bold uppercase ${collection === item.slug ? "text-black" : "text-black/60"}`}
                   >
                     {item.name}
                     {collection === item.slug ? (
@@ -335,7 +335,7 @@ function ShopPage() {
                   ? `/shop?collection=${encodeURIComponent(selectedCollection.slug)}`
                   : "/shop"
               }
-              className="flex items-center gap-1 font-bold text-[#C85F22] hover:text-[#A84624] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#D9643C]"
+              className="flex items-center gap-1 font-bold text-[#A84624] hover:text-[#87351B] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#D9643C]"
             >
               {selectedCollection?.name || "All products"}
               <ChevronRight size={15} />

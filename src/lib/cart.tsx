@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { storefrontImageUrl } from "@/lib/storefront-image";
 
 export type CartItem = {
   id: string;
@@ -63,7 +64,8 @@ function sanitizeCartItems(value: unknown): CartItem[] {
         name,
         variant: typeof item.variant === "string" ? item.variant.trim().slice(0, 160) : undefined,
         price,
-        img: typeof item.img === "string" ? item.img.trim().slice(0, 2_000) : "",
+        img:
+          typeof item.img === "string" ? storefrontImageUrl(item.img.trim().slice(0, 2_000)) : "",
         qty: Math.min(MAX_ITEM_QUANTITY, Math.max(1, qty)),
       },
     ];

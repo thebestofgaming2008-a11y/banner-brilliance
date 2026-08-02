@@ -210,7 +210,7 @@ function ProductPage() {
         </div>
 
         <div className="md:sticky md:top-[132px] md:self-start" data-store-reveal>
-          <p className="section-kicker text-black/45">{product.collection}</p>
+          <p className="section-kicker text-black/60">{product.collection}</p>
           <h1 className="product-name mt-3 text-[44px] uppercase leading-[0.88] md:text-[60px]">
             {product.name}
           </h1>
@@ -226,7 +226,7 @@ function ProductPage() {
           <div className="mt-5 flex items-center gap-3">
             <span className="text-[20px] font-bold">{formatPrice(product.price)}</span>
             {product.compareAt ? (
-              <span className="text-[15px] text-black/35 line-through">
+              <span className="text-[15px] text-black/60 line-through">
                 {formatPrice(product.compareAt)}
               </span>
             ) : null}
@@ -365,7 +365,7 @@ function ProductReviews({ productId }: { productId: string }) {
       data-store-reveal
     >
       <div className="mx-auto max-w-[1180px]">
-        <p className="section-kicker text-black/45">Verified customer feedback</p>
+        <p className="section-kicker text-black/60">Verified customer feedback</p>
         <h2 className="product-editorial-heading mt-2 text-[40px]">Reviews</h2>
         {reviews === undefined ? (
           <p className="mt-8 text-[13px] text-black/50">Loading reviews...</p>
