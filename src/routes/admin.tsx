@@ -66,6 +66,7 @@ import {
   Monitor,
   Smartphone,
   BadgePercent,
+  Gift,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { api } from "../../convex/_generated/api";
@@ -97,6 +98,9 @@ import {
   listPromotions,
   savePromotion,
   deletePromotion,
+  listGiftCampaigns,
+  saveGiftCampaign,
+  deleteGiftCampaign,
   type ProductInput,
   type AdminOrder,
   type AdminCustomer,
@@ -110,6 +114,8 @@ import {
   type MarketingConfiguration,
   type Promotion,
   type PromotionInput,
+  type GiftCampaign,
+  type GiftCampaignInput,
 } from "@/services/adminService";
 import type { Product } from "@/services/productService";
 import { catalog as storefrontCatalog } from "@/lib/products";
@@ -121,6 +127,7 @@ import {
 } from "@/components/admin/homepage-content-preview";
 import { HomepageEditorPortal } from "@/components/admin/homepage-editor-portal";
 import { PromotionsPanel } from "@/components/admin/promotions-panel";
+import { GiftCampaignsPanel } from "@/components/admin/gift-campaigns-panel";
 
 const CATEGORIES = [
   {
@@ -197,6 +204,7 @@ const NAV = [
   { key: "products", label: "Products", Icon: Package },
   { key: "inventory", label: "Inventory", Icon: Boxes },
   { key: "promotions", label: "Promotions", Icon: BadgePercent },
+  { key: "gifts", label: "Free gifts", Icon: Gift },
   { key: "homepage", label: "Homepage", Icon: ImageIcon },
   { key: "reviews", label: "Reviews", Icon: MessageSquare },
   { key: "customers", label: "Customers", Icon: Users },
@@ -208,6 +216,7 @@ const PAGE_DESCRIPTIONS: Record<TabKey, string> = {
   products: "Add products and manage their details, images, and visibility.",
   inventory: "Keep stock accurate and find low-stock products.",
   promotions: "Create checkout codes and choose which offer appears on the storefront.",
+  gifts: "Reward qualifying carts with automatic free products.",
   homepage: "Change hero slides, offers, and collection sections.",
   reviews: "Approve or hide customer reviews.",
   customers: "View customer accounts and order activity.",
@@ -333,6 +342,7 @@ const Admin = () => {
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [paymentRecoveries, setPaymentRecoveries] = useState<PaymentRecovery[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [giftCampaigns, setGiftCampaigns] = useState<GiftCampaign[]>([]);
   const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([]);
   const [marketingConfig, setMarketingConfig] = useState<MarketingConfiguration | null>(null);
   const [loading, setLoading] = useState(true);
@@ -373,8 +383,9 @@ const Admin = () => {
       listCategories(),
       listPaymentRecoveries(),
       listPromotions(),
+      listGiftCampaigns(),
     ])
-      .then(([p, o, c, r, cats, recoveries, promotionRows]) => {
+      .then(([p, o, c, r, cats, recoveries, promotionRows, giftRows]) => {
         if (cancelled) return;
         setProducts(p);
         setOrders(o);
@@ -383,6 +394,7 @@ const Admin = () => {
         setCategories(cats);
         setPaymentRecoveries(recoveries);
         setPromotions(promotionRows);
+        setGiftCampaigns(giftRows);
         setLoading(false);
       })
       .catch((error) => {
@@ -404,6 +416,7 @@ const Admin = () => {
   const refreshReviews = async () => setReviews(await listAllReviews(200));
   const refreshPaymentRecoveries = async () => setPaymentRecoveries(await listPaymentRecoveries());
   const refreshPromotions = async () => setPromotions(await listPromotions());
+  const refreshGiftCampaigns = async () => setGiftCampaigns(await listGiftCampaigns());
   const refreshCampaigns = async () => setCampaigns(await listMarketingCampaigns());
 
   const setProductArchived = async (product: Product, archived: boolean) => {
@@ -665,7 +678,7 @@ const Admin = () => {
     {
       label: "Commerce",
       items: NAV.filter((item) =>
-        ["orders", "products", "inventory", "promotions", "homepage"].includes(item.key),
+        ["orders", "products", "inventory", "promotions", "gifts", "homepage"].includes(item.key),
       ),
     },
     {
@@ -1284,6 +1297,30 @@ const Admin = () => {
                   if (removed) {
                     await refreshPromotions();
                     notify({ title: "Promotion deleted" });
+                  }
+                  return removed;
+                }}
+              />
+            )}
+
+            {!loading && !adminLoadError && tab === "gifts" && (
+              <GiftCampaignsPanel
+                campaigns={giftCampaigns}
+                products={products}
+                onSave={async (input: GiftCampaignInput, id?: string) => {
+                  const saved = await saveGiftCampaign(input, id);
+                  await refreshGiftCampaigns();
+                  notify({
+                    title: id ? "Gift campaign updated" : "Gift campaign created",
+                    description: `${saved.name} is ready.`,
+                  });
+                  return saved;
+                }}
+                onDelete={async (id: string) => {
+                  const removed = await deleteGiftCampaign(id);
+                  if (removed) {
+                    await refreshGiftCampaigns();
+                    notify({ title: "Gift campaign deleted" });
                   }
                   return removed;
                 }}

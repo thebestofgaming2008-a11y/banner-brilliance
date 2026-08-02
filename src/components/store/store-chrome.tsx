@@ -2,7 +2,6 @@ import {
   ChevronRight,
   LayoutDashboard,
   Minus,
-  Pencil,
   Plus,
   Search,
   ShoppingBag,
@@ -20,6 +19,7 @@ import { useCurrency } from "@/hooks/use-currency";
 import { useStoreReveal } from "@/hooks/use-store-reveal";
 import { useCatalogPresentation } from "@/services/catalogPresentation";
 import { useStoreProducts } from "@/data/store";
+import { GiftLines } from "@/components/store/gift-lines";
 
 function ChromeButton({
   label,
@@ -176,15 +176,6 @@ export function StoreHeader() {
                   className="grid h-9 w-9 place-items-center text-[#B95720] transition-opacity hover:opacity-65"
                 >
                   <LayoutDashboard size={16} />
-                </a>
-                <a
-                  href="/admin?tab=homepage"
-                  aria-label="Open homepage editor"
-                  title="Open homepage editor"
-                  className="inline-flex h-9 w-9 items-center justify-center gap-1.5 text-[10px] font-bold uppercase text-[#B95720] transition-opacity hover:opacity-65 sm:w-auto sm:px-2"
-                >
-                  <Pencil size={15} />
-                  <span className="hidden sm:inline">Edit</span>
                 </a>
               </div>
             ) : null}
@@ -399,6 +390,7 @@ export function StoreHeader() {
               </a>
             </div>
           )}
+          {cartLines.length ? <GiftLines variant="drawer" /> : null}
           {cartLines.length && recommendations.length ? (
             <section
               className="border-b border-black/10 py-5"

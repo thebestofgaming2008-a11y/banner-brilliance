@@ -451,6 +451,66 @@ export async function deletePromotion(id: string): Promise<boolean> {
   }
 }
 
+export interface GiftRequirement {
+  label: string;
+  scope_type: "collection" | "products";
+  collection_slugs: string[];
+  product_ids: string[];
+  required_quantity: number;
+}
+
+export interface GiftCampaign {
+  id: string;
+  name: string;
+  active: boolean;
+  match_mode: "all" | "any";
+  requirements: GiftRequirement[];
+  gift_product_id: string;
+  gift_quantity: number;
+  gift_color: string | null;
+  gift_size: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type GiftCampaignInput = Omit<GiftCampaign, "id" | "created_at" | "updated_at">;
+
+export async function listGiftCampaigns(): Promise<GiftCampaign[]> {
+  return (await convex.query(api.gifts.listAdmin, {})) as GiftCampaign[];
+}
+
+export async function saveGiftCampaign(
+  input: GiftCampaignInput,
+  id?: string,
+): Promise<GiftCampaign> {
+  try {
+    return (await convex.mutation(api.gifts.save, {
+      ...input,
+      gift_product_id: input.gift_product_id as Id<"products">,
+      requirements: input.requirements.map((requirement) => ({
+        ...requirement,
+        product_ids: requirement.product_ids as Id<"products">[],
+      })),
+      id: id ? (id as Id<"gift_campaigns">) : undefined,
+    })) as GiftCampaign;
+  } catch (error) {
+    throw new Error(promotionServiceError(error));
+  }
+}
+
+export async function deleteGiftCampaign(id: string): Promise<boolean> {
+  try {
+    return await convex.mutation(api.gifts.remove, {
+      id: id as Id<"gift_campaigns">,
+    });
+  } catch (error) {
+    throw new Error(promotionServiceError(error));
+  }
+}
+
 export interface LaunchReadiness {
   ready: boolean;
   blockers: string[];
@@ -501,6 +561,8 @@ export interface AdminOrder {
     quantity: number;
     unit_price: number;
     subtotal: number;
+    is_gift?: boolean | null;
+    gift_campaign_name?: string | null;
   }>;
 }
 

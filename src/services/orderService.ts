@@ -70,6 +70,17 @@ export type CheckoutPromotionQuote = {
     value: number;
     eligibleSubtotal: number;
   } | null;
+  gifts: Array<{
+    campaign_id: string;
+    campaign_name: string;
+    product_id: string;
+    product_name: string;
+    product_image_url: string | null;
+    product_slug: string | null;
+    quantity: number;
+    color: string | null;
+    size: string | null;
+  }>;
 };
 
 function optionValue(variant: string | undefined, index: number) {

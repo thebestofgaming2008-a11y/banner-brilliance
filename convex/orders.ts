@@ -26,6 +26,7 @@ import {
   releasePromotionUse,
   reservePromotionUse,
 } from "./promotionRules";
+import { evaluateGiftCampaigns } from "./gifts";
 
 const cartItem = v.object({
   cartKey: v.optional(v.string()),
@@ -284,6 +285,36 @@ async function checkoutQuote(ctx: any, cart: Array<any>, promotionCode?: string 
   }
   const shipping = 0;
   const promotion = await evaluatePromotion(ctx, promotionCode, validatedCart, subtotal);
+  const giftOffers = await evaluateGiftCampaigns(ctx, validatedCart);
+  const earnedGifts = giftOffers.filter((offer) => offer.earned);
+  for (const offer of earnedGifts) {
+    validatedCart.push({
+      cartKey: `gift__${offer.id}`,
+      productId: String(offer.gift.id),
+      qty: offer.gift.quantity,
+      name: offer.gift.name,
+      price: 0,
+      priceInr: 0,
+      image: offer.gift.image,
+      slug: offer.gift.slug,
+      weightG: null,
+      shippingClass: null,
+      selectedColor: offer.gift.color,
+      selectedSize: offer.gift.size,
+      isGift: true,
+      giftCampaignId: String(offer.id),
+      giftCampaignName: offer.name,
+    });
+  }
+  const requiredStock = new Map<string, number>();
+  for (const item of validatedCart) {
+    requiredStock.set(item.productId, (requiredStock.get(item.productId) ?? 0) + item.qty);
+  }
+  for (const [productId, quantity] of requiredStock) {
+    const product = (await getCheckoutProduct(ctx, productId)) as any;
+    if (!product || product.in_stock === false || Number(product.stock_quantity ?? 0) < quantity)
+      throw new Error(`Not enough stock for ${product?.name ?? "an item in your cart"}.`);
+  }
   const discount = promotion?.discount ?? 0;
   const total = Math.max(0, Math.round((subtotal + shipping - discount) * 100) / 100);
   return {
@@ -295,6 +326,17 @@ async function checkoutQuote(ctx: any, cart: Array<any>, promotionCode?: string 
     itemCount,
     validatedCart,
     promotion,
+    gifts: earnedGifts.map((offer) => ({
+      campaign_id: offer.id,
+      campaign_name: offer.name,
+      product_id: offer.gift.id,
+      product_name: offer.gift.name,
+      product_image_url: offer.gift.image,
+      product_slug: offer.gift.slug,
+      quantity: offer.gift.quantity,
+      color: offer.gift.color,
+      size: offer.gift.size,
+    })),
   };
 }
 
@@ -422,7 +464,7 @@ async function savePaidOrder(
     throw new Error("Complete shipping details are required.");
   }
 
-  const normalizedItems = [];
+  const normalizedItems: Array<any> = [];
   let computedSubtotal = 0;
   for (const item of args.cart) {
     const qty = Math.floor(item.qty);
@@ -433,8 +475,10 @@ async function savePaidOrder(
     const stock = product.stock_quantity ?? 0;
     if (!args.stock_already_reserved && (stock < qty || product.in_stock === false))
       throw new Error(`Not enough stock for ${product.name}.`);
-    const unitPrice =
-      args.locked_amount_paise !== undefined
+    const isGift = args.locked_amount_paise !== undefined && item.isGift === true;
+    const unitPrice = isGift
+      ? 0
+      : args.locked_amount_paise !== undefined
         ? Number(item.priceInr)
         : (product.sale_price_inr ?? product.price_inr ?? product.price);
     if (!Number.isFinite(unitPrice) || unitPrice < 0)
@@ -452,7 +496,39 @@ async function savePaidOrder(
       product.name,
     );
     computedSubtotal += unitPrice * qty;
-    normalizedItems.push({ product, qty, unitPrice, selectedColor, selectedSize });
+    normalizedItems.push({
+      product,
+      qty,
+      unitPrice,
+      selectedColor,
+      selectedSize,
+      isGift,
+      giftCampaignId: isGift
+        ? ctx.db.normalizeId("gift_campaigns", cleanText(item.giftCampaignId, 200))
+        : null,
+      giftCampaignName: isGift ? cleanNullable(item.giftCampaignName, 100) : null,
+    });
+  }
+
+  if (args.locked_amount_paise === undefined) {
+    const giftOffers = await evaluateGiftCampaigns(
+      ctx,
+      normalizedItems.map((item) => ({ productId: String(item.product._id), qty: item.qty })),
+    );
+    for (const offer of giftOffers.filter((item) => item.earned)) {
+      const giftProduct = await ctx.db.get(offer.gift.id);
+      if (!giftProduct) continue;
+      normalizedItems.push({
+        product: giftProduct,
+        qty: offer.gift.quantity,
+        unitPrice: 0,
+        selectedColor: offer.gift.color,
+        selectedSize: offer.gift.size,
+        isGift: true,
+        giftCampaignId: offer.id,
+        giftCampaignName: offer.name,
+      });
+    }
   }
 
   const currentPromotion =
@@ -460,11 +536,13 @@ async function savePaidOrder(
       ? await evaluatePromotion(
           ctx,
           args.promotion_code,
-          normalizedItems.map((item) => ({
-            productId: String(item.product._id),
-            qty: item.qty,
-            priceInr: item.unitPrice,
-          })),
+          normalizedItems
+            .filter((item) => !item.isGift)
+            .map((item) => ({
+              productId: String(item.product._id),
+              qty: item.qty,
+              priceInr: item.unitPrice,
+            })),
           computedSubtotal,
         )
       : null;
@@ -535,10 +613,24 @@ async function savePaidOrder(
       quantity: item.qty,
       unit_price: item.unitPrice,
       subtotal: item.unitPrice * item.qty,
+      is_gift: item.isGift,
+      gift_campaign_id: item.giftCampaignId,
+      gift_campaign_name: item.giftCampaignName,
     });
-    if (!args.stock_already_reserved) {
-      const nextStock = Math.max(0, (item.product.stock_quantity ?? 0) - item.qty);
-      await ctx.db.patch(item.product._id, {
+  }
+
+  if (!args.stock_already_reserved) {
+    const quantities = new Map<string, number>();
+    for (const item of normalizedItems) {
+      const id = String(item.product._id);
+      quantities.set(id, (quantities.get(id) ?? 0) + item.qty);
+    }
+    for (const [productId, quantity] of quantities) {
+      const product = (await getCheckoutProduct(ctx, productId)) as any;
+      if (!product || product.in_stock === false || Number(product.stock_quantity ?? 0) < quantity)
+        throw new Error(`Not enough stock for ${product?.name ?? "an item in your cart"}.`);
+      const nextStock = Number(product.stock_quantity ?? 0) - quantity;
+      await ctx.db.patch(product._id, {
         stock_quantity: nextStock,
         in_stock: nextStock > 0,
         updated_at: timestamp,
@@ -587,6 +679,19 @@ export const quoteCheckout = query({
       }),
       v.null(),
     ),
+    gifts: v.array(
+      v.object({
+        campaign_id: v.id("gift_campaigns"),
+        campaign_name: v.string(),
+        product_id: v.id("products"),
+        product_name: v.string(),
+        product_image_url: v.union(v.string(), v.null()),
+        product_slug: v.union(v.string(), v.null()),
+        quantity: v.number(),
+        color: v.union(v.string(), v.null()),
+        size: v.union(v.string(), v.null()),
+      }),
+    ),
   }),
   handler: async (ctx, args) => {
     const quote = await checkoutQuote(ctx, args.cart, args.promotion_code);
@@ -607,6 +712,7 @@ export const quoteCheckout = query({
             eligibleSubtotal: quote.promotion.eligibleSubtotal,
           }
         : null,
+      gifts: quote.gifts,
     };
   },
 });
@@ -639,7 +745,7 @@ function buildWhatsAppOrderMessage(
       `Postal code: ${customer.postal_code ?? ""}`,
       "",
       ...cart.flatMap((item, index) => [
-        `${index + 1}. ${productNameWithOptions(item.name, item.selectedColor, item.selectedSize)}`,
+        `${index + 1}. ${item.isGift ? "FREE GIFT: " : ""}${productNameWithOptions(item.name, item.selectedColor, item.selectedSize)}`,
         `   Quantity: ${item.qty}`,
         item.slug && productBase
           ? `   Product page: ${productBase}/products/${encodeURIComponent(item.slug)}`
@@ -768,6 +874,11 @@ export const createWhatsAppOrder = mutation({
         quantity: item.qty,
         unit_price: item.priceInr,
         subtotal: item.priceInr * item.qty,
+        is_gift: item.isGift === true,
+        gift_campaign_id: item.giftCampaignId
+          ? ctx.db.normalizeId("gift_campaigns", item.giftCampaignId)
+          : null,
+        gift_campaign_name: cleanNullable(item.giftCampaignName, 100),
       });
     }
     const saved = await ctx.db.get(orderId);

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 
 import { StorePage } from "@/components/store/store-chrome";
+import { GiftLines } from "@/components/store/gift-lines";
 import { useCurrency } from "@/hooks/use-currency";
 import { useCart } from "@/lib/cart";
 import { seo } from "@/lib/seo";
@@ -89,6 +90,7 @@ function CartPage() {
                     </article>
                   );
                 })}
+                <GiftLines variant="cart" />
               </div>
               <aside className="h-fit border border-black/10 p-6 md:sticky md:top-24">
                 <h2 className="text-[20px] font-bold uppercase">Order summary</h2>

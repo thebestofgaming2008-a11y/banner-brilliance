@@ -18,6 +18,7 @@ import { useAccount, type Address } from "@/lib/account";
 import { useCurrency } from "@/lib/currency";
 import { COUNTRY_NAME_BY_CODE, countryUsesPostalCode } from "@/lib/countries";
 import { CountrySelector } from "@/components/store/country-selector";
+import { GiftLines } from "@/components/store/gift-lines";
 import {
   attachPaidOrderToAccount,
   createBackendWhatsAppOrder,
@@ -680,6 +681,7 @@ function CheckoutPage() {
                 </li>
               ))}
             </ul>
+            <GiftLines variant="checkout" />
             <div className="mt-5 border-t border-ink/15 pt-4">
               <label
                 htmlFor="promotion-code"

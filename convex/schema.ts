@@ -204,6 +204,9 @@ export default defineSchema({
     quantity: v.number(),
     unit_price: v.number(),
     subtotal: v.number(),
+    is_gift: optionalBoolean,
+    gift_campaign_id: v.optional(v.union(v.id("gift_campaigns"), v.null())),
+    gift_campaign_name: optionalString,
   }).index("by_order_id", ["order_id"]),
   reviews: defineTable({
     product_id: v.string(),
@@ -251,6 +254,31 @@ export default defineSchema({
     .index("by_code", ["code"])
     .index("by_active", ["active"])
     .index("by_storefront_enabled", ["storefront_enabled"]),
+  gift_campaigns: defineTable({
+    name: v.string(),
+    active: v.boolean(),
+    match_mode: v.union(v.literal("all"), v.literal("any")),
+    requirements: v.array(
+      v.object({
+        label: v.string(),
+        scope_type: v.union(v.literal("collection"), v.literal("products")),
+        collection_slugs: v.array(v.string()),
+        product_ids: v.array(v.id("products")),
+        required_quantity: v.number(),
+      }),
+    ),
+    gift_product_id: v.id("products"),
+    gift_quantity: v.number(),
+    gift_color: optionalString,
+    gift_size: optionalString,
+    starts_at: optionalString,
+    ends_at: optionalString,
+    sort_order: v.number(),
+    created_at: v.string(),
+    updated_at: v.string(),
+  })
+    .index("by_active", ["active"])
+    .index("by_sort_order", ["sort_order"]),
   shipping_rates: defineTable({
     carrier: v.string(),
     zone: v.string(),
