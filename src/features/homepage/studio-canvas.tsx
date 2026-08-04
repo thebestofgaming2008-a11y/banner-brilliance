@@ -1,4 +1,3 @@
-import { Plus } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -28,24 +27,20 @@ function editorPreviewData(data: HomepageData, selectedRef: StudioBannerRef) {
 export function StorefrontFramePreview({
   data,
   editMode = false,
-  onAddSection,
+  onAddMosaicCard,
 }: {
   data: HomepageData;
   editMode?: boolean;
-  onAddSection?: () => void;
+  onAddMosaicCard?: () => void;
 }) {
   return (
     <div className="studio-storefront-page min-h-screen bg-white font-sans-ui text-black">
       <StoreHeaderPreview />
-      <LegacyHomepageContent homepage={data} editMode={editMode} />
-      {editMode && onAddSection ? (
-        <section className="studio-inline-add-section">
-          <button type="button" data-studio-add-section onClick={onAddSection}>
-            <Plus size={26} />
-            <span>Add homepage section</span>
-          </button>
-        </section>
-      ) : null}
+      <LegacyHomepageContent
+        homepage={data}
+        editMode={editMode}
+        onAddMosaicCard={editMode ? onAddMosaicCard : undefined}
+      />
       <StoreFooter />
     </div>
   );
@@ -71,7 +66,8 @@ export function StudioCanvas({
   onPatchLayer,
   onCropChange,
   onBackgroundCropChange,
-  onAddSection,
+  onEditMosaic,
+  onAddMosaicCard,
   structuredMode = false,
 }: {
   data: HomepageData;
@@ -96,7 +92,8 @@ export function StudioCanvas({
     id: string,
     patch: Pick<BannerFill, "offsetX" | "offsetY" | "zoom">,
   ) => void;
-  onAddSection: () => void;
+  onEditMosaic: (cardId?: string) => void;
+  onAddMosaicCard: () => void;
   structuredMode?: boolean;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -348,10 +345,17 @@ export function StudioCanvas({
                   className="studio-frame-document"
                   onClickCapture={(event) => {
                     const target = event.target as HTMLElement;
-                    if (target.closest("[data-studio-add-section]")) {
+                    if (target.closest("[data-studio-add-mosaic]")) {
                       event.preventDefault();
                       event.stopPropagation();
-                      onAddSection();
+                      onAddMosaicCard();
+                      return;
+                    }
+                    const mosaicCard = target.closest<HTMLElement>("[data-mosaic-card-id]");
+                    if (mosaicCard?.dataset.mosaicCardId) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onEditMosaic(mosaicCard.dataset.mosaicCardId);
                       return;
                     }
                     const banner = target.closest<HTMLElement>("[data-editor-banner-key]");
@@ -377,7 +381,11 @@ export function StudioCanvas({
                     }
                   }}
                 >
-                  <StorefrontFramePreview data={previewData} editMode onAddSection={onAddSection} />
+                  <StorefrontFramePreview
+                    data={previewData}
+                    editMode
+                    onAddMosaicCard={onAddMosaicCard}
+                  />
                   <StudioSelection
                     host={coordinateRoot}
                     layers={

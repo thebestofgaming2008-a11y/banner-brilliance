@@ -13,7 +13,6 @@ import {
   GripVertical,
   History,
   Image as ImageIcon,
-  Layers3,
   LayoutGrid,
   Loader2,
   Lock,
@@ -61,10 +60,8 @@ import { StudioTemplateInspector, type HomepageTemplatePatch } from "./studio-te
 import { HomepageImageInput } from "./homepage-image-field";
 import { CORE_MOSAIC_CARD_COUNT, homepageMosaicCards, MAX_MOSAIC_CARDS } from "./mosaic-data";
 import {
-  createCollectionWithProducts,
   createHeroSlide,
   createLayer,
-  createStandaloneBanner,
   createStudioId,
   constrainOriginalHeroLayerForViewport,
   ensureHomepageScenes,
@@ -197,6 +194,27 @@ function safeHomepageLink(value: string | undefined) {
     link.startsWith("#") ||
     /^https:\/\//i.test(link)
   );
+}
+
+function createMosaicCollectionCard(
+  cards: HomepageMosaicCard[],
+  categories: AdminCategory[],
+): HomepageMosaicCard {
+  const collectionCategories = categories.filter((category) => category.type === "collection");
+  const usedLinks = new Set(cards.map((card) => card.href));
+  const category =
+    collectionCategories.find(
+      (candidate) => !usedLinks.has(`/shop?collection=${encodeURIComponent(candidate.name)}`),
+    ) ?? collectionCategories[0];
+
+  return {
+    id: createStudioId("mosaic"),
+    title: category?.name.trim().toUpperCase() || "NEW COLLECTION",
+    eyebrow: "Explore",
+    image: "",
+    imagePosition: "center",
+    href: category ? `/shop?collection=${encodeURIComponent(category.name)}` : "/shop",
+  };
 }
 
 function homepagePublishIssues(data: HomepageData, products: StoreProduct[]) {
@@ -450,6 +468,8 @@ function MosaicEditorDialog({
   dirty,
   unpublished,
   hasConflict,
+  publishBlocked,
+  initialSelectedId,
   onChange,
   onClose,
   onSave,
@@ -462,12 +482,14 @@ function MosaicEditorDialog({
   dirty: boolean;
   unpublished: boolean;
   hasConflict: boolean;
+  publishBlocked: boolean;
+  initialSelectedId?: string;
   onChange: (cards: HomepageMosaicCard[]) => void;
   onClose: () => void;
   onSave: () => void;
   onPublish: () => void;
 }) {
-  const [selectedId, setSelectedId] = useState(cards[0]?.id ?? "");
+  const [selectedId, setSelectedId] = useState(initialSelectedId || cards[0]?.id || "");
   const selectedIndex = Math.max(
     0,
     cards.findIndex((card) => card.id === selectedId),
@@ -476,9 +498,13 @@ function MosaicEditorDialog({
   const selectedIsCore = selectedIndex < CORE_MOSAIC_CARD_COUNT;
 
   useEffect(() => {
+    if (initialSelectedId && cards.some((card) => card.id === initialSelectedId)) {
+      setSelectedId(initialSelectedId);
+      return;
+    }
     if (cards.some((card) => card.id === selectedId)) return;
     setSelectedId(cards[0]?.id ?? "");
-  }, [cards, selectedId]);
+  }, [cards, initialSelectedId, selectedId]);
 
   const patchCard = (patch: Partial<HomepageMosaicCard>) => {
     if (!selected) return;
@@ -497,14 +523,7 @@ function MosaicEditorDialog({
 
   const addCard = () => {
     if (cards.length >= MAX_MOSAIC_CARDS) return;
-    const card: HomepageMosaicCard = {
-      id: createStudioId("mosaic"),
-      title: "NEW COLLECTION",
-      eyebrow: "Explore",
-      image: "",
-      imagePosition: "center",
-      href: "/shop",
-    };
+    const card = createMosaicCollectionCard(cards, categories);
     onChange([...cards, card]);
     setSelectedId(card.id);
   };
@@ -523,6 +542,14 @@ function MosaicEditorDialog({
     onChange(next);
   };
 
+  const selectedIssues = selected
+    ? [
+        !selected.image.trim() ? "Add an image" : "",
+        !selected.title.trim() ? "Add a title" : "",
+        !selected.href.trim() || !safeHomepageLink(selected.href) ? "Choose a valid link" : "",
+      ].filter(Boolean)
+    : [];
+
   return (
     <div
       className="studio-modal-backdrop studio-mosaic-backdrop"
@@ -536,7 +563,7 @@ function MosaicEditorDialog({
           <div>
             <p>Homepage</p>
             <h2>Collection Mosaic</h2>
-            <span>Add, reorder, and edit the collection boxes shown after Shop All.</span>
+            <span>Manage the collection tiles shown after Shop All.</span>
           </div>
           <button type="button" aria-label="Close collection editor" onClick={onClose}>
             <X size={18} />
@@ -572,6 +599,9 @@ function MosaicEditorDialog({
                           : `Added box ${index - CORE_MOSAIC_CARD_COUNT + 1}`}
                     </small>
                   </span>
+                  {!card.image.trim() || !card.title.trim() || !safeHomepageLink(card.href) ? (
+                    <span className="studio-mosaic-list__warning" aria-label="Needs attention" />
+                  ) : null}
                   <ChevronRight size={15} />
                 </button>
               ))}
@@ -589,7 +619,11 @@ function MosaicEditorDialog({
                         ? `Core collection ${selectedIndex + 1}`
                         : `Added collection ${selectedIndex - CORE_MOSAIC_CARD_COUNT + 1}`}
                   </strong>
-                  <span>Changes appear immediately in Preview.</span>
+                  <span>
+                    {selectedIssues.length
+                      ? `${selectedIssues.length} ${selectedIssues.length === 1 ? "item" : "items"} to complete`
+                      : "Ready to publish"}
+                  </span>
                 </div>
                 <div>
                   <button
@@ -635,6 +669,27 @@ function MosaicEditorDialog({
 
               <div className="studio-mosaic-form">
                 <div className="studio-mosaic-form__image">
+                  <div className="studio-mosaic-card-preview" aria-label="Collection tile preview">
+                    {selected.image ? (
+                      <img
+                        src={selected.image}
+                        alt=""
+                        style={{ objectPosition: selected.imagePosition }}
+                      />
+                    ) : (
+                      <div className="studio-mosaic-card-preview__empty">
+                        <ImageIcon size={22} />
+                      </div>
+                    )}
+                    <div className="studio-mosaic-card-preview__shade" />
+                    <div className="studio-mosaic-card-preview__copy">
+                      <small>{selected.eyebrow || "Explore"}</small>
+                      <strong>{selected.title || "Untitled collection"}</strong>
+                      <span>
+                        Explore <ChevronRight size={11} />
+                      </span>
+                    </div>
+                  </div>
                   <label>Collection image</label>
                   <HomepageImageInput
                     value={selected.image}
@@ -720,11 +775,14 @@ function MosaicEditorDialog({
                       placeholder="/shop?collection=Shemaghs"
                     />
                   </label>
-                  <div className="studio-mosaic-note">
-                    <Check size={15} />
+                  <div
+                    className={`studio-mosaic-status ${selectedIssues.length ? "has-errors" : ""}`}
+                  >
+                    {selectedIssues.length ? <Circle size={14} /> : <Check size={15} />}
                     <span>
-                      Core boxes keep the approved Mosaic. New boxes are always added afterward, and
-                      their layout adapts automatically to the number added.
+                      {selectedIssues.length
+                        ? selectedIssues.join(". ")
+                        : "This collection tile is complete."}
                     </span>
                   </div>
                 </div>
@@ -755,7 +813,10 @@ function MosaicEditorDialog({
             </button>
             <button
               type="button"
-              disabled={publishing || hasConflict || (!dirty && !unpublished)}
+              disabled={publishing || hasConflict || publishBlocked || (!dirty && !unpublished)}
+              title={
+                publishBlocked ? "Complete every collection tile before publishing" : undefined
+              }
               onClick={onPublish}
             >
               {publishing ? "Publishing..." : "Publish live"}
@@ -796,8 +857,8 @@ export function HomepageVisualEditor({
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
   const [mosaicOpen, setMosaicOpen] = useState(false);
+  const [mosaicSelectedId, setMosaicSelectedId] = useState("");
   const [leftTab, setLeftTab] = useState<"file" | "assets">("file");
-  const [addOpen, setAddOpen] = useState(false);
   const [viewport, setViewport] = useState<HomepageViewport>("desktop");
   const [zoom, setZoom] = useState(50);
   const [selectedBannerKey, setSelectedBannerKey] = useState("");
@@ -959,6 +1020,25 @@ export function HomepageVisualEditor({
     },
     [commit],
   );
+
+  const openMosaicEditor = useCallback((cardId?: string) => {
+    setMosaicSelectedId(cardId ?? "");
+    setMosaicOpen(true);
+  }, []);
+
+  const addMosaicCard = useCallback(() => {
+    const current = dataRef.current;
+    if (!current) return;
+    const cards = homepageMosaicCards(current);
+    if (cards.length >= MAX_MOSAIC_CARDS) {
+      toast.error(`The homepage can contain up to ${MAX_MOSAIC_CARDS} collection tiles.`);
+      return;
+    }
+    const card = createMosaicCollectionCard(cards, categories);
+    updateMosaicCards([...cards, card]);
+    setMosaicSelectedId(card.id);
+    setMosaicOpen(true);
+  }, [categories, updateMosaicCards]);
 
   const undo = useCallback(() => {
     const current = dataRef.current;
@@ -1160,7 +1240,6 @@ export function HomepageVisualEditor({
       setCropFillId(null);
       setCropLayerId(id);
       setSelectedLayerIds([id]);
-      setAddOpen(false);
     },
     [dirty, scene?.layers, unpublished],
   );
@@ -1184,7 +1263,6 @@ export function HomepageVisualEditor({
       setCropLayerId(null);
       setCropFillId(id);
       setSelectedLayerIds([]);
-      setAddOpen(false);
     },
     [dirty, scene?.fills, unpublished],
   );
@@ -1282,7 +1360,6 @@ export function HomepageVisualEditor({
       });
       setSelectedLayerIds([nextId]);
       setLeftTab("file");
-      setAddOpen(false);
     },
     [mutateScene],
   );
@@ -1338,35 +1415,12 @@ export function HomepageVisualEditor({
     hero.props.slides.push(createHeroSlide(hero.props.slides.length));
     hero.props.autoplay = "on";
     commit(next);
-    setAddOpen(false);
     window.setTimeout(() => {
       const latest = listStudioBanners(next)
         .filter((item) => item.kind === "hero")
         .at(-1);
       if (latest) setSelectedBannerKey(latest.key);
     }, 0);
-  };
-
-  const addSection = (kind: "standalone" | "collection") => {
-    const current = dataRef.current;
-    if (!current) return;
-    const next = clone(current);
-    const item =
-      kind === "standalone"
-        ? createStandaloneBanner()
-        : createCollectionWithProducts(
-            categories.find((category) => category.type === "collection")?.slug || "all",
-          );
-    next.content.push(item);
-    commit(next);
-    window.setTimeout(() => {
-      const latest = listStudioBanners(next).find((banner) => banner.itemId === item.props.id);
-      if (latest) {
-        setSelectedBannerKey(latest.key);
-        setSelectedLayerIds(["banner-image"]);
-      }
-    }, 0);
-    setAddOpen(false);
   };
 
   const reorderBanner = (sourceKey: string, targetKey: string) => {
@@ -1562,7 +1616,6 @@ export function HomepageVisualEditor({
           cancelCrop();
           return;
         }
-        setAddOpen(false);
         setEditingLayerId(null);
         setSelectedLayerIds([]);
       } else if (
@@ -1832,7 +1885,7 @@ export function HomepageVisualEditor({
           <button
             type="button"
             className="studio-secondary-button"
-            onClick={() => setMosaicOpen(true)}
+            onClick={() => openMosaicEditor()}
           >
             <LayoutGrid size={15} />
             <span>Collections</span>
@@ -2028,8 +2081,8 @@ export function HomepageVisualEditor({
                     </span>
                   </div>
                   <div className="studio-pages-header">
-                    <span>After Mosaic</span>
-                    <IconButton label="Add section after Mosaic" onClick={() => setAddOpen(true)}>
+                    <span>Collection Mosaic</span>
+                    <IconButton label="Add collection tile" onClick={addMosaicCard}>
                       <Plus size={14} />
                     </IconButton>
                   </div>
@@ -2067,9 +2120,9 @@ export function HomepageVisualEditor({
                       <button
                         type="button"
                         className="studio-empty-section"
-                        onClick={() => setAddOpen(true)}
+                        onClick={addMosaicCard}
                       >
-                        <Plus size={15} /> Add the first section
+                        <Plus size={15} /> Add collection tile
                       </button>
                     ) : null}
                   </div>
@@ -2218,7 +2271,6 @@ export function HomepageVisualEditor({
                 active={viewport === "mobile"}
                 onClick={() => {
                   finishCrop();
-                  setAddOpen(false);
                   setViewport("mobile");
                   setZoom(82);
                 }}
@@ -2230,7 +2282,6 @@ export function HomepageVisualEditor({
                 active={viewport === "desktop"}
                 onClick={() => {
                   finishCrop();
-                  setAddOpen(false);
                   setViewport("desktop");
                   setZoom(50);
                 }}
@@ -2272,7 +2323,8 @@ export function HomepageVisualEditor({
                 true,
               )
             }
-            onAddSection={() => setAddOpen(true)}
+            onEditMosaic={openMosaicEditor}
+            onAddMosaicCard={addMosaicCard}
             structuredMode={!ADVANCED_LAYOUT_TOOLS}
           />
           <div className="studio-zoom-control">
@@ -2359,6 +2411,8 @@ export function HomepageVisualEditor({
           dirty={dirty}
           unpublished={unpublished}
           hasConflict={Boolean(conflict)}
+          publishBlocked={publishIssues.length > 0}
+          initialSelectedId={mosaicSelectedId}
           onChange={updateMosaicCards}
           onClose={() => setMosaicOpen(false)}
           onSave={() => void saveDraft()}
@@ -2373,49 +2427,6 @@ export function HomepageVisualEditor({
             setPublishConfirmOpen(true);
           }}
         />
-      ) : null}
-
-      {addOpen ? (
-        <div
-          className="studio-modal-backdrop studio-template-add-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Add homepage section"
-          onMouseDown={() => setAddOpen(false)}
-        >
-          <div
-            className="studio-template-add-dialog"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <header>
-              <div>
-                <h2>Add homepage section</h2>
-                <p>New sections appear after the collection Mosaic.</p>
-              </div>
-              <button type="button" aria-label="Close" onClick={() => setAddOpen(false)}>
-                <X size={17} />
-              </button>
-            </header>
-            <div className="studio-template-add-options">
-              <button type="button" onClick={() => addSection("standalone")}>
-                <ImageIcon size={21} />
-                <span>
-                  <strong>Banner only</strong>
-                  <small>A fixed full-width promotional banner.</small>
-                </span>
-                <ChevronRight size={17} />
-              </button>
-              <button type="button" onClick={() => addSection("collection")}>
-                <Layers3 size={21} />
-                <span>
-                  <strong>Banner + product row</strong>
-                  <small>A fixed banner with collection products underneath.</small>
-                </span>
-                <ChevronRight size={17} />
-              </button>
-            </div>
-          </div>
-        </div>
       ) : null}
 
       {previewOpen ? (

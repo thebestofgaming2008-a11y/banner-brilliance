@@ -1523,7 +1523,7 @@
 .studio-mosaic-list__items > button {
   display: grid;
   width: 100%;
-  grid-template-columns: 46px minmax(0, 1fr) auto;
+  grid-template-columns: 46px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
   border: 1px solid transparent;
@@ -1533,6 +1533,12 @@
   padding: 7px;
   color: #222;
   text-align: left;
+}
+.studio-mosaic-list__warning {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e8653d;
 }
 .studio-mosaic-list__items > button:hover {
   background: #fff9;
@@ -1651,10 +1657,70 @@
 .studio-mosaic-form__image > label:last-child {
   margin-top: 16px;
 }
+.studio-mosaic-card-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 4px;
+  margin-bottom: 18px;
+  background: #282826;
+  color: #fff;
+}
+.studio-mosaic-card-preview > img,
+.studio-mosaic-card-preview__empty,
+.studio-mosaic-card-preview__shade {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.studio-mosaic-card-preview > img {
+  object-fit: cover;
+}
+.studio-mosaic-card-preview__empty {
+  display: grid;
+  place-items: center;
+  color: #777;
+}
+.studio-mosaic-card-preview__shade {
+  background: linear-gradient(to top, rgb(0 0 0 / 82%), rgb(0 0 0 / 8%) 60%, transparent);
+}
+.studio-mosaic-card-preview__copy {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 18px;
+}
+.studio-mosaic-card-preview__copy small,
+.studio-mosaic-card-preview__copy strong,
+.studio-mosaic-card-preview__copy span {
+  display: flex;
+}
+.studio-mosaic-card-preview__copy small {
+  color: rgb(255 255 255 / 72%);
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.studio-mosaic-card-preview__copy strong {
+  margin-top: 7px;
+  font-size: 23px;
+  line-height: 0.95;
+}
+.studio-mosaic-card-preview__copy span {
+  align-items: center;
+  gap: 3px;
+  margin-top: 12px;
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
 .studio-mosaic-form .homepage-image-input {
   margin-top: 7px;
 }
-.studio-mosaic-note {
+.studio-mosaic-status {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -1665,7 +1731,11 @@
   font-size: 10px;
   line-height: 1.45;
 }
-.studio-mosaic-note svg {
+.studio-mosaic-status.has-errors {
+  background: #fff0eb;
+  color: #a74628;
+}
+.studio-mosaic-status svg {
   flex: 0 0 auto;
 }
 .studio-mosaic-footer {
@@ -3050,7 +3120,7 @@
 .studio-inline-add-section {
   width: 100%;
   background: #fff;
-  padding: 36px clamp(18px, 4vw, 64px) 46px;
+  padding: 22px 0 2px;
 }
 .studio-inline-add-section button {
   display: flex;

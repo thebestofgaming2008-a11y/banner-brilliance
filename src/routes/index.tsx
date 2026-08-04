@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Plus,
   Search,
   SlidersHorizontal,
   Star,
@@ -962,6 +963,7 @@ function MosaicCollectionCard({
       className={`collection-banner homepage-mosaic__card ${added ? "homepage-mosaic__card--added" : `homepage-mosaic__card--${index + 1}`} group relative block overflow-hidden bg-black text-white`}
       data-reveal
       data-mosaic-card={collection.title}
+      data-mosaic-card-id={collection.id}
     >
       {collection.image ? (
         <img
@@ -1004,7 +1006,13 @@ function MosaicCollectionCard({
   );
 }
 
-function HomepageCollectionMosaic({ homepage }: { homepage?: HomepageData | null }) {
+function HomepageCollectionMosaic({
+  homepage,
+  onAddMosaicCard,
+}: {
+  homepage?: HomepageData | null;
+  onAddMosaicCard?: () => void;
+}) {
   const mosaicCollections = homepageMosaicCards(homepage);
   const coreCollections = mosaicCollections.slice(0, CORE_MOSAIC_CARD_COUNT);
   const addedCollections = mosaicCollections.slice(CORE_MOSAIC_CARD_COUNT);
@@ -1045,6 +1053,14 @@ function HomepageCollectionMosaic({ homepage }: { homepage?: HomepageData | null
             ))}
           </div>
         ) : null}
+        {onAddMosaicCard ? (
+          <div className="studio-inline-add-section">
+            <button type="button" data-studio-add-mosaic onClick={onAddMosaicCard}>
+              <Plus size={26} />
+              <span>Add collection tile</span>
+            </button>
+          </div>
+        ) : null}
       </div>
     </section>
   );
@@ -1081,9 +1097,11 @@ function editorSlice(data: HomepageData, mode: "hero" | "after-honey"): Homepage
 export function LegacyHomepageContent({
   homepage,
   editMode = false,
+  onAddMosaicCard,
 }: {
   homepage?: HomepageData | null;
   editMode?: boolean;
+  onAddMosaicCard?: () => void;
 }) {
   const editorHomepage = isHomepageEditorData(homepage) ? homepage : null;
   const customSections = editorHomepage ? editorSlice(editorHomepage, "after-honey") : null;
@@ -1096,7 +1114,7 @@ export function LegacyHomepageContent({
       )}
       <CollectionBanners />
       <ShopAllProducts />
-      <HomepageCollectionMosaic homepage={editorHomepage} />
+      <HomepageCollectionMosaic homepage={editorHomepage} onAddMosaicCard={onAddMosaicCard} />
       {customSections?.content.length ? (
         <HomepageRenderer data={customSections} editMode={editMode} />
       ) : null}

@@ -3390,7 +3390,7 @@ function LegacyBannerAdminPanel({
   return (
     <Section
       title="Homepage content"
-      subtitle="Add hero slides, offers, or a collection banner with live products underneath."
+      subtitle="Manage hero slides and the collection Mosaic shown on the storefront."
     >
       <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
         <div className="space-y-3">

@@ -32,7 +32,7 @@ test.describe("fixed-template homepage studio", () => {
     const frame = storefront(page);
     await expect(frame.getByTestId("homepage-collection-mosaic")).toBeAttached();
     await expect(frame.locator("footer")).toBeAttached();
-    await expect(frame.getByRole("button", { name: "Add homepage section" })).toBeAttached();
+    await expect(frame.getByRole("button", { name: "Add collection tile" })).toBeAttached();
     const frameSize = await frame.locator("html").evaluate((element) => ({
       width: element.clientWidth,
       height: element.clientHeight,
@@ -64,6 +64,7 @@ test.describe("fixed-template homepage studio", () => {
     await dialog.getByLabel("Small text").fill("Limited release");
     await dialog.getByLabel("Collection title").fill("RAMADAN PICKS");
     await dialog.getByLabel("Link", { exact: true }).fill("/shop?collection=Ramadan");
+    await dialog.getByLabel("Collection image URL").fill("/homepage/honey.jpg");
     await expect(dialog.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
     await expect(dialog.getByRole("button", { name: "Publish live", exact: true })).toBeEnabled();
 
@@ -437,305 +438,45 @@ test.describe("fixed-template homepage studio", () => {
     ).toHaveText("Shop the collection");
   });
 
-  test("adds only the two supported post-Mosaic section templates", async ({ page }) => {
+  test("adds only adaptive Mosaic tiles from the homepage frame", async ({ page }) => {
     const frame = storefront(page);
-    const addButton = frame.getByRole("button", { name: "Add homepage section" });
+    const addButton = frame.getByRole("button", { name: "Add collection tile" });
     await addButton.scrollIntoViewIfNeeded();
     await addButton.click();
 
-    const dialog = page.getByRole("dialog", { name: "Add homepage section" });
+    const dialog = page.getByRole("dialog", { name: "Edit collection mosaic" });
     await expect(dialog).toBeVisible();
-    const choices = dialog.locator(".studio-template-add-options > button");
-    await expect(choices).toHaveCount(2);
-    await expect(dialog.getByRole("button", { name: /Banner only/ })).toBeVisible();
-    await expect(dialog.getByRole("button", { name: /Banner \+ product row/ })).toBeVisible();
-    await expect(dialog.getByText(/Banner left|Banner right/)).toHaveCount(0);
+    await expect(dialog.getByText("8 collection boxes", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("Added collection 1", { exact: true })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Publish live", exact: true })).toBeDisabled();
+    await expect(dialog.getByText("Add an image", { exact: true })).toBeVisible();
+    await dialog.getByLabel("Collection image URL").fill("/homepage/honey.jpg");
+    await dialog.getByLabel("Collection title").fill("NEW HONEY EDIT");
+    await expect(dialog.getByRole("button", { name: "Publish live", exact: true })).toBeEnabled();
+    await dialog.getByRole("button", { name: "Done", exact: true }).click();
 
-    await dialog.getByRole("button", { name: /Banner only/ }).click();
-    let inspector = page.getByRole("complementary", { name: "Banner settings" });
-    await expect(inspector.getByText("Banner only", { exact: true })).toBeVisible();
-    await expect(
-      frame
-        .locator('[data-homepage-banner-id][data-editor-active="true"]')
-        .locator('[data-banner-layer="banner-image"]'),
-    ).toHaveAttribute("data-selected", "true");
-    await inspector.getByLabel("Small label", { exact: true }).fill("LIMITED RELEASE");
-    await inspector.getByLabel("Title", { exact: true }).fill("RAMADAN OFFER");
-    await inspector
-      .getByLabel("Subtitle", { exact: true })
-      .fill("Raw floral honey, selected by origin.");
-    const standalone = frame.locator('[data-homepage-banner-id][data-editor-active="true"]');
-    await expect(standalone).toContainText("LIMITED RELEASE");
-    await expect(standalone).toContainText("RAMADAN OFFER");
-    await expect(standalone.locator('[data-banner-layer="button"]')).toHaveText("Shop edit");
-    await expect(inspector.getByLabel("Shop button text", { exact: true })).toHaveValue(
-      "Shop edit",
-    );
-    await expect(inspector.getByLabel("Shop button link", { exact: true })).toHaveValue("/shop");
-    await inspector.getByLabel("Shop button text", { exact: true }).fill("Shop promotion");
-    await inspector
-      .getByLabel("Shop button link", { exact: true })
-      .fill("/shop?collection=Ramadan");
-    await expect(standalone.locator('[data-banner-layer="button"]')).toHaveText("Shop promotion");
-    await expect(inspector.getByLabel("Background colour", { exact: true })).toHaveCount(0);
-    await expect(inspector.getByRole("button", { name: "Align text right" })).toHaveCount(0);
-    await expect(inspector.getByLabel("Text colour", { exact: true })).toHaveCount(0);
-    await expect(standalone.getByRole("heading", { name: "RAMADAN OFFER" })).toHaveCSS(
-      "text-align",
-      "left",
-    );
-    const presetTitle = standalone.locator('[data-banner-layer="title"]');
-    const [standaloneSize, standaloneBox, presetTitleBox] = await Promise.all([
-      standalone.evaluate((element) => ({
-        width: (element as HTMLElement).offsetWidth,
-        height: (element as HTMLElement).offsetHeight,
-      })),
-      standalone.boundingBox(),
-      presetTitle.boundingBox(),
-    ]);
-    expect(standaloneBox).not.toBeNull();
-    expect(presetTitleBox).not.toBeNull();
-    if (standaloneBox && presetTitleBox) {
-      expect(standaloneSize.width).toBe(1180);
-      expect(standaloneSize.height).toBeGreaterThan(500);
-      expect(presetTitleBox.x).toBeGreaterThanOrEqual(standaloneBox.x);
-      expect(presetTitleBox.x + presetTitleBox.width).toBeLessThanOrEqual(
-        standaloneBox.x + standaloneBox.width,
-      );
-    }
-    await expect
-      .poll(() =>
-        presetTitle.evaluate((element) => {
-          const style = getComputedStyle(element);
-          return {
-            fontFamily: style.fontFamily,
-            fontSize: style.fontSize,
-            fontWeight: style.fontWeight,
-            lineHeight: style.lineHeight,
-            textTransform: style.textTransform,
-          };
-        }),
-      )
-      .toEqual({
-        fontFamily: '"Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif',
-        fontSize: "62px",
-        fontWeight: "850",
-        lineHeight: "54.56px",
-        textTransform: "uppercase",
-      });
-    await expect(presetTitle).toHaveAttribute("data-layer-locked", "true");
-    await presetTitle.click();
-    const titleSelection = standalone.locator(
-      '.studio-selection-box[data-selection-layer="title"]',
-    );
-    await expect(titleSelection).toHaveCount(0);
-    const titleLeftBefore = (await presetTitle.boundingBox())?.x ?? 0;
-    const titleBox = await presetTitle.boundingBox();
-    expect(titleBox).not.toBeNull();
-    if (titleBox) {
-      await page.mouse.move(titleBox.x + 20, titleBox.y + 10);
-      await page.mouse.down();
-      await page.mouse.move(titleBox.x + 60, titleBox.y + 10, { steps: 4 });
-      await page.mouse.up();
-    }
-    await expect
-      .poll(async () => (await presetTitle.boundingBox())?.x ?? 0)
-      .toBeCloseTo(titleLeftBefore, 3);
-    await presetTitle.dblclick();
-    const editableTitle = presetTitle.locator('[contenteditable="true"]');
-    await expect(editableTitle).toBeFocused();
-    await page.keyboard.press("Control+A");
-    await page.keyboard.type("RAMADAN OFFER UPDATED");
-    await page.keyboard.press("Tab");
-    await expect(inspector.getByLabel("Title", { exact: true })).toHaveValue(
-      "RAMADAN OFFER UPDATED",
-    );
-    await expect(standalone.getByRole("heading", { name: "RAMADAN OFFER UPDATED" })).toHaveCSS(
-      "color",
-      "rgb(255, 255, 255)",
-    );
+    const extras = frame.locator(".homepage-mosaic__extras");
+    await expect(extras).toHaveAttribute("data-added-collections", "1");
+    await expect(extras).toHaveClass(/homepage-mosaic__extras--1/);
+    await expect(frame.locator('[data-mosaic-card="NEW HONEY EDIT"]')).toBeVisible();
 
-    await inspector.getByLabel("Banner image URL").fill("/homepage/hero-shemagh.webp");
-    await expect
-      .poll(async () => (await presetTitle.boundingBox())?.x ?? 0)
-      .toBeCloseTo(titleLeftBefore, 3);
-    await expect(inspector.getByRole("button", { name: "Crop image" })).toBeVisible();
-    await expect(inspector.getByText("Desktop crop", { exact: true })).toBeVisible();
-    await inspector.getByLabel("Zoom %", { exact: true }).fill("125");
-    const bannerImage = standalone.locator('[data-banner-layer="banner-image"]');
-    await expect
-      .poll(() => bannerImage.locator("img").evaluate((element) => element.style.transform))
-      .toContain("scale(1.25)");
-    await bannerImage.click({ position: { x: 100, y: 50 } });
-    await expect(bannerImage).not.toHaveAttribute("data-layer-locked", "true");
-    const imageSelection = standalone.locator(
-      '.studio-selection-box[data-selection-layer="banner-image"]',
-    );
-    await expect(imageSelection).toHaveCount(1);
-    await expect(
-      inspector.getByRole("heading", { name: "Image frame", exact: true }),
-    ).toBeVisible();
-    const widthBeforeResize = (await bannerImage.boundingBox())?.width ?? 0;
-    const eastHandle = imageSelection.getByRole("button", { name: "Resize e" });
-    await eastHandle.evaluate((handle) => {
-      const box = handle.getBoundingClientRect();
-      const startX = box.left + box.width / 2;
-      const startY = box.top + box.height / 2;
-      handle.dispatchEvent(
-        new PointerEvent("pointerdown", {
-          bubbles: true,
-          button: 0,
-          buttons: 1,
-          clientX: startX,
-          clientY: startY,
-          isPrimary: true,
-          pointerId: 1,
-        }),
-      );
-      window.dispatchEvent(
-        new PointerEvent("pointermove", {
-          bubbles: true,
-          buttons: 1,
-          clientX: startX - 160,
-          clientY: startY,
-          isPrimary: true,
-          pointerId: 1,
-        }),
-      );
-      window.dispatchEvent(
-        new PointerEvent("pointerup", {
-          bubbles: true,
-          button: 0,
-          clientX: startX - 160,
-          clientY: startY,
-          isPrimary: true,
-          pointerId: 1,
-        }),
-      );
-    });
-    await expect
-      .poll(async () => (await bannerImage.boundingBox())?.width ?? widthBeforeResize)
-      .toBeLessThan(widthBeforeResize - 20);
-    await inspector.getByLabel("W", { exact: true }).fill("100");
-    await expect(bannerImage).toHaveCSS("left", "0px");
-    await expect(bannerImage).toHaveCSS("width", "1180px");
-    const [imageLayerBox, imageElementBox] = await Promise.all([
-      bannerImage.boundingBox(),
-      bannerImage.locator("img").boundingBox(),
-    ]);
-    expect(imageLayerBox).not.toBeNull();
-    expect(imageElementBox).not.toBeNull();
-    if (imageLayerBox && imageElementBox) {
-      expect(imageElementBox.x).toBeLessThan(imageLayerBox.x);
-      expect(imageElementBox.width).toBeGreaterThan(imageLayerBox.width);
-    }
+    await frame.locator('[data-mosaic-card="NEW HONEY EDIT"]').click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByLabel("Collection title")).toHaveValue("NEW HONEY EDIT");
+    await dialog.getByRole("button", { name: "Add", exact: true }).click();
+    await dialog.getByLabel("Collection image URL").fill("/homepage/makkah-gloves.jpg");
+    await dialog.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(extras).toHaveAttribute("data-added-collections", "2");
+    await expect(extras).toHaveClass(/homepage-mosaic__extras--2/);
 
-    await bannerImage.dblclick({ position: { x: 100, y: 50 } });
-    await expect(page.getByText("Crop image", { exact: true })).toBeVisible();
-    await expect(bannerImage).toHaveClass(/is-cropping/);
-    const objectPositionBeforeCrop = await bannerImage
-      .locator("img")
-      .evaluate((element) => element.style.objectPosition);
-    const imageBox = await bannerImage.boundingBox();
-    expect(imageBox).not.toBeNull();
-    if (imageBox) {
-      await page.mouse.move(imageBox.x + imageBox.width / 2, imageBox.y + imageBox.height / 2);
-      await page.mouse.down();
-      await page.mouse.move(
-        imageBox.x + imageBox.width / 2 + 30,
-        imageBox.y + imageBox.height / 2 + 10,
-        { steps: 4 },
-      );
-      await page.mouse.up();
-    }
-    await expect
-      .poll(() => bannerImage.locator("img").evaluate((element) => element.style.objectPosition))
-      .not.toBe(objectPositionBeforeCrop);
-    await page.getByRole("button", { name: "Done", exact: true }).click();
+    await addButton.click();
+    await dialog.getByLabel("Collection image URL").fill("/homepage/sabr-watch-black.jpg");
+    await dialog.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(extras).toHaveAttribute("data-added-collections", "3");
+    await expect(extras).toHaveClass(/homepage-mosaic__extras--3/);
 
-    await page.getByRole("button", { name: "Mobile viewport" }).click();
-    await expect(inspector.getByText("Mobile crop", { exact: true })).toBeVisible();
-    await expect(inspector.getByLabel("Zoom %", { exact: true })).toHaveValue("100");
-    await inspector.getByLabel("Zoom %", { exact: true }).fill("140");
-    await page.getByRole("button", { name: "Desktop viewport" }).click();
-    await expect(inspector.getByLabel("Zoom %", { exact: true })).toHaveValue("125");
-    await inspector.getByRole("button", { name: "Reset crop" }).click();
-    await expect(inspector.getByLabel("Zoom %", { exact: true })).toHaveValue("100");
-
-    await inspector.getByRole("button", { name: "Image only", exact: true }).click();
-    await expect(standalone.getByRole("heading", { name: "RAMADAN OFFER UPDATED" })).toHaveCount(0);
-    await expect(standalone.locator('[data-banner-layer="button"]')).toHaveCount(0);
-    await expect(standalone.locator('[data-banner-layer="banner-overlay"]')).toHaveCount(0);
-    await expect(bannerImage.locator("img")).toBeVisible();
-    await expect(bannerImage).toHaveCSS("box-shadow", "none");
-    await expect(inspector.getByLabel("Title", { exact: true })).toHaveCount(0);
-    await inspector.getByLabel("Image description", { exact: true }).fill("Ramadan collection");
-    await inspector.getByLabel("Poster link (optional)", { exact: true }).fill("/shop");
-    await page.getByRole("button", { name: "Mobile viewport" }).click();
-    const mobileFrame = storefront(page, "mobile");
-    const mobileBanner = mobileFrame.locator(
-      '[data-homepage-banner-id][data-editor-active="true"]',
-    );
-    const mobileScene = mobileBanner.locator(".homepage-banner-scene");
-    const mobileImage = mobileBanner.locator('[data-banner-layer="banner-image"]');
-    const [mobileBannerBox, mobileSceneBox, mobileImageBox] = await Promise.all([
-      mobileBanner.boundingBox(),
-      mobileScene.boundingBox(),
-      mobileImage.boundingBox(),
-    ]);
-    expect(mobileBannerBox).not.toBeNull();
-    expect(mobileSceneBox).not.toBeNull();
-    expect(mobileImageBox).not.toBeNull();
-    if (mobileBannerBox && mobileSceneBox && mobileImageBox) {
-      expect(Math.abs(mobileBannerBox.height - mobileSceneBox.height)).toBeLessThan(1);
-      expect(Math.abs(mobileSceneBox.width - mobileImageBox.width)).toBeLessThan(1);
-      expect(Math.abs(mobileSceneBox.height - mobileImageBox.height)).toBeLessThan(1);
-    }
-    await page.getByRole("button", { name: "Desktop viewport" }).click();
-
-    await frame.getByRole("button", { name: "Add homepage section" }).click();
-    await page
-      .getByRole("dialog", { name: "Add homepage section" })
-      .getByRole("button", { name: /Banner \+ product row/ })
-      .click();
-    inspector = page.getByRole("complementary", { name: "Banner settings" });
-    await expect(inspector.getByText("Banner + products", { exact: true })).toBeVisible();
-    await expect(inspector.getByLabel("Shop button text", { exact: true })).toHaveCount(0);
-    await expect(inspector.locator("select").first()).toHaveValue("all");
-    await expect(
-      frame.locator('[data-homepage-banner-id][data-editor-active="true"]'),
-    ).toBeVisible();
-    await expect(page.getByRole("button", { name: "Move banner up" })).toBeEnabled();
-
-    await inspector.getByRole("button", { name: "Choose products", exact: true }).click();
-    await expect(inspector.getByText("4/8", { exact: true })).toBeVisible();
-    await expect(inspector.locator(".studio-product-picker__selected > div")).toHaveCount(4);
-    await inspector
-      .locator(".studio-product-picker__selected > div")
-      .first()
-      .getByRole("button", { name: /Remove/ })
-      .click();
-    await expect(inspector.getByText("3/8", { exact: true })).toBeVisible();
-    await expect(
-      frame
-        .locator('[data-homepage-banner-id][data-editor-active="true"]')
-        .locator("xpath=..")
-        .locator("article"),
-    ).toHaveCount(3);
-
-    await inspector.getByLabel("Banner image URL").fill("/homepage/honey.jpg");
-    const collectionBanner = frame.locator('[data-homepage-banner-id][data-editor-active="true"]');
-    await expect(collectionBanner.locator('[data-banner-layer="button"]')).toHaveCount(0);
-    const collectionImage = collectionBanner.locator('[data-banner-layer="banner-image"]');
-    await expect(collectionImage.locator("img")).toBeVisible();
-    await collectionImage.click({ position: { x: 400, y: 50 } });
-    await expect(collectionImage).not.toHaveAttribute("data-layer-locked", "true");
-    await expect(
-      collectionBanner.locator('.studio-selection-box[data-selection-layer="banner-image"]'),
-    ).toHaveCount(1);
-    await inspector.getByRole("button", { name: "Crop image" }).click();
-    await expect(collectionImage).toHaveClass(/is-cropping/);
-    await page.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Add homepage section" })).toHaveCount(0);
+    await expect(page.getByText("Banner + product row", { exact: true })).toHaveCount(0);
   });
 
   test("keeps Preview separate from publishing", async ({ page }) => {
@@ -761,20 +502,17 @@ test.describe("fixed-template homepage studio", () => {
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
   });
 
-  test("blocks incomplete banners before publish", async ({ page }) => {
+  test("blocks incomplete Mosaic tiles before publish", async ({ page }) => {
     const frame = storefront(page);
-    const addButton = frame.getByRole("button", { name: "Add homepage section" });
+    const addButton = frame.getByRole("button", { name: "Add collection tile" });
     await addButton.scrollIntoViewIfNeeded();
     await addButton.click();
-    await page
-      .getByRole("dialog", { name: "Add homepage section" })
-      .getByRole("button", { name: /Banner only/ })
-      .click();
-
+    const dialog = page.getByRole("dialog", { name: "Edit collection mosaic" });
+    await expect(dialog.getByRole("button", { name: "Publish live", exact: true })).toBeDisabled();
+    await expect(dialog.getByText("Add an image", { exact: true })).toBeVisible();
+    await dialog.getByRole("button", { name: "Done", exact: true }).click();
     await page.getByRole("button", { name: "Publish", exact: true }).click();
-    await expect(
-      page.getByText(/Fix before publishing: NEW BANNER needs a banner image/),
-    ).toBeVisible();
+    await expect(page.getByText(/needs an image/)).toBeVisible();
     await expect(page.getByRole("dialog", { name: "Confirm homepage publish" })).toHaveCount(0);
   });
 
