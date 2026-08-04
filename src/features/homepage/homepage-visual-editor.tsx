@@ -1149,12 +1149,13 @@ export function HomepageVisualEditor({
     setEditorError("");
     try {
       await operation.current;
-      await queueOperation(resetHomepageToOriginal);
+      const result = await queueOperation(resetHomepageToOriginal);
       await clearLocalBackups();
-      applyLoadedData(cloneDefaultHomepageData(), 0);
-      setVersions([]);
-      setPublishedVersion(0);
-      setLastSavedAt(null);
+      applyLoadedData(result.data, result.revision);
+      const state = await getHomepageEditorState();
+      setVersions(state.versions);
+      setPublishedVersion(result.version);
+      setLastSavedAt(result.published_at);
       setUnpublished(false);
       setSelectedLayerIds([]);
       setEditingLayerId(null);
@@ -2582,8 +2583,9 @@ export function HomepageVisualEditor({
           <div className="studio-publish-confirm" onMouseDown={(event) => event.stopPropagation()}>
             <h2>Restore the current OG homepage?</h2>
             <p>
-              This immediately restores the coded production homepage and permanently removes all
-              editor drafts, published versions, browser backups, and legacy homepage banners.
+              This replaces the current draft and live homepage with the approved OG snapshot. It
+              creates a new version in history, so your existing versions and banners are not
+              deleted.
             </p>
             <div>
               <button type="button" onClick={() => setRestoreConfirmOpen(false)}>

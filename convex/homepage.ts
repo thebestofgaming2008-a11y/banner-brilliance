@@ -9,11 +9,6 @@ const MAX_VERSIONS = 15;
 const MAX_MOSAIC_CARDS = 20;
 const MIN_SAFE_HERO_TEMPLATE_VERSION = 5;
 const ALLOWED_COMPONENTS = new Set(["Hero", "CollectionFeature", "PromoBanner"]);
-const LEGACY_HOMEPAGE_PLACEMENTS = [
-  "homepage_hero",
-  "homepage_collection",
-  "homepage_promo",
-] as const;
 
 function isVersion2Homepage(data: unknown): data is {
   schemaVersion: 2;
@@ -424,55 +419,130 @@ export const discardDraft = mutation({
 });
 
 export const resetToOriginalHomepage = mutation({
-  args: { token: v.optional(v.string()) },
+  args: {},
   returns: v.object({
-    documentsDeleted: v.number(),
-    versionsDeleted: v.number(),
-    legacyBannersDeleted: v.number(),
+    data: v.any(),
+    version: v.number(),
+    revision: v.number(),
+    published_at: v.string(),
   }),
-  handler: async (ctx, args) => {
-    const setupToken = process.env.ADMIN_UPLOAD_TOKEN;
-    if (!setupToken || args.token !== setupToken) await requireAdmin(ctx);
-
-    const documents = await ctx.db
+  handler: async (ctx) => {
+    const admin = await requireAdmin(ctx);
+    const adminEmail = String((admin.user as { email?: string }).email ?? "") || null;
+    const existing = await ctx.db
       .query("homepage_documents")
       .withIndex("by_page_key", (q) => q.eq("page_key", PAGE_KEY))
-      .take(10);
-    const versions = await ctx.db
-      .query("homepage_versions")
-      .withIndex("by_page_key", (q) => q.eq("page_key", PAGE_KEY))
-      .take(100);
-    const legacyBannerGroups = await Promise.all(
-      LEGACY_HOMEPAGE_PLACEMENTS.map((placement) =>
-        ctx.db
-          .query("storefront_banners")
-          .withIndex("by_placement", (q) => q.eq("placement", placement))
-          .take(200),
-      ),
-    );
-    const legacyBanners = legacyBannerGroups.flat();
-
-    await Promise.all([
-      ...documents.map((document) => ctx.db.delete(document._id)),
-      ...versions.map((version) => ctx.db.delete(version._id)),
-      ...legacyBanners.map((banner) => ctx.db.delete(banner._id)),
-    ]);
+      .unique();
+    if (!existing?.approved_data) {
+      throw new Error("The approved OG homepage has not been configured yet.");
+    }
+    const data = validateHomepageData(existing.approved_data);
+    const timestamp = nowIso();
+    const version = existing.published_version + 1;
+    const revision = existing.draft_revision + 1;
+    await ctx.db.patch(existing._id, {
+      draft_data: data,
+      published_data: data,
+      draft_revision: revision,
+      published_version: version,
+      published_revision: revision,
+      updated_by: adminEmail,
+      updated_at: timestamp,
+      published_at: timestamp,
+    });
+    await ctx.db.insert("homepage_versions", {
+      page_key: PAGE_KEY,
+      version,
+      data,
+      summary: "Restored approved OG homepage",
+      created_by: adminEmail,
+      created_at: timestamp,
+    });
+    await trimVersions(ctx);
     await writeAuditLog(ctx, {
       action: "homepage.reset_original",
       entityType: "homepage",
       entityId: PAGE_KEY,
-      summary: "Restored the canonical coded homepage and removed all editor overrides",
-      metadata: {
-        documentsDeleted: documents.length,
-        versionsDeleted: versions.length,
-        legacyBannersDeleted: legacyBanners.length,
-      },
+      summary: `Restored the approved OG homepage as version ${version}`,
+      metadata: { version, revision },
     });
+    return { data, version, revision, published_at: timestamp };
+  },
+});
 
-    return {
-      documentsDeleted: documents.length,
-      versionsDeleted: versions.length,
-      legacyBannersDeleted: legacyBanners.length,
-    };
+export const setApprovedHomepage = mutation({
+  args: {
+    data: v.any(),
+    token: v.optional(v.string()),
+  },
+  returns: v.object({
+    version: v.number(),
+    revision: v.number(),
+    published_at: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const setupToken = process.env.ADMIN_UPLOAD_TOKEN;
+    let adminEmail: string | null = "system";
+    if (!setupToken || args.token !== setupToken) {
+      const admin = await requireAdmin(ctx);
+      adminEmail = String((admin.user as { email?: string }).email ?? "") || null;
+    }
+
+    const data = validateHomepageData(args.data);
+    const existing = await ctx.db
+      .query("homepage_documents")
+      .withIndex("by_page_key", (q) => q.eq("page_key", PAGE_KEY))
+      .unique();
+    const timestamp = nowIso();
+    const version = (existing?.published_version ?? 0) + 1;
+    const revision = (existing?.draft_revision ?? 0) + 1;
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        draft_data: data,
+        published_data: data,
+        approved_data: data,
+        draft_revision: revision,
+        published_version: version,
+        published_revision: revision,
+        approved_by: adminEmail,
+        approved_at: timestamp,
+        updated_by: adminEmail,
+        updated_at: timestamp,
+        published_at: timestamp,
+      });
+    } else {
+      await ctx.db.insert("homepage_documents", {
+        page_key: PAGE_KEY,
+        draft_data: data,
+        published_data: data,
+        approved_data: data,
+        draft_revision: revision,
+        published_version: version,
+        published_revision: revision,
+        approved_by: adminEmail,
+        approved_at: timestamp,
+        updated_by: adminEmail,
+        created_at: timestamp,
+        updated_at: timestamp,
+        published_at: timestamp,
+      });
+    }
+    await ctx.db.insert("homepage_versions", {
+      page_key: PAGE_KEY,
+      version,
+      data,
+      summary: "Set approved OG homepage",
+      created_by: adminEmail,
+      created_at: timestamp,
+    });
+    await trimVersions(ctx);
+    await writeAuditLog(ctx, {
+      action: "homepage.approve_original",
+      entityType: "homepage",
+      entityId: PAGE_KEY,
+      summary: `Set and published the approved OG homepage as version ${version}`,
+      metadata: { version, revision },
+    });
+    return { version, revision, published_at: timestamp };
   },
 });

@@ -33,5 +33,10 @@ export async function discardHomepageDraft() {
 }
 
 export async function resetHomepageToOriginal() {
-  return await convex.mutation(api.homepage.resetToOriginalHomepage, {});
+  return (await convex.mutation(api.homepage.resetToOriginalHomepage, {})) as {
+    data: HomepageData;
+    version: number;
+    revision: number;
+    published_at: string;
+  };
 }

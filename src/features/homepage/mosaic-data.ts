@@ -1,9 +1,3 @@
-import honeyMulti from "@/assets/product-photos/honey-kashmir-multiflora.webp";
-import kufiSide from "@/assets/product-photos/kufi-side.webp";
-import niqabBlackFront from "@/assets/product-photos/niqab-black-front.webp";
-import shemaghManBack from "@/assets/product-photos/shemagh-man-back.webp";
-import shemaghRedFull from "@/assets/product-photos/shemagh-red-full.webp";
-
 import type { HomepageData, HomepageMosaicCard } from "./types";
 
 export const MAX_MOSAIC_CARDS = 20;
@@ -13,7 +7,7 @@ export const DEFAULT_MOSAIC_COLLECTIONS: HomepageMosaicCard[] = [
     id: "mosaic-honey",
     title: "KASHMIR HONEY",
     eyebrow: "The harvest",
-    image: honeyMulti,
+    image: "/homepage/mosaic-honey.webp",
     imagePosition: "center",
     href: "/shop?collection=Honey",
   },
@@ -29,7 +23,7 @@ export const DEFAULT_MOSAIC_COLLECTIONS: HomepageMosaicCard[] = [
     id: "mosaic-shemaghs",
     title: "YEMENI SHEMAGHS",
     eyebrow: "For the brothers",
-    image: shemaghManBack,
+    image: "/homepage/mosaic-shemaghs.webp",
     imagePosition: "62% center",
     href: "/shop?collection=Shemaghs",
   },
@@ -37,7 +31,7 @@ export const DEFAULT_MOSAIC_COLLECTIONS: HomepageMosaicCard[] = [
     id: "mosaic-niqabs",
     title: "KHADIJA NIQABS",
     eyebrow: "For the sisters",
-    image: niqabBlackFront,
+    image: "/homepage/mosaic-niqabs.webp",
     imagePosition: "50% 30%",
     href: "/shop?collection=Niqabs",
   },
@@ -45,7 +39,7 @@ export const DEFAULT_MOSAIC_COLLECTIONS: HomepageMosaicCard[] = [
     id: "mosaic-kufis",
     title: "WOVEN KUFIS",
     eyebrow: "Daily prayerwear",
-    image: kufiSide,
+    image: "/homepage/mosaic-kufis.webp",
     imagePosition: "center 28%",
     href: "/shop?collection=Kufis",
   },
@@ -61,7 +55,7 @@ export const DEFAULT_MOSAIC_COLLECTIONS: HomepageMosaicCard[] = [
     id: "mosaic-shop-all",
     title: "SHOP ALL",
     eyebrow: "The complete edit",
-    image: shemaghRedFull,
+    image: "/homepage/mosaic-shop-all.webp",
     imagePosition: "center 28%",
     href: "/shop",
   },

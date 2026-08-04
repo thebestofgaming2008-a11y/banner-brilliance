@@ -516,18 +516,15 @@ test.describe("fixed-template homepage studio", () => {
     await expect(page.getByRole("dialog", { name: "Confirm homepage publish" })).toHaveCount(0);
   });
 
-  test("makes the canonical OG restore explicit and difficult to trigger accidentally", async ({
-    page,
-  }) => {
+  test("restores the approved OG without deleting homepage history", async ({ page }) => {
     await page.getByRole("button", { name: "Restore OG", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Restore OG homepage" });
     await expect(dialog).toBeVisible();
     await expect(
       dialog.getByRole("heading", { name: "Restore the current OG homepage?" }),
     ).toBeVisible();
-    await expect(
-      dialog.getByText(/removes all editor drafts, published versions, browser backups/i),
-    ).toBeVisible();
+    await expect(dialog.getByText(/creates a new version in history/i)).toBeVisible();
+    await expect(dialog.getByText(/existing versions and banners are not deleted/i)).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Restore OG live" })).toBeVisible();
     await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(dialog).toHaveCount(0);
