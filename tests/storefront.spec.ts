@@ -17,7 +17,7 @@ test("home and live catalog render without browser errors", async ({ page }) => 
   expect(homeResponse.headers()["x-frame-options"]).toBe("DENY");
   expect(homeResponse.headers()["referrer-policy"]).toBe("strict-origin-when-cross-origin");
 
-  const ratesResponse = await page.request.get("/api/rates");
+  const ratesResponse = await page.request.get("/api/rates?base=INR&v=2");
   expect(ratesResponse.ok()).toBeTruthy();
   const rates = (await ratesResponse.json()) as {
     source: string;
