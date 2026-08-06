@@ -945,9 +945,9 @@ function ShopAllProducts() {
           </div>
         ) : selectedEmptyCollection ? (
           <div className="py-24 text-center" aria-live="polite">
-            <p className="section-kicker text-black/45">Coming soon</p>
+            <p className="section-kicker text-black/45">Collection update</p>
             <h2 className="mt-3 text-[24px] font-bold uppercase">
-              {selectedCollection?.name || "Collection"}
+              {selectedCollection?.name || "Collection"} coming soon
             </h2>
             <p className="mx-auto mt-3 max-w-sm text-[13px] leading-5 text-black/55">
               New products are being prepared for this collection.

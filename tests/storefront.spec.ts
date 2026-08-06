@@ -370,6 +370,7 @@ test("product choices remain attached to the cart line", async ({ page }) => {
     waitUntil: "domcontentloaded",
     timeout: 60_000,
   });
+  await page.waitForLoadState("networkidle");
   const selectedValues: string[] = [];
   for (const [name, values] of [
     ["colour", product!.color_options],
@@ -615,6 +616,33 @@ test("homepage shop controls filter, pluralize, and link to the selected collect
     "href",
     "/shop?collection=shemaghs",
   );
+});
+
+test("empty shop collection messages remain clear and visible after filtering", async ({
+  page,
+}) => {
+  await page.goto("/shop", { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await page.waitForLoadState("networkidle");
+
+  for (const collectionName of ["Watches", "Other"]) {
+    const tab = page.getByRole("tab", { name: collectionName, exact: true });
+    await expect(async () => {
+      await tab.click();
+      await expect(tab).toHaveAttribute("aria-selected", "true");
+    }).toPass({ timeout: 30_000 });
+    await expect(page.locator("article.store-product-card")).toHaveCount(0);
+
+    const message = page.getByRole("heading", {
+      name: `${collectionName} coming soon`,
+      exact: true,
+    });
+    await expect(message).toBeVisible();
+    await page.waitForTimeout(700);
+    await expect(message).toBeVisible();
+    expect(
+      await message.locator("xpath=..").evaluate((element) => getComputedStyle(element).opacity),
+    ).toBe("1");
+  }
 });
 
 test("hero preset supplies a responsive conversion lockup", async ({ page }) => {
