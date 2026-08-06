@@ -75,7 +75,6 @@ type Banner = {
 type Product = StoreProduct & {
   audience?: "Men" | "Women" | "Unisex";
   short?: string;
-  tag?: "Bestseller" | "New" | "Limited";
 };
 
 type CollectionName = Product["collection"];
@@ -635,7 +634,7 @@ function ProductTile({
   priority?: boolean;
   reveal?: boolean;
 }) {
-  const discount = product.compareAt ? "21% off" : product.tag;
+  const discount = product.compareAt ? "21% off" : product.badge;
   const { formatPrice } = useCurrency();
   const price = formatPrice(product.price);
   const compareAt = product.compareAt ? formatPrice(product.compareAt) : undefined;
@@ -658,9 +657,9 @@ function ProductTile({
             src={product.images[0]}
             alt={product.name}
             loading={priority ? "eager" : "lazy"}
-            className={`${productImageClassName(product)} transition-[filter,opacity] duration-300 ${
+            className={`${productImageClassName(product)} transition-opacity duration-300 ${
               product.images[1] && available ? "group-hover:opacity-0" : ""
-            } ${available ? "" : "opacity-70 grayscale-[18%]"}`}
+            }`}
           />
           {product.images[1] && available ? (
             <img
@@ -771,6 +770,8 @@ function ShopAllProducts() {
     });
     return sort === "featured" ? merchandiseProducts(sorted) : sorted;
   }, [activeCollection, activeTag, catalog, query, sort]);
+  const selectedEmptyCollection =
+    visibleProducts.length === 0 && activeCollection !== "all" && !activeTag && !query.trim();
 
   useEffect(() => {
     const hashFilters: Record<string, CollectionName> = {
@@ -936,11 +937,38 @@ function ShopAllProducts() {
           </a>
         </div>
 
-        <div className="mt-8 grid grid-cols-2 gap-x-3 gap-y-11 md:grid-cols-4 md:gap-x-4 md:gap-y-14">
-          {visibleProducts.map((product) => (
-            <ProductTile key={product.slug} product={product} reveal={false} />
-          ))}
-        </div>
+        {visibleProducts.length ? (
+          <div className="mt-8 grid grid-cols-2 gap-x-3 gap-y-11 md:grid-cols-4 md:gap-x-4 md:gap-y-14">
+            {visibleProducts.map((product) => (
+              <ProductTile key={product.slug} product={product} reveal={false} />
+            ))}
+          </div>
+        ) : selectedEmptyCollection ? (
+          <div className="py-24 text-center" aria-live="polite">
+            <p className="section-kicker text-black/45">Coming soon</p>
+            <h2 className="mt-3 text-[24px] font-bold uppercase">
+              {selectedCollection?.name || "Collection"}
+            </h2>
+            <p className="mx-auto mt-3 max-w-sm text-[13px] leading-5 text-black/55">
+              New products are being prepared for this collection.
+            </p>
+          </div>
+        ) : (
+          <div className="py-24 text-center" aria-live="polite">
+            <h2 className="text-[24px] font-bold uppercase">No products found</h2>
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                setActiveTag("");
+                setActiveCollection("all");
+              }}
+              className="mt-5 text-[11px] font-bold uppercase underline"
+            >
+              Clear filters
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );

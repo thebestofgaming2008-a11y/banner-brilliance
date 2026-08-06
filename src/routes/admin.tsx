@@ -88,10 +88,9 @@ import {
   deleteReview,
   upsertCategory,
   removeCategory,
+  seedDefaultCategories,
   listPaymentRecoveries,
   retryPaymentRecovery,
-  getPaymentSystemStatus,
-  checkPaymentConnection,
   listMarketingCampaigns,
   getMarketingConfiguration,
   saveMarketingCampaign,
@@ -112,7 +111,6 @@ import {
   type ShippingRate,
   type StorefrontBanner,
   type PaymentRecovery,
-  type PaymentSystemStatus,
   type MarketingCampaign,
   type MarketingCampaignInput,
   type MarketingConfiguration,
@@ -346,7 +344,6 @@ const Admin = () => {
   const [reviews, setReviews] = useState<AdminReview[]>([]);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [paymentRecoveries, setPaymentRecoveries] = useState<PaymentRecovery[]>([]);
-  const [paymentSystem, setPaymentSystem] = useState<PaymentSystemStatus | null>(null);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [giftCampaigns, setGiftCampaigns] = useState<GiftCampaign[]>([]);
   const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([]);
@@ -358,6 +355,7 @@ const Admin = () => {
   const [orderFilter, setOrderFilter] = useState<string>("all");
   const [productQuery, setProductQuery] = useState("");
   const [productFilter, setProductFilter] = useState<string>("all");
+  const [showShopOrganization, setShowShopOrganization] = useState(false);
   const [adminLoadError, setAdminLoadError] = useState<string | null>(null);
   const adminEmail = String(currentUser?.email ?? "");
 
@@ -388,11 +386,10 @@ const Admin = () => {
       listAllReviews(200),
       listCategories(),
       listPaymentRecoveries(),
-      getPaymentSystemStatus(),
       listPromotions(),
       listGiftCampaigns(),
     ])
-      .then(([p, o, c, r, cats, recoveries, paymentStatus, promotionRows, giftRows]) => {
+      .then(([p, o, c, r, cats, recoveries, promotionRows, giftRows]) => {
         if (cancelled) return;
         setProducts(p);
         setOrders(o);
@@ -400,7 +397,6 @@ const Admin = () => {
         setReviews(r);
         setCategories(cats);
         setPaymentRecoveries(recoveries);
-        setPaymentSystem(paymentStatus);
         setPromotions(promotionRows);
         setGiftCampaigns(giftRows);
         setLoading(false);
@@ -423,7 +419,6 @@ const Admin = () => {
   const refreshOrders = async () => setOrders(await listAllOrders(200));
   const refreshReviews = async () => setReviews(await listAllReviews(200));
   const refreshPaymentRecoveries = async () => setPaymentRecoveries(await listPaymentRecoveries());
-  const refreshPaymentSystem = async () => setPaymentSystem(await getPaymentSystemStatus());
   const refreshPromotions = async () => setPromotions(await listPromotions());
   const refreshGiftCampaigns = async () => setGiftCampaigns(await listGiftCampaigns());
   const refreshCampaigns = async () => setCampaigns(await listMarketingCampaigns());
@@ -1131,31 +1126,6 @@ const Admin = () => {
                     </div>
                   }
                 >
-                  {paymentSystem ? (
-                    <PaymentSystemPanel
-                      status={paymentSystem}
-                      hasPaidRazorpayOrder={orders.some(
-                        (order) =>
-                          order.payment_provider === "RAZORPAY" &&
-                          ["paid", "partially_refunded", "refunded"].includes(
-                            String(order.payment_status ?? ""),
-                          ),
-                      )}
-                      onCheck={async () => {
-                        const result = await checkPaymentConnection();
-                        await refreshPaymentSystem();
-                        notify({
-                          title: result.ok
-                            ? "Razorpay connection is healthy"
-                            : "Razorpay connection failed",
-                          description: result.ok
-                            ? `${result.mode === "live" ? "Live" : "Test"} credentials responded successfully.`
-                            : "Check the Razorpay credentials and Convex logs.",
-                          variant: result.ok ? undefined : "destructive",
-                        });
-                      }}
-                    />
-                  ) : null}
                   {paymentRecoveries.length > 0 && (
                     <PaymentRecoveryPanel
                       rows={paymentRecoveries}
@@ -1230,53 +1200,105 @@ const Admin = () => {
             )}
 
             {!loading && !adminLoadError && tab === "products" && (
-              <Section
-                title="Products"
-                subtitle={`${filteredProducts.length} of ${products.length} total`}
-                action={
-                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:flex-wrap">
-                    <div className="relative w-full sm:w-auto">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#9CA3AF]" />
-                      <input
-                        type="search"
-                        value={productQuery}
-                        onChange={(e) => setProductQuery(e.target.value)}
-                        placeholder="Search product, SKU…"
-                        data-testid="admin-products-search-input"
-                        className="h-10 w-full rounded-md border border-[#D1D5DB] bg-white pl-8 pr-3 text-sm outline-none transition-colors focus:border-[#111827] sm:h-9 sm:w-[240px]"
-                      />
+              <>
+                {showShopOrganization ? (
+                  <CategoriesAdminPanel
+                    categories={categories}
+                    products={products}
+                    onSeed={async () => {
+                      if (
+                        !confirm(
+                          "Restore the original shop collections? Custom groups will be hidden.",
+                        )
+                      )
+                        return;
+                      await seedDefaultCategories();
+                      setCategories(await listCategories());
+                      await refreshPublicCatalog();
+                      notify({ title: "Original shop organization restored" });
+                    }}
+                    onSave={async (input) => {
+                      const saved = await upsertCategory(input);
+                      if (!saved) throw new Error("Could not save this shop group.");
+                      setCategories((current) => [
+                        ...current.filter((category) => category.id !== saved.id),
+                        saved,
+                      ]);
+                      await refreshPublicCatalog();
+                      notify({ title: `${saved.name} saved` });
+                    }}
+                    onRemove={async (category) => {
+                      const result = await removeCategory(category.id);
+                      if (!result.removed) throw new Error(`Could not remove ${category.name}.`);
+                      setCategories((current) => current.filter((item) => item.id !== category.id));
+                      await Promise.all([refreshProducts(), refreshPublicCatalog()]);
+                      notify({
+                        title: `${category.name} removed`,
+                        description:
+                          result.updatedProducts > 0
+                            ? `${result.updatedProducts} product${result.updatedProducts === 1 ? " was" : "s were"} moved safely.`
+                            : "It has been removed from the storefront.",
+                      });
+                    }}
+                  />
+                ) : null}
+                <Section
+                  title="Products"
+                  subtitle={`${filteredProducts.length} of ${products.length} total`}
+                  action={
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:flex-wrap">
+                      <div className="relative w-full sm:w-auto">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#9CA3AF]" />
+                        <input
+                          type="search"
+                          value={productQuery}
+                          onChange={(e) => setProductQuery(e.target.value)}
+                          placeholder="Search product, SKU…"
+                          data-testid="admin-products-search-input"
+                          className="h-10 w-full rounded-md border border-[#D1D5DB] bg-white pl-8 pr-3 text-sm outline-none transition-colors focus:border-[#111827] sm:h-9 sm:w-[240px]"
+                        />
+                      </div>
+                      <select
+                        value={productFilter}
+                        onChange={(e) => setProductFilter(e.target.value)}
+                        data-testid="admin-products-filter-select"
+                        className="h-10 w-full rounded-md border border-[#D1D5DB] bg-white px-3 text-sm outline-none transition-colors focus:border-[#111827] sm:h-9 sm:w-auto"
+                      >
+                        <option value="all">All products</option>
+                        <option value="active">Active</option>
+                        <option value="low">Low stock</option>
+                        <option value="out">Out of stock</option>
+                        <option value="archived">Archived</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setShowShopOrganization((current) => !current)}
+                        aria-expanded={showShopOrganization}
+                        className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md border border-[#D1D5DB] bg-white px-3.5 text-sm font-medium transition-colors hover:bg-[#F9FAFB] sm:h-9 sm:w-auto"
+                      >
+                        <Boxes className="h-4 w-4" />
+                        {showShopOrganization ? "Hide organization" : "Shop organization"}
+                      </button>
+                      <button
+                        onClick={() => setCreating(true)}
+                        data-testid="admin-add-product-button"
+                        className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-[#111827] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#1F2937] sm:h-9 sm:w-auto"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add product
+                      </button>
                     </div>
-                    <select
-                      value={productFilter}
-                      onChange={(e) => setProductFilter(e.target.value)}
-                      data-testid="admin-products-filter-select"
-                      className="h-10 w-full rounded-md border border-[#D1D5DB] bg-white px-3 text-sm outline-none transition-colors focus:border-[#111827] sm:h-9 sm:w-auto"
-                    >
-                      <option value="all">All products</option>
-                      <option value="active">Active</option>
-                      <option value="low">Low stock</option>
-                      <option value="out">Out of stock</option>
-                      <option value="archived">Archived</option>
-                    </select>
-                    <button
-                      onClick={() => setCreating(true)}
-                      data-testid="admin-add-product-button"
-                      className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-[#111827] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#1F2937] sm:h-9 sm:w-auto"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Add product
-                    </button>
-                  </div>
-                }
-              >
-                <ProductsTable
-                  products={filteredProducts}
-                  onEdit={setEditing}
-                  onArchive={(product) => void setProductArchived(product, true)}
-                  onRestore={(product) => void setProductArchived(product, false)}
-                  onDelete={(product) => void permanentlyDeleteProduct(product)}
-                />
-              </Section>
+                  }
+                >
+                  <ProductsTable
+                    products={filteredProducts}
+                    onEdit={setEditing}
+                    onArchive={(product) => void setProductArchived(product, true)}
+                    onRestore={(product) => void setProductArchived(product, false)}
+                    onDelete={(product) => void permanentlyDeleteProduct(product)}
+                  />
+                </Section>
+              </>
             )}
 
             {!loading && !adminLoadError && tab === "inventory" && (
@@ -4387,120 +4409,6 @@ function ImageUploadActions({
   );
 }
 
-function PaymentSystemPanel({
-  status,
-  hasPaidRazorpayOrder,
-  onCheck,
-}: {
-  status: PaymentSystemStatus;
-  hasPaidRazorpayOrder: boolean;
-  onCheck: () => Promise<void>;
-}) {
-  const [checking, setChecking] = useState(false);
-  const apiHealthy = status.consecutive_api_failures === 0 && Boolean(status.last_api_success_at);
-  const webhookVerified = Boolean(status.last_webhook_at);
-  const formatTimestamp = (value: number | null) =>
-    value
-      ? new Date(value).toLocaleString("en-IN", {
-          day: "2-digit",
-          month: "short",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "Not yet";
-  return (
-    <div
-      className="mb-4 rounded-lg border border-[#E5E7EB] bg-white p-4"
-      data-testid="admin-payment-system-panel"
-    >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-[#6B7280]" />
-            <h3 className="text-sm font-semibold text-[#111827]">Payment safeguards</h3>
-            <span
-              className={cn(
-                "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase",
-                status.mode === "live"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : "border-amber-200 bg-amber-50 text-amber-800",
-              )}
-            >
-              {status.mode}
-            </span>
-          </div>
-          <p className="mt-1 text-xs leading-5 text-[#6B7280]">
-            Browser verification, signed webhooks, and automatic payment recovery protect every
-            Razorpay order.
-          </p>
-        </div>
-        <button
-          type="button"
-          disabled={checking}
-          onClick={async () => {
-            setChecking(true);
-            try {
-              await onCheck();
-            } finally {
-              setChecking(false);
-            }
-          }}
-          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-[#D1D5DB] px-3 text-xs font-semibold hover:bg-[#F9FAFB] disabled:opacity-50"
-        >
-          <RotateCcw className={cn("h-3.5 w-3.5", checking && "animate-spin")} />
-          {checking ? "Checking" : "Check connection"}
-        </button>
-      </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
-        <div className="rounded-md bg-[#F9FAFB] p-3">
-          <p className="text-[10px] font-semibold uppercase text-[#6B7280]">Razorpay API</p>
-          <p
-            className={cn(
-              "mt-1 text-sm font-semibold",
-              apiHealthy ? "text-emerald-700" : "text-amber-800",
-            )}
-          >
-            {apiHealthy ? "Healthy" : "Awaiting check"}
-          </p>
-          <p className="mt-1 text-[11px] text-[#6B7280]">
-            {formatTimestamp(status.last_api_check_at)}
-          </p>
-        </div>
-        <div className="rounded-md bg-[#F9FAFB] p-3">
-          <p className="text-[10px] font-semibold uppercase text-[#6B7280]">Live webhook</p>
-          <p
-            className={cn(
-              "mt-1 text-sm font-semibold",
-              webhookVerified ? "text-emerald-700" : "text-amber-800",
-            )}
-          >
-            {webhookVerified ? "Verified" : hasPaidRazorpayOrder ? "Needs setup" : "Awaiting test"}
-          </p>
-          <p className="mt-1 text-[11px] text-[#6B7280]">
-            {webhookVerified
-              ? `${status.last_webhook_event} · ${formatTimestamp(status.last_webhook_at)}`
-              : "Send a test event from Razorpay"}
-          </p>
-        </div>
-        <div className="rounded-md bg-[#F9FAFB] p-3">
-          <p className="text-[10px] font-semibold uppercase text-[#6B7280]">Safety sweep</p>
-          <p className="mt-1 text-sm font-semibold text-[#111827]">
-            {status.last_reconciliation_at ? "Running" : "Scheduled"}
-          </p>
-          <p className="mt-1 text-[11px] text-[#6B7280]">
-            {status.last_reconciliation_at
-              ? `${status.last_reconciliation_checked} checked · ${status.last_reconciliation_finalized} recovered`
-              : "Daily fallback"}
-          </p>
-        </div>
-      </div>
-      {status.last_api_error ? (
-        <p className="mt-3 text-xs text-rose-700">{status.last_api_error}</p>
-      ) : null}
-    </div>
-  );
-}
-
 function PaymentRecoveryPanel({
   rows,
   onRetry,
@@ -4566,6 +4474,7 @@ function CategoriesAdminPanel({
   products,
   onSeed,
   onSave,
+  onRemove,
 }: {
   categories: AdminCategory[];
   products: Product[];
@@ -4579,6 +4488,7 @@ function CategoriesAdminPanel({
     sort_order?: number | null;
     is_active?: boolean;
   }) => Promise<void>;
+  onRemove: (category: AdminCategory) => Promise<void>;
 }) {
   const emptyDraft = {
     name: "",
@@ -4591,6 +4501,7 @@ function CategoriesAdminPanel({
   };
   const [draft, setDraft] = useState(emptyDraft);
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
+  const [removingCategoryId, setRemovingCategoryId] = useState<string | null>(null);
   const productCount = (category: AdminCategory) =>
     products.filter((product) =>
       category.type === "filter"
@@ -4627,6 +4538,33 @@ function CategoriesAdminPanel({
     });
     setDraft(emptyDraft);
     setEditingSlug(null);
+  };
+
+  const remove = async (category: AdminCategory) => {
+    const count = productCount(category);
+    const consequence =
+      category.type === "filter"
+        ? `It will be removed from ${count} product${count === 1 ? "" : "s"}.`
+        : count > 0
+          ? `${count} product${count === 1 ? "" : "s"} will be moved to Other.`
+          : "No products will be moved.";
+    if (!confirm(`Remove "${category.name}"? ${consequence}`)) return;
+    setRemovingCategoryId(category.id);
+    try {
+      await onRemove(category);
+      if (editingSlug === category.slug) {
+        setDraft(emptyDraft);
+        setEditingSlug(null);
+      }
+    } catch (error) {
+      notify({
+        title: `Could not remove ${category.name}`,
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setRemovingCategoryId(null);
+    }
   };
 
   return (
@@ -4787,7 +4725,7 @@ function CategoriesAdminPanel({
                       {category.description}
                     </p>
                   ) : null}
-                  <div className="mt-4 flex gap-2">
+                  <div className="mt-4 flex flex-wrap gap-2">
                     <button
                       type="button"
                       className="h-8 rounded-md border border-[rgb(var(--vibe-border))] px-3 text-xs"
@@ -4807,6 +4745,17 @@ function CategoriesAdminPanel({
                     >
                       {category.is_active === false ? "Show" : "Hide"}
                     </button>
+                    {category.slug !== "other" ? (
+                      <button
+                        type="button"
+                        disabled={removingCategoryId === category.id}
+                        className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md border border-rose-200 px-3 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                        onClick={() => void remove(category)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        {removingCategoryId === category.id ? "Removing..." : "Remove"}
+                      </button>
+                    ) : null}
                   </div>
                 </article>
               );

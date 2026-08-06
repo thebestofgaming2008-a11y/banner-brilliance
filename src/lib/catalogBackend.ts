@@ -194,8 +194,7 @@ export function backendProductToProduct(product: BackendProduct): Product {
     features: Array.isArray(product.highlights) ? product.highlights : (fallback?.features ?? []),
     materials: fallback?.materials ?? "",
     care: fallback?.care ?? "",
-    // Public merchandising labels are omitted until they can be backed by real sales or dates.
-    tag: undefined,
+    tag: product.badge?.trim() || undefined,
     inStock: product.in_stock !== false && Number(product.stock_quantity ?? 1) > 0,
     stockQuantity: Number(product.stock_quantity ?? 0),
     mediaFit: product.media_fit === "contain" ? "contain" : "cover",

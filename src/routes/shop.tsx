@@ -347,12 +347,14 @@ function ShopPage() {
                 <StoreProductCard key={product.slug} product={product} priority={index < 4} />
               ))}
             </div>
-          ) : collection === "gloves" ? (
-            <div className="py-24 text-center" data-store-reveal>
+          ) : collection !== "all" && !activeFilter && !query.trim() ? (
+            <div className="py-24 text-center" data-store-reveal aria-live="polite">
               <p className="section-kicker text-black/45">Coming soon</p>
-              <h2 className="mt-3 text-[24px] font-bold uppercase">Gloves collection</h2>
+              <h2 className="mt-3 text-[24px] font-bold uppercase">
+                {selectedCollection?.name || "Collection"}
+              </h2>
               <p className="mx-auto mt-3 max-w-sm text-[13px] leading-5 text-black/55">
-                This collection is being prepared for release.
+                New products are being prepared for this collection.
               </p>
             </div>
           ) : (

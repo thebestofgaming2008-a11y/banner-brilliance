@@ -19,6 +19,7 @@ import type * as http from "../http.js";
 import type * as lib from "../lib.js";
 import type * as marketing from "../marketing.js";
 import type * as media from "../media.js";
+import type * as migrations from "../migrations.js";
 import type * as orders from "../orders.js";
 import type * as paymentRules from "../paymentRules.js";
 import type * as products from "../products.js";
@@ -50,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   lib: typeof lib;
   marketing: typeof marketing;
   media: typeof media;
+  migrations: typeof migrations;
   orders: typeof orders;
   paymentRules: typeof paymentRules;
   products: typeof products;

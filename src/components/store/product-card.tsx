@@ -40,7 +40,7 @@ export function StoreProductCard({
             alt={product.name}
             loading={priority ? "eager" : "lazy"}
             style={{ objectPosition: product.mediaPosition ?? "center" }}
-            className={`h-full w-full ${product.mediaFit === "contain" ? "object-contain p-3" : "object-cover"} transition-[transform,filter,opacity] duration-500 ${available ? "group-hover:scale-[1.018]" : "opacity-70 grayscale-[18%]"} ${product.imageClassName ?? ""}`}
+            className={`h-full w-full ${product.mediaFit === "contain" ? "object-contain p-3" : "object-cover"} transition-transform duration-500 ${available ? "group-hover:scale-[1.018]" : ""} ${product.imageClassName ?? ""}`}
           />
         </a>
         {!available ? (

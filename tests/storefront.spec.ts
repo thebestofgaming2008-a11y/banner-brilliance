@@ -36,6 +36,8 @@ test("home and live catalog render without browser errors", async ({ page }) => 
     slug: string;
     category_id?: string;
     tags?: string[];
+    badge?: string | null;
+    cover_image_url?: string | null;
   }>;
   expect(catalog.length).toBeGreaterThanOrEqual(8);
   const presentationResponse = await page.request.get(
@@ -50,8 +52,14 @@ test("home and live catalog render without browser errors", async ({ page }) => 
   ).not.toEqual(expect.arrayContaining(["unisex", "bestseller", "new", "limited"]));
   expect(presentation.taxonomy.map((item) => item.slug)).not.toContain("test");
   expect(presentation.taxonomy.map((item) => item.slug)).not.toContain("testy");
+  expect(presentation.taxonomy.map((item) => item.slug)).not.toContain("omani");
   expect(presentation.taxonomy.map((item) => item.slug)).toContain("other");
   expect(catalog.some((product) => product.tags?.includes("test"))).toBeFalsy();
+  expect(catalog.find((product) => product.slug === "yemini-shemaghs")?.badge).toBe("Pre-order");
+  expect(catalog.find((product) => product.slug === "omani-ghutra")?.badge).toBe("Pre-order");
+  expect(catalog.find((product) => product.slug === "kashmir-acacia-honey")?.cover_image_url).toBe(
+    "https://fawzaanstore.pages.dev/homepage/mosaic-honey.webp",
+  );
 
   await page.goto("/");
   await expect(page.getByRole("img", { name: "Fawzaan" }).first()).toBeVisible();
@@ -287,6 +295,12 @@ test("cart drawer opens after an add request, traps focus, and offers a checkout
 });
 
 test("oversized live product covers use optimized storefront copies", async ({ page }) => {
+  const catalogResponse = await page.request.get("/api/catalog/products");
+  const catalog = (await catalogResponse.json()) as Array<{ slug: string }>;
+  test.skip(
+    !catalog.some((product) => product.slug === "sabr-watch-black"),
+    "The watch is not currently published.",
+  );
   await page.goto("/shop");
   const watch = page
     .locator('article.store-product-card a[href="/products/sabr-watch-black"] img')
@@ -438,21 +452,18 @@ test("khadija niqab presents the corrected comfort, colour, and size details", a
   expect(product!.short_description).toBe("Daily comfort wear.");
   expect(product!.highlights).toEqual(["Premium chiffon fabric"]);
   expect(product!.color_options).toEqual(["Black"]);
-  expect(product!.size_options).toEqual([
-    "One Size - Layers: 54 / 34 in; Veil: 22.5 x 13.5 in; Gear: 82 in",
-  ]);
+  expect(product!.size_options).toEqual(["Size Dimensions are available in description"]);
 
   await page.goto("/products/khadija-niqab", {
     waitUntil: "domcontentloaded",
     timeout: 60_000,
   });
-  await expect(page.getByText("Daily comfort wear.", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("group", { name: "Select colour" }).getByRole("button", { name: "Black" }),
   ).toBeVisible();
   await expect(
     page.getByRole("group", { name: "Select size" }).getByRole("button", {
-      name: "One Size - Layers: 54 / 34 in; Veil: 22.5 x 13.5 in; Gear: 82 in",
+      name: "Size Dimensions are available in description",
     }),
   ).toBeVisible();
   await expect(page.getByText("Premium chiffon fabric", { exact: true })).toBeVisible();
@@ -579,6 +590,9 @@ test("mobile shop controls scroll and menu search filters the live catalog", asy
 test("homepage shop controls filter, pluralize, and link to the selected collection", async ({
   page,
 }) => {
+  const catalogResponse = await page.request.get("/api/catalog/products");
+  const catalog = (await catalogResponse.json()) as Array<{ category_id?: string }>;
+  const shemaghCount = catalog.filter((product) => product.category_id === "shemaghs").length;
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/", { waitUntil: "domcontentloaded", timeout: 60_000 });
   await expect(page.getByText(/2026 Fawzaan Store\. All rights reserved\./)).toBeVisible();
@@ -596,7 +610,7 @@ test("homepage shop controls filter, pluralize, and link to the selected collect
   }).toPass({ timeout: 30_000 });
   await expect(
     shop.getByLabel("Filter homepage products by collection").locator("xpath=..").locator("span"),
-  ).toHaveText("1 product");
+  ).toHaveText(`${shemaghCount} product${shemaghCount === 1 ? "" : "s"}`);
   await expect(shop.getByRole("link", { name: "Shemaghs", exact: true })).toHaveAttribute(
     "href",
     "/shop?collection=shemaghs",

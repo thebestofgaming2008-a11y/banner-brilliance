@@ -22,7 +22,7 @@ export function ProductCard({ p, priority = false }: { p: Product; priority?: bo
             src={p.images[0]}
             alt={p.name}
             loading={priority ? "eager" : "lazy"}
-            className={`absolute inset-0 h-full w-full object-cover transition-[transform,filter,opacity] duration-700 ease-out ${available ? "group-hover:scale-105" : "opacity-70 grayscale-[18%]"}`}
+            className={`absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out ${available ? "group-hover:scale-105" : ""}`}
           />
           {p.images[1] && (
             <img

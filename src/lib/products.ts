@@ -49,7 +49,7 @@ export type Product = {
   features: string[];
   materials: string;
   care: string;
-  tag?: "Bestseller" | "New" | "Limited";
+  tag?: string;
   inStock?: boolean;
   stockQuantity?: number;
   mediaFit?: "cover" | "contain";
