@@ -3,7 +3,7 @@ import { Check, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { type StoreProduct } from "@/data/store";
+import { isPreOrderProduct, type StoreProduct } from "@/data/store";
 import { useCurrency } from "@/hooks/use-currency";
 import { useCart } from "@/lib/cart";
 import { ProductGiftCue } from "@/components/store/product-gift-cue";
@@ -40,6 +40,7 @@ export function ProductQuickAdd({
   );
   const requiresChoice = groups.some((group) => group.values.length > 1);
   const available = productIsAvailable(product);
+  const preOrder = isPreOrderProduct(product);
   const connected = Boolean(product.id && product.id !== product.slug);
   const canAdd = interactive && isReady && available && connected;
 
@@ -68,7 +69,9 @@ export function ProductQuickAdd({
       img: product.images[0] ?? "",
     });
     setAdded(true);
-    toast.success(`${product.name} added to cart`);
+    toast.success(
+      preOrder ? `${product.name} added to your pre-order` : `${product.name} added to cart`,
+    );
     window.setTimeout(() => setAdded(false), 1800);
   };
 
@@ -78,7 +81,15 @@ export function ProductQuickAdd({
     else addSelectedProduct();
   };
 
-  const label = !available ? "Sold out" : !connected ? "Unavailable" : added ? "Added" : "Add";
+  const label = !available
+    ? "Sold out"
+    : !connected
+      ? "Unavailable"
+      : added
+        ? "Added"
+        : preOrder
+          ? "Pre order"
+          : "Add";
 
   return (
     <>
@@ -87,7 +98,7 @@ export function ProductQuickAdd({
         type="button"
         onClick={startQuickAdd}
         disabled={!canAdd}
-        aria-label={`${requiresChoice && available ? "Choose options and add" : label}: ${product.name}`}
+        aria-label={`${requiresChoice && available ? `Choose options to ${preOrder ? "pre order" : "add"}` : label}: ${product.name}`}
         tabIndex={interactive ? undefined : -1}
         className={`mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-md px-3 text-[10px] font-bold uppercase transition-[color,background-color,border-color,filter,transform] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D9643C] ${
           available && connected
@@ -165,7 +176,7 @@ export function ProductQuickAdd({
               className="brand-mango-bg flex h-12 w-full items-center justify-center gap-2 rounded-md text-[11px] font-bold uppercase text-white transition-[filter,transform] hover:-translate-y-0.5 hover:brightness-[0.98] active:translate-y-0"
             >
               <ShoppingBag size={15} aria-hidden="true" />
-              Add
+              {preOrder ? "Pre order" : "Add"}
             </button>
           </div>
         </DialogContent>

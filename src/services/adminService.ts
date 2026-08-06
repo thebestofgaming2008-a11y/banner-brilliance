@@ -81,7 +81,28 @@ export async function updateProduct(
 ): Promise<Product | null> {
   const next: Record<string, unknown> = { ...patch };
   if (patch.price_inr != null && patch.price == null) next.price = patch.price_inr;
-  return (await convex.mutation(api.products.updateProduct, { id, patch: next })) as Product | null;
+  try {
+    return (await convex.mutation(api.products.updateProduct, {
+      id: id as Id<"products">,
+      patch: next,
+    })) as Product | null;
+  } catch (error) {
+    throw new Error(productServiceError(error));
+  }
+}
+
+function productServiceError(error: unknown) {
+  if (error && typeof error === "object" && "data" in error) {
+    const data = (error as { data?: unknown }).data;
+    if (typeof data === "string" && data.trim()) return data;
+  }
+  const message = error instanceof Error ? error.message : "";
+  const convexMessage = message.match(/Uncaught ConvexError:\s*([^\n]+)/)?.[1]?.trim();
+  if (convexMessage) return convexMessage;
+  if (/fetch|network|connection|load failed/i.test(message)) {
+    return "The connection was interrupted. Your changes are still here; try Save again.";
+  }
+  return message || "The product could not be saved. Check the fields and try again.";
 }
 
 export interface DeleteProductResult {

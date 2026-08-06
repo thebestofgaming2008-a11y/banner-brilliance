@@ -5,13 +5,14 @@ import { useCurrency } from "@/lib/currency";
 import type { Product } from "@/lib/products";
 import { toast } from "sonner";
 import { ProductQuickAdd } from "@/components/store/product-quick-add";
-import { toStoreProduct } from "@/data/store";
+import { isPreOrderProduct, toStoreProduct } from "@/data/store";
 
 export function ProductCard({ p, priority = false }: { p: Product; priority?: boolean }) {
   const { has, toggle } = useWishlist();
   const { format } = useCurrency();
   const wished = has(p.slug);
   const storeProduct = toStoreProduct(p);
+  const preOrder = isPreOrderProduct(storeProduct);
   const available = storeProduct.inStock !== false && Number(storeProduct.stockQuantity ?? 1) > 0;
 
   return (
@@ -37,7 +38,7 @@ export function ProductCard({ p, priority = false }: { p: Product; priority?: bo
             <span className="absolute left-3 top-3 rounded-md bg-ink px-2.5 py-1.5 text-[10px] font-bold uppercase text-ivory">
               Sold out
             </span>
-          ) : p.tag ? (
+          ) : p.tag && !preOrder ? (
             <span className="absolute top-3 left-3 bg-ivory/95 text-ink text-[10px] uppercase tracking-[0.22em] px-2 py-1">
               {p.tag}
             </span>

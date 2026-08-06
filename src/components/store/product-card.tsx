@@ -1,7 +1,7 @@
 import { Heart, Star } from "lucide-react";
 import { toast } from "sonner";
 
-import { type StoreProduct } from "@/data/store";
+import { isPreOrderProduct, type StoreProduct } from "@/data/store";
 import { useCurrency } from "@/hooks/use-currency";
 import { useWishlist } from "@/lib/wishlist";
 import { ProductQuickAdd } from "@/components/store/product-quick-add";
@@ -17,6 +17,7 @@ export function StoreProductCard({
 }) {
   const { formatPrice } = useCurrency();
   const available = product.inStock !== false && Number(product.stockQuantity ?? 1) > 0;
+  const preOrder = isPreOrderProduct(product);
   const lowStock =
     available &&
     typeof product.stockQuantity === "number" &&
@@ -47,7 +48,7 @@ export function StoreProductCard({
           <span className="absolute left-2 top-2 rounded-md bg-black px-2.5 py-1.5 text-[9px] font-bold uppercase text-white shadow-sm">
             Sold out
           </span>
-        ) : product.badge ? (
+        ) : product.badge && !preOrder ? (
           <span className="absolute left-2 top-2 bg-white px-2 py-1 text-[9px] font-bold uppercase">
             {product.badge}
           </span>

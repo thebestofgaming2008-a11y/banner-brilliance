@@ -45,6 +45,10 @@ export type StoreProduct = {
   stockQuantity?: number;
 };
 
+export function isPreOrderProduct(product: Pick<StoreProduct, "badge">) {
+  return /^pre[\s-]?order$/i.test(product.badge?.trim() ?? "");
+}
+
 export const storeProducts: StoreProduct[] = [
   {
     slug: "yemeni-shemagh-red",

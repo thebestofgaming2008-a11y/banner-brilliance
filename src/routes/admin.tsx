@@ -5125,7 +5125,6 @@ function ProductDrawer({
   const [newFilterName, setNewFilterName] = useState("");
   const [addingGroup, setAddingGroup] = useState<"collection" | "filter" | null>(null);
   const [removingGroup, setRemovingGroup] = useState<string | null>(null);
-  const [linkedIds, setLinkedIds] = useState((product?.linked_product_ids ?? []).join(", "));
   const drawerImages = useMemo(() => {
     const hidden = new Set(
       (form.hidden_image_urls ?? []).map(cleanImageUrl).filter(Boolean) as string[],
@@ -5376,6 +5375,27 @@ function ProductDrawer({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const regularPrice = Number(form.price_inr);
+    const salePrice = form.sale_price_inr == null ? null : Number(form.sale_price_inr);
+    if (!Number.isFinite(regularPrice) || regularPrice < 0) {
+      notify({
+        title: "Check the regular price",
+        description: "Enter a valid price in INR.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (
+      salePrice != null &&
+      (!Number.isFinite(salePrice) || salePrice < 0 || salePrice > regularPrice)
+    ) {
+      notify({
+        title: "Check the sale price",
+        description: "The sale price must be lower than or equal to the regular price.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (form.is_active !== false && missingVisibilityFields.length > 0) {
       notify({
         title: "Complete the product before publishing",
@@ -5413,10 +5433,6 @@ function ProductDrawer({
           collectionCategories.find((category) => category.slug === form.category_id)?.name ??
           form.category ??
           defaultCollection.name,
-        linked_product_ids: linkedIds
-          .split(",")
-          .map((id) => id.trim())
-          .filter(Boolean),
         option_types: [
           ...(form.color_options?.length ? [{ name: "Colour", values: form.color_options }] : []),
           ...(form.size_options?.length ? [{ name: "Size", values: form.size_options }] : []),
@@ -5814,16 +5830,6 @@ function ProductDrawer({
               onChange={(v) => setForm({ ...form, variant_label: v || null })}
               placeholder="English, Arabic, Urdu..."
             />
-            <Field
-              label="Linked product IDs"
-              value={linkedIds}
-              onChange={setLinkedIds}
-              placeholder="Paste product IDs separated by commas"
-            />
-            <p className="text-xs text-foreground/55">
-              Use this to connect separate products that are versions of the same title, such as
-              English and Arabic editions.
-            </p>
           </div>
 
           <TextAreaField

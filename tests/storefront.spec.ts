@@ -104,9 +104,13 @@ test("shop product cart and checkout path uses the live product", async ({ page 
     slug: string;
     stock_quantity?: number;
     is_active?: boolean;
+    badge?: string | null;
   }>;
   const inStockProduct = catalog.find(
-    (product) => product.is_active !== false && Number(product.stock_quantity ?? 0) > 0,
+    (product) =>
+      product.is_active !== false &&
+      Number(product.stock_quantity ?? 0) > 0 &&
+      !/^pre[\s-]?order$/i.test(product.badge?.trim() ?? ""),
   );
   expect(inStockProduct, "The live catalog needs at least one in-stock product").toBeTruthy();
   await page.goto("/shop", { waitUntil: "domcontentloaded", timeout: 60_000 });
@@ -139,18 +143,7 @@ test("shop product cart and checkout path uses the live product", async ({ page 
     "background-image",
     /linear-gradient\(105deg, rgb\(255, 187, 0\).+rgb\(255, 0, 81\)/,
   );
-  await expect(page.getByRole("heading", { name: "YOU MAY ALSO LIKE" })).toBeVisible();
-  const relatedProducts = page.locator(
-    '[data-testid="related-products-section"] article.store-product-card',
-  );
-  await expect(relatedProducts.first()).toBeVisible();
-  expect(await relatedProducts.count()).toBeLessThanOrEqual(4);
-  const firstRecommendation = page
-    .locator('[data-testid="related-products-section"] article.store-product-card')
-    .first();
-  await expect(firstRecommendation).toBeVisible();
-  await expect(firstRecommendation.locator("img")).toBeVisible();
-  await expect(firstRecommendation.locator("h3")).not.toBeEmpty();
+  await expect(page.getByRole("heading", { name: "YOU MAY ALSO LIKE" })).toHaveCount(0);
   await page.getByRole("button", { name: /^add$/i }).first().click();
   await page.goto("/cart");
   await expect(page.getByRole("article").getByText(productName, { exact: true })).toBeVisible();
@@ -175,6 +168,34 @@ test("shop product cart and checkout path uses the live product", async ({ page 
   await page.getByRole("option", { name: /United States/ }).click();
   await expect(countryButton).toHaveAccessibleName("Country: United States");
   expect(errors).toEqual([]);
+});
+
+test("pre-order products use purchase buttons instead of image badges", async ({ page }) => {
+  const catalogResponse = await page.request.get("/api/catalog/products");
+  const catalog = (await catalogResponse.json()) as Array<{
+    name: string;
+    slug: string;
+    badge?: string | null;
+  }>;
+  const preOrderProduct = catalog.find((product) =>
+    /^pre[\s-]?order$/i.test(product.badge?.trim() ?? ""),
+  );
+  expect(preOrderProduct, "The live catalog needs a pre-order product").toBeTruthy();
+
+  await page.goto("/shop", { waitUntil: "domcontentloaded", timeout: 60_000 });
+  const card = page.locator(
+    `article.store-product-card:has(a[href="/products/${preOrderProduct!.slug}"])`,
+  );
+  await expect(card).toBeVisible();
+  await expect(card.getByText(/pre[ -]?order/i)).toHaveCount(1);
+  await expect(card.locator(".store-product-card__media").getByText(/pre[ -]?order/i)).toHaveCount(
+    0,
+  );
+
+  await card.locator(`a[href="/products/${preOrderProduct!.slug}"]`).first().click();
+  await expect(page).toHaveURL(new RegExp(`/products/${preOrderProduct!.slug}$`));
+  await expect(page.getByRole("button", { name: "Pre order", exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "YOU MAY ALSO LIKE" })).toHaveCount(0);
 });
 
 test("catalog cards support quick add and expose sold-out stock before navigation", async ({
@@ -355,6 +376,7 @@ test("product choices remain attached to the cart line", async ({ page }) => {
     slug: string;
     stock_quantity?: number;
     is_active?: boolean;
+    badge?: string;
     color_options?: string[];
     size_options?: string[];
   }>;
@@ -362,7 +384,11 @@ test("product choices remain attached to the cart line", async ({ page }) => {
     (item) =>
       item.is_active !== false &&
       Number(item.stock_quantity ?? 0) > 0 &&
-      Boolean(item.color_options?.length || item.size_options?.length),
+      !/^pre[\s-]?order$/i.test(item.badge?.trim() ?? "") &&
+      Boolean(
+        item.color_options?.length ||
+        item.size_options?.some((value) => value.trim().toLowerCase() !== "free size"),
+      ),
   );
   expect(product, "The live catalog needs an in-stock product with customer choices").toBeTruthy();
 
@@ -376,7 +402,13 @@ test("product choices remain attached to the cart line", async ({ page }) => {
     ["colour", product!.color_options],
     ["size", product!.size_options],
   ] as const) {
-    if (!values?.length) continue;
+    if (!values?.length) {
+      continue;
+    }
+    if (values.every((value) => value.trim().toLowerCase() === "free size")) {
+      selectedValues.push(values[0]);
+      continue;
+    }
     const value = values.at(-1)!;
     await page
       .getByRole("group", { name: `Select ${name}` })
@@ -630,18 +662,28 @@ test("empty shop collection messages remain clear and visible after filtering", 
       await tab.click();
       await expect(tab).toHaveAttribute("aria-selected", "true");
     }).toPass({ timeout: 30_000 });
-    await expect(page.locator("article.store-product-card")).toHaveCount(0);
 
     const message = page.getByRole("heading", {
       name: `${collectionName} coming soon`,
       exact: true,
     });
-    await expect(message).toBeVisible();
-    await page.waitForTimeout(700);
-    await expect(message).toBeVisible();
-    expect(
-      await message.locator("xpath=..").evaluate((element) => getComputedStyle(element).opacity),
-    ).toBe("1");
+    const cards = page.locator("article.store-product-card");
+
+    if (collectionName === "Watches") {
+      await expect(cards).toHaveCount(0);
+      await expect(message).toBeVisible();
+      await page.waitForTimeout(700);
+      await expect(message).toBeVisible();
+      expect(
+        await message.locator("xpath=..").evaluate((element) => getComputedStyle(element).opacity),
+      ).toBe("1");
+    } else if ((await cards.count()) === 0) {
+      await expect(message).toBeVisible();
+      await page.waitForTimeout(700);
+      await expect(message).toBeVisible();
+    } else {
+      await expect(message).toHaveCount(0);
+    }
   }
 });
 

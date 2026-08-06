@@ -1,14 +1,13 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { Check, CircleCheck, Heart, Minus, Plus, ShoppingBag, Star } from "lucide-react";
 import { useQuery } from "convex/react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { api } from "../../convex/_generated/api";
-import { StoreProductCard } from "@/components/store/product-card";
 import { ProductGiftCue } from "@/components/store/product-gift-cue";
 import { StorePage } from "@/components/store/store-chrome";
-import { toStoreProduct, useStoreProducts } from "@/data/store";
+import { isPreOrderProduct, toStoreProduct } from "@/data/store";
 import { useCurrency } from "@/hooks/use-currency";
 import { convex } from "@/lib/backend";
 import { useCart } from "@/lib/cart";
@@ -59,7 +58,9 @@ export const Route = createFileRoute("/products/$slug")({
               availability:
                 product.inStock === false
                   ? "https://schema.org/OutOfStock"
-                  : "https://schema.org/InStock",
+                  : isPreOrderProduct(toStoreProduct(product))
+                    ? "https://schema.org/PreOrder"
+                    : "https://schema.org/InStock",
               seller: { "@id": `${absoluteUrl("/")}#store` },
               shippingDetails: {
                 "@type": "OfferShippingDetails",
@@ -103,7 +104,6 @@ export const Route = createFileRoute("/products/$slug")({
 function ProductPage() {
   const { product: catalogProduct } = Route.useLoaderData() as { product: Product };
   const product = toStoreProduct(catalogProduct);
-  const { products } = useStoreProducts();
   const { add, isReady: isCartReady } = useCart();
   const wishlist = useWishlist();
   const { formatPrice } = useCurrency();
@@ -113,34 +113,7 @@ function ProductPage() {
   );
   const [added, setAdded] = useState(false);
   const wished = wishlist.has(product.slug);
-
-  const related = useMemo(() => {
-    const currentTags = new Set(product.filterTags ?? []);
-    const candidates = products.filter(
-      (item) => item.slug !== product.slug && (!product.id || item.id !== product.id),
-    );
-    const ranked = candidates
-      .map((item) => {
-        const sharedTags = (item.filterTags ?? []).filter((tag) => currentTags.has(tag)).length;
-        const sameCollection = item.collectionSlug
-          ? item.collectionSlug === product.collectionSlug
-          : item.collection === product.collection;
-        return {
-          item,
-          score: (sameCollection ? 100 : 0) + sharedTags * 12 + (item.inStock === false ? -50 : 0),
-        };
-      })
-      .sort((a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name));
-
-    return ranked.slice(0, 4).map(({ item }) => item);
-  }, [
-    product.collection,
-    product.collectionSlug,
-    product.filterTags,
-    product.id,
-    product.slug,
-    products,
-  ]);
+  const preOrder = isPreOrderProduct(product);
   const variant = (product.optionGroups ?? [])
     .map((group) => selected[group.name])
     .filter(Boolean)
@@ -166,7 +139,9 @@ function ProductPage() {
       qty: quantity,
     });
     setAdded(true);
-    toast.success(`${product.name} added to cart`);
+    toast.success(
+      preOrder ? `${product.name} added to your pre-order` : `${product.name} added to cart`,
+    );
     window.setTimeout(() => setAdded(false), 1800);
   };
 
@@ -189,7 +164,13 @@ function ProductPage() {
             ) : (
               <ShoppingBag size={14} aria-hidden="true" />
             )}
-            {product.inStock === false ? "Out of stock" : added ? "Added" : "Add"}
+            {product.inStock === false
+              ? "Out of stock"
+              : added
+                ? "Added"
+                : preOrder
+                  ? "Pre order"
+                  : "Add"}
           </button>
         </div>
       </div>
@@ -310,7 +291,13 @@ function ProductPage() {
               ) : (
                 <ShoppingBag size={15} aria-hidden="true" />
               )}
-              {product.inStock === false ? "Out of stock" : added ? "Added" : "Add"}
+              {product.inStock === false
+                ? "Out of stock"
+                : added
+                  ? "Added"
+                  : preOrder
+                    ? "Pre order"
+                    : "Add"}
             </button>
           </div>
           <button
@@ -345,24 +332,6 @@ function ProductPage() {
       </section>
 
       {convex && product.id ? <ProductReviews productId={product.id} /> : null}
-
-      {related.length ? (
-        <section
-          className="border-t border-black/10 bg-white px-[22px] py-14 md:px-8 md:py-20"
-          data-testid="related-products-section"
-          data-store-reveal
-        >
-          <div className="mx-auto max-w-[1180px]">
-            <div className="mb-5 h-1 w-16 brand-mango-bg" />
-            <h2 className="section-heading text-[34px]">YOU MAY ALSO LIKE</h2>
-            <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
-              {related.map((item) => (
-                <StoreProductCard key={item.slug} product={item} />
-              ))}
-            </div>
-          </div>
-        </section>
-      ) : null}
     </StorePage>
   );
 }

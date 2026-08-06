@@ -17,7 +17,12 @@ import {
 } from "react";
 
 import { StoreFooter, StoreHeader } from "@/components/store/store-chrome";
-import { merchandiseProducts, type StoreProduct, useStoreProducts } from "@/data/store";
+import {
+  isPreOrderProduct,
+  merchandiseProducts,
+  type StoreProduct,
+  useStoreProducts,
+} from "@/data/store";
 import { HomepageRenderer } from "@/features/homepage/components";
 import { isHomepageEditorData } from "@/features/homepage/default-data";
 import { IKHWAAN_HERO_GRADIENT, SALIHAAT_HERO_GRADIENT } from "@/features/homepage/brand";
@@ -634,7 +639,11 @@ function ProductTile({
   priority?: boolean;
   reveal?: boolean;
 }) {
-  const discount = product.compareAt ? "21% off" : product.badge;
+  const discount = product.compareAt
+    ? "21% off"
+    : isPreOrderProduct(product)
+      ? undefined
+      : product.badge;
   const { formatPrice } = useCurrency();
   const price = formatPrice(product.price);
   const compareAt = product.compareAt ? formatPrice(product.compareAt) : undefined;

@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import {
   BOOK_SUBJECT_KEYS,
@@ -146,7 +146,7 @@ function cleanUrl(value: string | null | undefined) {
   ) {
     return url;
   }
-  throw new Error(
+  throw new ConvexError(
     "Image URL must be http(s), a Convex storage URL, or an approved public asset URL.",
   );
 }
@@ -156,7 +156,7 @@ function normalize(input: any, isPatch = false, existingPrice?: number) {
   const output: Record<string, any> = { updated_at: timestamp };
   if (input.name !== undefined) {
     const name = cleanText(input.name, 180);
-    if (!name) throw new Error("Product name is required.");
+    if (!name) throw new ConvexError("Product name is required.");
     output.name = name;
     output.slug = cleanNullable(input.slug, 100) || slugify(name);
   } else if (input.slug !== undefined) {
@@ -166,7 +166,7 @@ function normalize(input: any, isPatch = false, existingPrice?: number) {
   if (!isPatch || input.price_inr !== undefined || input.price !== undefined) {
     const priceInr = Number(input.price_inr ?? input.price ?? 0);
     if (!Number.isFinite(priceInr) || priceInr < 0)
-      throw new Error("Product price must be a positive number.");
+      throw new ConvexError("Product price must be a positive number.");
     output.price = priceInr;
     output.price_inr = priceInr;
   }
@@ -183,7 +183,7 @@ function normalize(input: any, isPatch = false, existingPrice?: number) {
       salePriceInr != null &&
       (!Number.isFinite(salePriceInr) || salePriceInr < 0 || salePriceInr > priceLimit)
     ) {
-      throw new Error("Sale price must be between INR 0 and the regular price.");
+      throw new ConvexError("Sale price must be between INR 0 and the regular price.");
     }
     output.sale_price = salePriceInr;
     output.sale_price_inr = salePriceInr;
@@ -192,7 +192,7 @@ function normalize(input: any, isPatch = false, existingPrice?: number) {
   if (input.stock_quantity !== undefined || !isPatch) {
     const stock = input.stock_quantity == null ? 0 : Math.floor(Number(input.stock_quantity));
     if (!Number.isFinite(stock) || stock < 0)
-      throw new Error("Stock must be a positive whole number.");
+      throw new ConvexError("Stock must be a positive whole number.");
     output.stock_quantity = stock;
     output.in_stock = stock > 0;
   }
@@ -224,7 +224,7 @@ function normalize(input: any, isPatch = false, existingPrice?: number) {
     if (input[field] !== undefined || !isPatch) {
       const value = input[field] == null || input[field] === "" ? null : Number(input[field]);
       if (value != null && (!Number.isFinite(value) || value < 0))
-        throw new Error(`${field} must be a positive number.`);
+        throw new ConvexError(`${field} must be a positive number.`);
       output[field] = value;
     }
   }
@@ -247,7 +247,7 @@ function normalize(input: any, isPatch = false, existingPrice?: number) {
       : [];
   }
   if (output.media_fit && !["cover", "contain"].includes(output.media_fit)) {
-    throw new Error("Image fit must be cover or contain.");
+    throw new ConvexError("Image fit must be cover or contain.");
   }
   if (
     output.media_position &&
@@ -255,7 +255,7 @@ function normalize(input: any, isPatch = false, existingPrice?: number) {
       output.media_position,
     )
   ) {
-    throw new Error("Image focus is not supported.");
+    throw new ConvexError("Image focus is not supported.");
   }
   if (input.images !== undefined || !isPatch) {
     output.images = Array.isArray(input.images)
@@ -776,7 +776,7 @@ export const createProduct = mutation({
       .query("products")
       .withIndex("by_slug", (q) => q.eq("slug", payload.slug))
       .first();
-    if (existing) throw new Error("A product with this slug already exists.");
+    if (existing) throw new ConvexError("A product with this slug already exists.");
     const id = await ctx.db.insert("products", { ...payload, created_at: timestamp } as any);
     await writeAuditLog(ctx, {
       action: "product.create",
@@ -795,21 +795,21 @@ export const createProduct = mutation({
 });
 
 export const updateProduct = mutation({
-  args: { id: v.string(), patch: v.object(productPatch) },
+  args: { id: v.id("products"), patch: v.object(productPatch) },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const current = (await ctx.db.get(args.id as any)) as any;
-    if (!current) throw new Error("Product not found.");
+    const current = (await ctx.db.get(args.id)) as any;
+    if (!current) throw new ConvexError("Product not found.");
     const payload = normalize(args.patch, true, current.price_inr ?? current.price);
     if (payload.slug) {
       const existing = await ctx.db
         .query("products")
         .withIndex("by_slug", (q) => q.eq("slug", payload.slug))
         .first();
-      if (existing && String(existing._id) !== args.id)
-        throw new Error("A product with this slug already exists.");
+      if (existing && existing._id !== args.id)
+        throw new ConvexError("A product with this slug already exists.");
     }
-    await ctx.db.patch(args.id as any, payload);
+    await ctx.db.patch(args.id, payload);
     await writeAuditLog(ctx, {
       action: "product.update",
       entityType: "product",
@@ -817,7 +817,7 @@ export const updateProduct = mutation({
       summary: payload.name ?? current.name,
       metadata: { changed: Object.keys(payload).filter((key) => key !== "updated_at") },
     });
-    const doc = (await ctx.db.get(args.id as any)) as any;
+    const doc = (await ctx.db.get(args.id)) as any;
     return doc ? publicProduct(doc) : null;
   },
 });
@@ -828,7 +828,7 @@ export const assignBookSubjects = mutation({
     await requireAdmin(ctx);
     const rows = await ctx.db.query("products").take(2_001);
     if (rows.length > 2_000) {
-      throw new Error("Too many products to assign subjects safely in one operation.");
+      throw new ConvexError("Too many products to assign subjects safely in one operation.");
     }
     const updates = rows
       .map((product: any) => {
@@ -920,7 +920,9 @@ export const deleteProduct = mutation({
       .take(2_001);
     const products = await ctx.db.query("products").take(2_001);
     if (wishlistItems.length > 2_000 || reviews.length > 2_000 || products.length > 2_000) {
-      throw new Error("This product has too many related records for one safe delete operation.");
+      throw new ConvexError(
+        "This product has too many related records for one safe delete operation.",
+      );
     }
     let linkedProducts = 0;
     let pausedGiftCampaigns = 0;
