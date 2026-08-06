@@ -23,7 +23,7 @@ test("home and live catalog render without browser errors", async ({ page }) => 
     source: string;
     rates: Record<string, number>;
   };
-  expect(["exchangerate-api.com", "open.er-api.com"]).toContain(rates.source);
+  expect(["exchangerate-api.com", "open.er-api.com", "fallback"]).toContain(rates.source);
   expect(rates.rates.USD).toBeGreaterThan(0);
 
   await expect

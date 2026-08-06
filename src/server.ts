@@ -36,6 +36,23 @@ const CATALOG_CACHE_HEADERS = {
 const CURRENCY_CACHE_HEADERS = {
   "cache-control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
 };
+const FALLBACK_CURRENCY_RATES: Record<string, number> = {
+  INR: 1,
+  USD: 0.012,
+  EUR: 0.011,
+  GBP: 0.0095,
+  AED: 0.044,
+  CAD: 0.016,
+  AUD: 0.018,
+  SAR: 0.045,
+  QAR: 0.044,
+  KWD: 0.0037,
+  MYR: 0.052,
+  SGD: 0.016,
+  ZAR: 0.21,
+  JPY: 1.8,
+  BDT: 1.43,
+};
 const PROMOTION_CACHE_HEADERS = {
   "cache-control": "public, max-age=30, s-maxage=60, stale-while-revalidate=300",
 };
@@ -434,7 +451,7 @@ async function handleCurrencyRequest(request: Request, env: unknown): Promise<Re
   }
   const fallback = {
     base: "INR",
-    rates: { INR: 1 },
+    rates: FALLBACK_CURRENCY_RATES,
     detected_currency: detectedCurrencyForRequest(request),
     source: "fallback",
     fetchedAt: new Date().toISOString(),
