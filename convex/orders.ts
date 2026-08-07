@@ -1107,6 +1107,13 @@ export const findSavedPayment = internalQuery({
 
 export const createRazorpayCheckoutOrder = action({
   args: { ...checkoutPayload, server_token: v.string() },
+  returns: v.object({
+    keyId: v.string(),
+    orderId: v.string(),
+    amount: v.number(),
+    currency: v.string(),
+    receipt: v.string(),
+  }),
   handler: async (ctx, args) => {
     requireCheckoutServerToken(args.server_token);
     validateCheckoutCustomer(args.customer);
@@ -1474,6 +1481,16 @@ export const findCheckoutIntent = internalQuery({
 
 export const getCheckoutStatus = query({
   args: { razorpay_order_id: v.string(), email: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      status: v.string(),
+      order_id: v.union(v.id("orders"), v.null()),
+      order_number: v.union(v.string(), v.null()),
+      payment_received: v.boolean(),
+      message: v.string(),
+    }),
+  ),
   handler: async (ctx, args) => {
     const intent = await ctx.db
       .query("checkout_intents")
@@ -1509,7 +1526,9 @@ export const getCheckoutStatus = query({
             ? "Payment failed."
             : intent.status === "recovery_required"
               ? "Payment received and under confirmation."
-              : "Waiting for payment confirmation.",
+              : intent.status === "released"
+                ? "Payment session expired."
+                : "Waiting for payment confirmation.",
     };
   },
 });

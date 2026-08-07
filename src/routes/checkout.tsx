@@ -47,10 +47,36 @@ const PENDING_PAYMENT_KEY = "fawzaan.pendingRazorpayPayment";
 type PendingPayment = {
   orderId: string;
   email: string;
+  createdAt: number;
 };
 
 function wait(milliseconds: number) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+function readPendingPayment(): PendingPayment | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const value = JSON.parse(window.localStorage.getItem(PENDING_PAYMENT_KEY) ?? "null");
+    if (
+      !value ||
+      typeof value.orderId !== "string" ||
+      !value.orderId ||
+      typeof value.email !== "string" ||
+      !value.email
+    ) {
+      window.localStorage.removeItem(PENDING_PAYMENT_KEY);
+      return null;
+    }
+    return {
+      orderId: value.orderId,
+      email: value.email,
+      createdAt: Number.isFinite(value.createdAt) ? value.createdAt : Date.now(),
+    };
+  } catch {
+    window.localStorage.removeItem(PENDING_PAYMENT_KEY);
+    return null;
+  }
 }
 
 declare global {
@@ -134,16 +160,10 @@ function CheckoutPage() {
   const [promotionQuote, setPromotionQuote] = useState<CheckoutPromotionQuote | null>(null);
   const [promotionError, setPromotionError] = useState<string | null>(null);
   const [promotionLoading, setPromotionLoading] = useState(false);
-  const [pendingPayment, setPendingPayment] = useState<PendingPayment | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      return JSON.parse(window.localStorage.getItem(PENDING_PAYMENT_KEY) ?? "null");
-    } catch {
-      window.localStorage.removeItem(PENDING_PAYMENT_KEY);
-      return null;
-    }
-  });
+  const [pendingPayment, setPendingPayment] = useState<PendingPayment | null>(readPendingPayment);
   const [checkingPayment, setCheckingPayment] = useState(false);
+  const recoverPendingOnLoad = useRef(Boolean(pendingPayment));
+  const paymentSubmitted = useRef(false);
   const internationalRequestId = useRef(
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
@@ -303,10 +323,14 @@ function CheckoutPage() {
           finishConfirmedOrder(status.order_number, pending.email, linkedToAccount);
           return true;
         }
-        if (status?.status === "failed") {
+        if (status?.status === "failed" || status?.status === "released") {
           window.localStorage.removeItem(PENDING_PAYMENT_KEY);
           setPendingPayment(null);
-          toast.error("The payment failed. You can try again safely.");
+          toast.message(
+            status.status === "released"
+              ? "Your previous payment session expired. You can check out again safely."
+              : "The payment failed. You can try again safely.",
+          );
           return false;
         }
       }
@@ -315,6 +339,14 @@ function CheckoutPage() {
       setCheckingPayment(false);
     }
   };
+
+  useEffect(() => {
+    if (!pendingPayment || !recoverPendingOnLoad.current) return;
+    recoverPendingOnLoad.current = false;
+    void checkPendingPayment(pendingPayment).catch(() => undefined);
+    // This recovery check intentionally runs once for the payment restored from local storage.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPayment]);
 
   const placeInternationalOrder = async () => {
     const whatsappWindow = window.open("about:blank", "_blank");
@@ -345,6 +377,12 @@ function CheckoutPage() {
       total,
       promotionCode: appliedPromotionCode,
     });
+    const checkoutPending: PendingPayment = {
+      orderId: order.order_id,
+      email: customer.email,
+      createdAt: Date.now(),
+    };
+    paymentSubmitted.current = false;
     const razorpay = new window.Razorpay({
       key: order.key_id,
       amount: order.amount,
@@ -364,12 +402,20 @@ function CheckoutPage() {
       theme: { color: "#111111" },
       modal: {
         ondismiss: () => {
+          if (!paymentSubmitted.current) {
+            window.localStorage.removeItem(PENDING_PAYMENT_KEY);
+            setPendingPayment(null);
+          }
           setProcessing(false);
-          toast.message("Payment cancelled.");
+          if (!paymentSubmitted.current) toast.message("Payment cancelled.");
         },
       },
       handler: async (response: RazorpaySuccess) => {
-        const pending = { orderId: response.razorpay_order_id, email: customer.email };
+        paymentSubmitted.current = true;
+        const pending = {
+          ...checkoutPending,
+          orderId: response.razorpay_order_id,
+        };
         window.localStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify(pending));
         setPendingPayment(pending);
         try {
@@ -395,6 +441,7 @@ function CheckoutPage() {
       },
     });
     razorpay.on("payment.failed", (response) => {
+      paymentSubmitted.current = false;
       window.localStorage.removeItem(PENDING_PAYMENT_KEY);
       setPendingPayment(null);
       setProcessing(false);
@@ -404,7 +451,15 @@ function CheckoutPage() {
           "Payment failed. No order was created.",
       );
     });
-    razorpay.open();
+    window.localStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify(checkoutPending));
+    setPendingPayment(checkoutPending);
+    try {
+      razorpay.open();
+    } catch (error) {
+      window.localStorage.removeItem(PENDING_PAYMENT_KEY);
+      setPendingPayment(null);
+      throw error;
+    }
   };
 
   const placeOrder = async () => {

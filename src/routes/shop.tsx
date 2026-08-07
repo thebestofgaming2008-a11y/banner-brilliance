@@ -277,7 +277,7 @@ function ShopPage() {
                   value={sort}
                   onChange={(event) => setSort(event.target.value)}
                   aria-label="Sort products"
-                  className="min-w-0 flex-1 bg-transparent text-[10px] font-bold uppercase outline-none"
+                  className="min-w-0 flex-1 bg-transparent text-[10px] font-bold normal-case outline-none"
                 >
                   <option value="featured">Featured</option>
                   <option value="price-low">Price low</option>

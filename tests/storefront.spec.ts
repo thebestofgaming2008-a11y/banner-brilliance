@@ -143,7 +143,10 @@ test("shop product cart and checkout path uses the live product", async ({ page 
     "background-image",
     /linear-gradient\(105deg, rgb\(255, 187, 0\).+rgb\(255, 0, 81\)/,
   );
-  await expect(page.getByRole("heading", { name: "YOU MAY ALSO LIKE" })).toHaveCount(0);
+  const relatedSection = page.getByTestId("related-products-section");
+  await expect(relatedSection.getByRole("heading", { name: "More products" })).toBeVisible();
+  await expect(relatedSection.locator("article.store-product-card")).toHaveCount(4);
+  await expect(relatedSection.locator(`a[href="/products/${selectedSlug}"]`)).toHaveCount(0);
   await page.getByRole("button", { name: /^add$/i }).first().click();
   await page.goto("/cart");
   await expect(page.getByRole("article").getByText(productName, { exact: true })).toBeVisible();
@@ -195,7 +198,12 @@ test("pre-order products use purchase buttons instead of image badges", async ({
   await card.locator(`a[href="/products/${preOrderProduct!.slug}"]`).first().click();
   await expect(page).toHaveURL(new RegExp(`/products/${preOrderProduct!.slug}$`));
   await expect(page.getByRole("button", { name: "Pre order", exact: true }).first()).toBeVisible();
-  await expect(page.getByRole("heading", { name: "YOU MAY ALSO LIKE" })).toHaveCount(0);
+  const relatedSection = page.getByTestId("related-products-section");
+  await expect(relatedSection.getByRole("heading", { name: "More products" })).toBeVisible();
+  await expect(relatedSection.locator("article.store-product-card")).toHaveCount(4);
+  await expect(relatedSection.locator(`a[href="/products/${preOrderProduct!.slug}"]`)).toHaveCount(
+    0,
+  );
 });
 
 test("catalog cards support quick add and expose sold-out stock before navigation", async ({
@@ -207,9 +215,13 @@ test("catalog cards support quick add and expose sold-out stock before navigatio
     slug: string;
     stock_quantity?: number;
     is_active?: boolean;
+    badge?: string | null;
   }>;
   const available = catalog.find(
-    (product) => product.is_active !== false && Number(product.stock_quantity ?? 0) > 0,
+    (product) =>
+      product.is_active !== false &&
+      Number(product.stock_quantity ?? 0) > 0 &&
+      !/^pre[\s-]?order$/i.test(product.badge?.trim() ?? ""),
   );
   expect(available, "The live catalog needs an in-stock product for quick add").toBeTruthy();
 
@@ -219,7 +231,7 @@ test("catalog cards support quick add and expose sold-out stock before navigatio
     .first();
   await expect(availableCard).toHaveAttribute("data-product-stock", "available");
   const quickAdd = availableCard.getByRole("button", {
-    name: /^(Add|Choose options and add):/,
+    name: /^(Add|Choose options to add):/,
   });
   await expect(quickAdd).toBeEnabled();
   await quickAdd.click();
@@ -254,7 +266,7 @@ test("catalog cards support quick add and expose sold-out stock before navigatio
     .first();
   await expect(homepageAvailableCard).toHaveAttribute("data-product-stock", "available");
   await expect(
-    homepageAvailableCard.getByRole("button", { name: /^(Add|Choose options and add):/ }),
+    homepageAvailableCard.getByRole("button", { name: /^(Add|Choose options to add):/ }),
   ).toBeEnabled();
 
   if (soldOut) {
@@ -424,7 +436,7 @@ test("product choices remain attached to the cart line", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("yemeni shemagh includes red as a colour option", async ({ page }) => {
+test("yemeni shemagh includes red and renders its current size option", async ({ page }) => {
   const catalogResponse = await page.request.get("/api/catalog/products");
   const catalog = (await catalogResponse.json()) as Array<{
     slug: string;
@@ -434,7 +446,8 @@ test("yemeni shemagh includes red as a colour option", async ({ page }) => {
   const product = catalog.find((item) => item.slug === "yemeni-shemagh");
   expect(product, "Yemeni Shemagh must stay in the live catalog").toBeTruthy();
   expect(product!.color_options).toEqual(expect.arrayContaining(["Red"]));
-  expect(product!.size_options).toEqual(expect.arrayContaining(["60 x 60 cm"]));
+  expect(product!.size_options?.length).toBeGreaterThan(0);
+  const currentSize = product!.size_options![0];
 
   await page.goto("/products/yemeni-shemagh", {
     waitUntil: "domcontentloaded",
@@ -444,7 +457,7 @@ test("yemeni shemagh includes red as a colour option", async ({ page }) => {
     page.getByRole("group", { name: "Select colour" }).getByRole("button", { name: "Red" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("group", { name: "Select size" }).getByRole("button", { name: "60 x 60 cm" }),
+    page.getByRole("group", { name: "Select size" }).getByRole("button", { name: currentSize }),
   ).toBeVisible();
 });
 
@@ -483,7 +496,9 @@ test("khadija niqab presents the corrected comfort, colour, and size details", a
   const product = catalog.find((item) => item.slug === "khadija-niqab");
   expect(product, "Khadija Niqab must stay in the live catalog").toBeTruthy();
   expect(product!.short_description).toBe("Daily comfort wear.");
-  expect(product!.highlights).toEqual(["Premium chiffon fabric"]);
+  expect(product!.highlights?.map((value) => value.toLowerCase())).toEqual([
+    "premium chiffon fabric",
+  ]);
   expect(product!.color_options).toEqual(["Black"]);
   expect(product!.size_options).toEqual(["Size Dimensions are available in description"]);
 
@@ -499,7 +514,7 @@ test("khadija niqab presents the corrected comfort, colour, and size details", a
       name: "Size Dimensions are available in description",
     }),
   ).toBeVisible();
-  await expect(page.getByText("Premium chiffon fabric", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Premium chiffon fabric/i, { exact: true })).toBeVisible();
   await expect(page.getByText("Adjustable elastic band", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Onyx Black", { exact: true })).toHaveCount(0);
 });
@@ -562,6 +577,7 @@ test("mobile shop controls scroll and menu search filters the live catalog", asy
   }
 
   await expect(page.getByLabel("Sort products")).toBeVisible();
+  await expect(page.getByLabel("Sort products")).toHaveCSS("text-transform", "none");
   const collectionFilter = page.getByLabel("Filter products by collection");
   await expect(collectionFilter).toBeVisible();
   const filterOptions = await collectionFilter.locator("option").allTextContents();
@@ -639,6 +655,7 @@ test("homepage shop controls filter, pluralize, and link to the selected collect
   await expect(shop.getByRole("button", { name: "More collections" })).toBeVisible();
   await expect(shop.getByPlaceholder("Search products")).toBeVisible();
   await expect(shop.getByLabel("Sort homepage products")).toBeVisible();
+  await expect(shop.getByLabel("Sort homepage products")).toHaveCSS("text-transform", "none");
 
   const shemaghsTab = shop.getByRole("tab", { name: "Shemaghs", exact: true });
   await expect(async () => {

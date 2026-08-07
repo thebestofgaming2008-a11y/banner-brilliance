@@ -1,13 +1,14 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { Check, CircleCheck, Heart, Minus, Plus, ShoppingBag, Star } from "lucide-react";
 import { useQuery } from "convex/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { api } from "../../convex/_generated/api";
+import { StoreProductCard } from "@/components/store/product-card";
 import { ProductGiftCue } from "@/components/store/product-gift-cue";
 import { StorePage } from "@/components/store/store-chrome";
-import { isPreOrderProduct, toStoreProduct } from "@/data/store";
+import { isPreOrderProduct, toStoreProduct, useStoreProducts } from "@/data/store";
 import { useCurrency } from "@/hooks/use-currency";
 import { convex } from "@/lib/backend";
 import { useCart } from "@/lib/cart";
@@ -104,6 +105,7 @@ export const Route = createFileRoute("/products/$slug")({
 function ProductPage() {
   const { product: catalogProduct } = Route.useLoaderData() as { product: Product };
   const product = toStoreProduct(catalogProduct);
+  const { products } = useStoreProducts();
   const { add, isReady: isCartReady } = useCart();
   const wishlist = useWishlist();
   const { formatPrice } = useCurrency();
@@ -114,6 +116,31 @@ function ProductPage() {
   const [added, setAdded] = useState(false);
   const wished = wishlist.has(product.slug);
   const preOrder = isPreOrderProduct(product);
+  const related = useMemo(() => {
+    const currentTags = new Set(product.filterTags ?? []);
+    return products
+      .filter((item) => item.slug !== product.slug && (!product.id || item.id !== product.id))
+      .map((item) => {
+        const sameCollection = item.collectionSlug
+          ? item.collectionSlug === product.collectionSlug
+          : item.collection === product.collection;
+        const sharedTags = (item.filterTags ?? []).filter((tag) => currentTags.has(tag)).length;
+        return {
+          item,
+          score: (sameCollection ? 100 : 0) + sharedTags * 12 + (item.inStock === false ? -50 : 0),
+        };
+      })
+      .sort((a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name))
+      .slice(0, 4)
+      .map(({ item }) => item);
+  }, [
+    product.collection,
+    product.collectionSlug,
+    product.filterTags,
+    product.id,
+    product.slug,
+    products,
+  ]);
   const variant = (product.optionGroups ?? [])
     .map((group) => selected[group.name])
     .filter(Boolean)
@@ -332,6 +359,26 @@ function ProductPage() {
       </section>
 
       {convex && product.id ? <ProductReviews productId={product.id} /> : null}
+
+      {related.length ? (
+        <section
+          className="border-t border-black/10 bg-white px-[18px] py-12 md:px-8 md:py-16"
+          data-testid="related-products-section"
+          data-store-reveal
+        >
+          <div className="mx-auto max-w-[1180px]">
+            <p className="section-kicker text-black/60">Continue shopping</p>
+            <h2 className="product-editorial-heading mt-2 text-[36px] md:text-[42px]">
+              More products
+            </h2>
+            <div className="mt-7 grid grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-4 md:gap-5">
+              {related.map((item) => (
+                <StoreProductCard key={item.slug} product={item} />
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
     </StorePage>
   );
 }
