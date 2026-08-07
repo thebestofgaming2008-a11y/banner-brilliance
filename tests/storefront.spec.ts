@@ -91,6 +91,8 @@ test("home and live catalog render without browser errors", async ({ page }) => 
   const mosaic = page.getByTestId("homepage-collection-mosaic");
   await expect(mosaic.locator("[data-mosaic-card]")).toHaveCount(7);
   await expect(mosaic.locator('[data-mosaic-card="SHOP ALL"]')).toHaveAttribute("href", "/shop");
+  await expect(page.getByText("EXPLORE BEYOND", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "View all", exact: true })).toHaveCount(0);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
   ).toBeTruthy();
