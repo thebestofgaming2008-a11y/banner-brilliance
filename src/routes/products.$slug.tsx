@@ -1,13 +1,21 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { Check, CircleCheck, Heart, Minus, Plus, ShoppingBag, Star } from "lucide-react";
 import { useQuery } from "convex/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { api } from "../../convex/_generated/api";
 import { StoreProductCard } from "@/components/store/product-card";
 import { ProductGiftCue } from "@/components/store/product-gift-cue";
 import { StorePage } from "@/components/store/store-chrome";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
+import type { CarouselApi } from "@/components/ui/carousel";
 import { isPreOrderProduct, toStoreProduct, useStoreProducts } from "@/data/store";
 import { useCurrency } from "@/hooks/use-currency";
 import { convex } from "@/lib/backend";
@@ -203,25 +211,7 @@ function ProductPage() {
       </div>
 
       <section className="mx-auto grid max-w-[1280px] gap-8 px-[18px] py-7 md:grid-cols-[1.12fr_0.88fr] md:gap-12 md:px-8 md:py-12">
-        <div className="no-scrollbar -mx-[18px] flex snap-x snap-mandatory gap-2 overflow-x-auto px-[18px] md:mx-0 md:grid md:grid-cols-2 md:overflow-visible md:px-0">
-          {product.images.map((image, index) => (
-            <figure
-              key={`${image}-${index}`}
-              className={`w-[88vw] shrink-0 snap-center overflow-hidden bg-[#F7F7F5] md:w-auto ${index === 0 ? "md:col-span-2" : ""}`}
-              data-store-reveal
-            >
-              <div className="aspect-[3/4] overflow-hidden">
-                <img
-                  src={image}
-                  alt={`${product.name}, view ${index + 1}`}
-                  loading={index === 0 ? "eager" : "lazy"}
-                  style={{ objectPosition: product.mediaPosition ?? "center" }}
-                  className={`h-full w-full ${product.mediaFit === "contain" ? "object-contain p-4 md:p-7" : "object-cover"} ${product.imageClassName ?? ""}`}
-                />
-              </div>
-            </figure>
-          ))}
-        </div>
+        <ProductGallery product={product} />
 
         <div className="md:sticky md:top-[132px] md:self-start" data-store-reveal>
           <p className="section-kicker text-black/60">{product.collection}</p>
@@ -380,6 +370,97 @@ function ProductPage() {
         </section>
       ) : null}
     </StorePage>
+  );
+}
+
+function ProductGallery({ product }: { product: ReturnType<typeof toStoreProduct> }) {
+  const [api, setApi] = useState<CarouselApi>();
+  const [current, setCurrent] = useState(0);
+
+  useEffect(() => {
+    if (!api) return;
+    const updateCurrent = () => setCurrent(api.selectedScrollSnap());
+    updateCurrent();
+    api.on("select", updateCurrent);
+    api.on("reInit", updateCurrent);
+    return () => {
+      api.off("select", updateCurrent);
+      api.off("reInit", updateCurrent);
+    };
+  }, [api]);
+
+  const imageClass = `h-full w-full ${product.mediaFit === "contain" ? "object-contain p-4 md:p-7" : "object-cover"} ${product.imageClassName ?? ""}`;
+
+  return (
+    <div className="min-w-0">
+      <Carousel
+        setApi={setApi}
+        opts={{ align: "start", loop: product.images.length > 1 }}
+        className="-mx-[18px] md:hidden"
+        aria-label={`${product.name} product images`}
+        data-testid="mobile-product-gallery"
+      >
+        <CarouselContent className="ml-0">
+          {product.images.map((image, index) => (
+            <CarouselItem key={`${image}-${index}`} className="pl-0">
+              <figure className="mx-[18px] overflow-hidden bg-[#F7F7F5]">
+                <div className="aspect-[3/4] overflow-hidden">
+                  <img
+                    src={image}
+                    alt={`${product.name}, view ${index + 1}`}
+                    loading={index === 0 ? "eager" : "lazy"}
+                    style={{ objectPosition: product.mediaPosition ?? "center" }}
+                    className={imageClass}
+                  />
+                </div>
+              </figure>
+            </CarouselItem>
+          ))}
+        </CarouselContent>
+
+        {product.images.length > 1 ? (
+          <>
+            <CarouselPrevious className="left-7 top-1/2 z-10 border-0 bg-white/90 shadow-sm hover:bg-white" />
+            <CarouselNext className="right-7 top-1/2 z-10 border-0 bg-white/90 shadow-sm hover:bg-white" />
+            <div
+              className="mt-3 flex items-center justify-center gap-2"
+              aria-label={`Image ${current + 1} of ${product.images.length}`}
+            >
+              {product.images.map((image, index) => (
+                <button
+                  key={`${image}-dot-${index}`}
+                  type="button"
+                  aria-label={`View image ${index + 1}`}
+                  aria-current={current === index ? "true" : undefined}
+                  onClick={() => api?.scrollTo(index)}
+                  className={`h-1.5 transition-[width,background-color] ${current === index ? "w-7 bg-black" : "w-1.5 bg-black/25"}`}
+                />
+              ))}
+            </div>
+          </>
+        ) : null}
+      </Carousel>
+
+      <div className="hidden grid-cols-2 gap-2 md:grid">
+        {product.images.map((image, index) => (
+          <figure
+            key={`${image}-${index}`}
+            className={`overflow-hidden bg-[#F7F7F5] ${index === 0 ? "col-span-2" : ""}`}
+            data-store-reveal
+          >
+            <div className="aspect-[3/4] overflow-hidden">
+              <img
+                src={image}
+                alt={`${product.name}, view ${index + 1}`}
+                loading={index === 0 ? "eager" : "lazy"}
+                style={{ objectPosition: product.mediaPosition ?? "center" }}
+                className={imageClass}
+              />
+            </div>
+          </figure>
+        ))}
+      </div>
+    </div>
   );
 }
 

@@ -846,6 +846,26 @@ test("storefront motion respects reduced-motion preferences", async ({ page }) =
     .toBe("none");
 });
 
+test("vertical scrolling over the mobile product gallery moves the page", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/products/khadija-niqab", {
+    waitUntil: "networkidle",
+    timeout: 60_000,
+  });
+
+  const gallery = page.getByTestId("mobile-product-gallery");
+  await expect(gallery).toBeVisible();
+  const galleryBox = await gallery.boundingBox();
+  expect(galleryBox).not.toBeNull();
+
+  await page.mouse.move(
+    galleryBox!.x + galleryBox!.width / 2,
+    galleryBox!.y + Math.min(240, galleryBox!.height / 2),
+  );
+  await page.mouse.wheel(0, 500);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+});
+
 test("account, tracking lookup, and admin entry render", async ({ page }) => {
   const errors = watchPageErrors(page);
   await page.goto("/account");
