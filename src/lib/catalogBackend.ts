@@ -146,6 +146,13 @@ export function backendProductToProduct(product: BackendProduct): Product {
   const fallbackSlug = product.slug === "yemeni-shemagh" ? "yemeni-shemagh-red" : product.slug;
   const fallback = catalog.find((item) => item.slug === fallbackSlug);
   const collection = collectionFromBackend(product, fallback);
+  const categoryId = String(product.category_id ?? "")
+    .trim()
+    .toLowerCase();
+  const hasCanonicalCollectionId = Object.prototype.hasOwnProperty.call(
+    collectionLabels,
+    categoryId,
+  );
   const gender = genderFromBackend(product, collection, fallback);
   const regular = Number(product.price_inr ?? product.price ?? fallback?.price ?? 0);
   const sale = Number(product.sale_price_inr ?? product.sale_price ?? 0);
@@ -171,8 +178,10 @@ export function backendProductToProduct(product: BackendProduct): Product {
     slug: product.slug || fallback?.slug || product.id || "",
     name: product.name || fallback?.name || "Product",
     collection,
-    collectionSlug: String(product.category_id || collection).toLowerCase(),
-    collectionLabel: product.category || collectionLabels[collection],
+    collectionSlug: hasCanonicalCollectionId ? collection : categoryId || collection,
+    collectionLabel: hasCanonicalCollectionId
+      ? collectionLabels[collection]
+      : product.category || collectionLabels[collection],
     filterTags: Array.isArray(product.tags)
       ? product.tags.map((tag) => String(tag).trim().toLowerCase()).filter(Boolean)
       : [],

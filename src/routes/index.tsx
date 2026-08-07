@@ -639,11 +639,7 @@ function ProductTile({
   priority?: boolean;
   reveal?: boolean;
 }) {
-  const discount = product.compareAt
-    ? "21% off"
-    : isPreOrderProduct(product)
-      ? undefined
-      : product.badge;
+  const badge = isPreOrderProduct(product) ? undefined : product.badge;
   const { formatPrice } = useCurrency();
   const price = formatPrice(product.price);
   const compareAt = product.compareAt ? formatPrice(product.compareAt) : undefined;
@@ -683,9 +679,9 @@ function ProductTile({
             <span className="absolute left-2 top-2 rounded-md bg-black px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-normal text-white shadow-sm">
               Sold out
             </span>
-          ) : discount ? (
+          ) : badge ? (
             <span className="absolute left-2 top-2 bg-white px-2 py-1 text-[9px] font-bold uppercase tracking-normal">
-              {discount}
+              {badge}
             </span>
           ) : null}
           <div className="absolute inset-x-2 bottom-2 hidden translate-y-2 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 md:block">

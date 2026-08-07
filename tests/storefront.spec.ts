@@ -631,6 +631,10 @@ test("homepage shop controls filter, pluralize, and link to the selected collect
   await expect(page.getByText(/2026 Fawzaan Store\. All rights reserved\./)).toBeVisible();
 
   const shop = page.locator("#shop-all");
+  await expect(shop.getByText("21% off", { exact: true })).toHaveCount(0);
+  const kufiCard = shop.locator('article:has(a[href="/products/white-kufi"])');
+  await expect(kufiCard.getByText("Kufis", { exact: true })).toBeVisible();
+  await expect(kufiCard.getByText("Books", { exact: true })).toHaveCount(0);
   await expect(shop.getByRole("button", { name: "Previous collections" })).toBeVisible();
   await expect(shop.getByRole("button", { name: "More collections" })).toBeVisible();
   await expect(shop.getByPlaceholder("Search products")).toBeVisible();

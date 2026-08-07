@@ -68,3 +68,35 @@ export const applyAugustCatalogPolish = internalMutation({
     };
   },
 });
+
+const STORE_COLLECTIONS: Record<string, string> = {
+  shemaghs: "Shemaghs",
+  niqabs: "Niqabs",
+  kufis: "Kufis",
+  gloves: "Gloves",
+  honey: "Honey",
+  watches: "Watches",
+  other: "Other",
+};
+
+export const repairStoreCollectionLabels = internalMutation({
+  args: {},
+  returns: v.object({ repaired: v.number() }),
+  handler: async (ctx) => {
+    const products = await ctx.db.query("products").take(500);
+    const timestamp = new Date().toISOString();
+    let repaired = 0;
+
+    for (const product of products) {
+      const categoryId = String(product.category_id ?? "")
+        .trim()
+        .toLowerCase();
+      const category = STORE_COLLECTIONS[categoryId];
+      if (!category || product.category === category) continue;
+      await ctx.db.patch(product._id, { category, updated_at: timestamp });
+      repaired += 1;
+    }
+
+    return { repaired };
+  },
+});

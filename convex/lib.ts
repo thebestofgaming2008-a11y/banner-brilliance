@@ -141,6 +141,15 @@ export const BOOK_SUBJECT_KEYS = [
 ] as const;
 
 const BOOK_SUBJECTS = new Set<string>(BOOK_SUBJECT_KEYS);
+const STORE_COLLECTION_LABELS: Record<string, string> = {
+  shemaghs: "Shemaghs",
+  niqabs: "Niqabs",
+  kufis: "Kufis",
+  gloves: "Gloves",
+  honey: "Honey",
+  watches: "Watches",
+  other: "Other",
+};
 const NON_BOOK_TOP_LEVEL_CATEGORIES = new Set(["clothing", "children", "essentials", "sets"]);
 export const BOOK_SUBJECT_LABELS: Record<string, string> = {
   aqeedah: "Aqeedah",
@@ -161,6 +170,10 @@ export const BOOK_SUBJECT_LABELS: Record<string, string> = {
 function normalizeBookCategory(product: Record<string, any>) {
   const category = String(product.category ?? "").toLowerCase();
   const categoryId = String(product.category_id ?? "").toLowerCase();
+  const storeCollection = STORE_COLLECTION_LABELS[categoryId];
+  if (storeCollection) {
+    return { ...product, category: storeCollection, category_id: categoryId };
+  }
   if (NON_BOOK_TOP_LEVEL_CATEGORIES.has(categoryId)) {
     return {
       ...product,

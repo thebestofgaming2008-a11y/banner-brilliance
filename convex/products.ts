@@ -321,8 +321,21 @@ function isLaunchReady(product: any) {
 }
 
 const BOOK_SUBJECTS = new Set<string>(BOOK_SUBJECT_KEYS);
-const TOP_LEVEL_CATEGORIES = new Set(["books", "clothing", "children", "sets"]);
-const NON_BOOK_CATEGORY_IDS = new Set(["clothing", "children", "essentials", "sets"]);
+const STORE_CATEGORY_IDS = ["shemaghs", "niqabs", "kufis", "gloves", "honey", "watches", "other"];
+const TOP_LEVEL_CATEGORIES = new Set([
+  "books",
+  "clothing",
+  "children",
+  "sets",
+  ...STORE_CATEGORY_IDS,
+]);
+const NON_BOOK_CATEGORY_IDS = new Set([
+  "clothing",
+  "children",
+  "essentials",
+  "sets",
+  ...STORE_CATEGORY_IDS,
+]);
 
 const SUBJECT_PRIORITY = [
   "aqeedah",
