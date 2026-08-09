@@ -309,6 +309,7 @@ export function HomepageHero({
                 <BannerSceneView
                   scene={slide.scene}
                   className="h-full"
+                  priority={index === 0}
                   editorKey={id ? `${id}:hero:${index}` : undefined}
                 />
               </article>

@@ -202,6 +202,7 @@ export function BannerSceneView({
   editingLayerId,
   cropLayerId,
   interactive = true,
+  priority = false,
   onSelectLayer,
   onEditLayer,
   onTextChange,
@@ -217,6 +218,7 @@ export function BannerSceneView({
   editingLayerId?: string | null;
   cropLayerId?: string | null;
   interactive?: boolean;
+  priority?: boolean;
   onSelectLayer?: (id: string, event: MouseEvent<HTMLElement>) => void;
   onEditLayer?: (id: string | null) => void;
   onTextChange?: (id: string, text: string) => void;
@@ -653,7 +655,9 @@ export function BannerSceneView({
                     src={layer.src}
                     alt={layer.alt || ""}
                     draggable={false}
-                    loading={interactive ? "lazy" : "eager"}
+                    loading={priority ? "eager" : "lazy"}
+                    fetchPriority={priority ? "high" : "low"}
+                    decoding="async"
                     className="absolute inset-0 h-full w-full max-w-none"
                     style={{
                       inset: fixedHoneyPreset ? "-1px" : undefined,

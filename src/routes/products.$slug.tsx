@@ -25,6 +25,15 @@ import type { Product } from "@/lib/products";
 import { getProductBySlug } from "@/services/productService";
 import { absoluteUrl, BRAND_NAME, seo } from "@/lib/seo";
 
+function productSeoDescription(product: Product) {
+  const category = product.collectionLabel || product.collection;
+  const details = [product.short, product.description, product.features?.[0]]
+    .map((value) => String(value ?? "").trim())
+    .filter((value, index, values) => value && values.indexOf(value) === index);
+  const text = `Shop ${product.name} in ${category} at Fawzaan Store. ${details.join(" ")} View current price, options and availability.`;
+  return text.length <= 160 ? text : `${text.slice(0, 157).trimEnd()}...`;
+}
+
 export const Route = createFileRoute("/products/$slug")({
   loader: async ({ params }) => {
     const product = await getProductBySlug(params.slug);
@@ -35,14 +44,28 @@ export const Route = createFileRoute("/products/$slug")({
     const product = loaderData?.product as Product | undefined;
     if (!product) return seo({ title: "Product | Fawzaan Store", noIndex: true });
     const path = `/products/${encodeURIComponent(product.slug)}`;
-    const description = product.short || product.description || `${product.name} from Fawzaan.`;
+    const description = productSeoDescription(product);
     const productUrl = absoluteUrl(path);
+    const aggregateRating =
+      product.reviews > 0 && product.rating > 0
+        ? {
+            "@type": "AggregateRating",
+            ratingValue: product.rating,
+            reviewCount: product.reviews,
+          }
+        : undefined;
+    const additionalProperty = (product.features ?? []).map((feature) => ({
+      "@type": "PropertyValue",
+      name: "Feature",
+      value: feature,
+    }));
     return {
       ...seo({
         title: `${product.name} | Fawzaan Store`,
         description,
         path,
         image: product.images[0] || "/og-image-v2.jpg",
+        imageAlt: product.name,
         type: "product",
       }),
       scripts: [
@@ -52,12 +75,16 @@ export const Route = createFileRoute("/products/$slug")({
             "@context": "https://schema.org",
             "@type": "Product",
             "@id": `${productUrl}#product`,
+            url: productUrl,
+            mainEntityOfPage: productUrl,
             name: product.name,
             description,
             image: product.images.map(absoluteUrl),
             sku: product.id || product.slug,
             category: product.collectionLabel || product.collection,
             brand: { "@type": "Brand", name: BRAND_NAME },
+            aggregateRating,
+            additionalProperty: additionalProperty.length ? additionalProperty : undefined,
             offers: {
               "@type": "Offer",
               url: productUrl,
@@ -86,7 +113,7 @@ export const Route = createFileRoute("/products/$slug")({
                 "@type": "MerchantReturnPolicy",
                 applicableCountry: "IN",
                 returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
-                merchantReturnDays: 30,
+                merchantReturnDays: 5,
                 returnPolicyUrl: absoluteUrl("/pages/returns"),
               },
             },

@@ -28,8 +28,14 @@ type R2BucketLike = {
   get: (key: string) => Promise<R2ObjectBody | null>;
 };
 
-const PUBLIC_SITE_URL = "https://fawzaanstore.pages.dev";
-const SITEMAP_LASTMOD = "2026-07-18";
+const PUBLIC_SITE_URL = "https://officialfawzaanstore.com";
+const LEGACY_PUBLIC_HOSTS = new Set(["fawzaanstore.pages.dev"]);
+const CRAWL_DOCUMENT_CACHE_HEADERS = {
+  "cache-control": "public, max-age=900, s-maxage=3600, stale-while-revalidate=86400",
+};
+const CRAWL_DOCUMENT_MEMORY_TTL_MS = 15 * 60 * 1000;
+let sitemapDocumentCache: { body: string; expiresAt: number } | null = null;
+let merchantFeedDocumentCache: { body: string; expiresAt: number } | null = null;
 const CATALOG_CACHE_HEADERS = {
   "cache-control": "public, max-age=0, s-maxage=60, stale-while-revalidate=300",
 };
@@ -698,25 +704,63 @@ function publicSiteUrl(env: unknown, request: Request) {
   return (envString(env, "VITE_PUBLIC_SITE_URL", request) || PUBLIC_SITE_URL).replace(/\/+$/, "");
 }
 
+function handleCanonicalHostRedirect(request: Request, env: unknown): Response | null {
+  if (request.method !== "GET" && request.method !== "HEAD") return null;
+  const url = new URL(request.url);
+  if (!LEGACY_PUBLIC_HOSTS.has(url.hostname.toLowerCase())) return null;
+
+  const crawlDocument = new Set(["/robots.txt", "/sitemap.xml", "/merchant-feed.xml"]).has(
+    url.pathname,
+  );
+  const pageRequest =
+    url.pathname === "/" ||
+    (!url.pathname.startsWith("/api/") && !/\.[a-z0-9]{2,8}$/i.test(url.pathname));
+  if (!crawlDocument && !pageRequest) return null;
+
+  const destination = new URL(`${url.pathname}${url.search}`, publicSiteUrl(env, request));
+  return new Response(null, {
+    status: 308,
+    headers: {
+      location: destination.href,
+      "cache-control": "public, max-age=3600, s-maxage=86400",
+    },
+  });
+}
+
 function handleRobotsRequest(request: Request, env: unknown): Response | null {
   const url = new URL(request.url);
   if ((request.method !== "GET" && request.method !== "HEAD") || url.pathname !== "/robots.txt") {
     return null;
   }
-  const body = `User-agent: *
-Allow: /
-Disallow: /admin
-Disallow: /account
-Disallow: /cart
-Disallow: /checkout
-Disallow: /search
-
-Sitemap: ${publicSiteUrl(env, request)}/sitemap.xml
-`;
+  const privatePaths = [
+    "/admin",
+    "/account",
+    "/cart",
+    "/checkout",
+    "/order/",
+    "/search",
+    "/track-order",
+    "/unsubscribe",
+    "/wishlist",
+  ];
+  const rulesFor = (userAgent: string) =>
+    [
+      `User-agent: ${userAgent}`,
+      "Allow: /",
+      ...privatePaths.map((path) => `Disallow: ${path}`),
+    ].join("\n");
+  const body = [
+    rulesFor("*"),
+    rulesFor("OAI-SearchBot"),
+    rulesFor("GPTBot"),
+    rulesFor("ChatGPT-User"),
+    `Sitemap: ${publicSiteUrl(env, request)}/sitemap.xml`,
+    "",
+  ].join("\n\n");
   return new Response(request.method === "HEAD" ? null : body, {
     headers: {
       "content-type": "text/plain; charset=utf-8",
-      "cache-control": "public, max-age=300",
+      ...CRAWL_DOCUMENT_CACHE_HEADERS,
     },
   });
 }
@@ -724,19 +768,13 @@ Sitemap: ${publicSiteUrl(env, request)}/sitemap.xml
 function sitemapUrlNode(
   baseUrl: string,
   path: string,
-  priority: string,
   image?: string,
   imageTitle?: string,
-  lastModified = SITEMAP_LASTMOD,
+  lastModified?: string,
 ) {
   const loc = `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
-  const parts = [
-    "  <url>",
-    `    <loc>${xmlEscape(loc)}</loc>`,
-    `    <lastmod>${xmlEscape(lastModified)}</lastmod>`,
-    "    <changefreq>weekly</changefreq>",
-    `    <priority>${priority}</priority>`,
-  ];
+  const parts = ["  <url>", `    <loc>${xmlEscape(loc)}</loc>`];
+  if (lastModified) parts.push(`    <lastmod>${xmlEscape(lastModified)}</lastmod>`);
   if (image) {
     parts.push(
       "    <image:image>",
@@ -749,10 +787,62 @@ function sitemapUrlNode(
   return parts.join("\n");
 }
 
+function validLastModified(value: unknown) {
+  const timestamp = Date.parse(String(value ?? ""));
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : undefined;
+}
+
+function catalogCollectionSlug(product: Record<string, unknown>) {
+  const raw = String(product.category_id ?? product.category ?? "other")
+    .trim()
+    .toLowerCase();
+  const known = FALLBACK_TAXONOMY.find(
+    (item) => raw === item.slug || raw === item.name.toLowerCase(),
+  );
+  return known?.slug ?? (raw.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "other");
+}
+
+function catalogCollectionName(product: Record<string, unknown>) {
+  const slug = catalogCollectionSlug(product);
+  return (
+    FALLBACK_TAXONOMY.find((item) => item.slug === slug)?.name ||
+    String(product.category ?? slug).trim() ||
+    "Other"
+  );
+}
+
+function isPreOrderCatalogProduct(product: Record<string, unknown>) {
+  return /^pre[\s-]?order$/i.test(String(product.badge ?? "").trim());
+}
+
+function catalogAvailability(product: Record<string, unknown>) {
+  if (isPreOrderCatalogProduct(product)) return "preorder";
+  const stock = product.stock_quantity;
+  if (product.in_stock === false || (stock != null && Number(stock) <= 0)) return "out_of_stock";
+  return "in_stock";
+}
+
+function catalogPrices(product: Record<string, unknown>) {
+  const regular = Number(product.price_inr ?? product.price ?? 0);
+  const sale = Number(product.sale_price_inr ?? product.sale_price ?? 0);
+  return {
+    regular,
+    sale: sale > 0 && sale < regular ? sale : null,
+  };
+}
+
 async function handleSitemapRequest(request: Request, env: unknown): Promise<Response | null> {
   const url = new URL(request.url);
   if ((request.method !== "GET" && request.method !== "HEAD") || url.pathname !== "/sitemap.xml") {
     return null;
+  }
+  if (sitemapDocumentCache && sitemapDocumentCache.expiresAt > Date.now()) {
+    return new Response(request.method === "HEAD" ? null : sitemapDocumentCache.body, {
+      headers: {
+        "content-type": "application/xml; charset=utf-8",
+        ...CRAWL_DOCUMENT_CACHE_HEADERS,
+      },
+    });
   }
   const baseUrl = publicSiteUrl(env, request);
   const staticPaths = [
@@ -766,23 +856,38 @@ async function handleSitemapRequest(request: Request, env: unknown): Promise<Res
     "/pages/privacy",
     "/terms",
   ];
-  const products = mergeLocalCatalogProducts(await liveCatalogProducts(env, request)) as Array<
-    Record<string, unknown>
-  >;
+  const liveProducts = await liveCatalogProducts(env, request);
+  const products = mergeLocalCatalogProducts(liveProducts) as Array<Record<string, unknown>>;
+  const activeProducts = products.filter(
+    (product) => product.is_active !== false && String(product.slug ?? "").trim(),
+  );
+  const collectionLastModified = new Map<string, string | undefined>();
+  activeProducts.forEach((product) => {
+    const slug = catalogCollectionSlug(product);
+    const updated = validLastModified(product.updated_at ?? product.created_at);
+    const existing = collectionLastModified.get(slug);
+    if (!existing || (updated && updated > existing)) collectionLastModified.set(slug, updated);
+  });
   const nodes = [
-    ...staticPaths.map((path) => sitemapUrlNode(baseUrl, path, path === "/" ? "1.0" : "0.7")),
-    ...products
-      .filter((product) => product.is_active !== false && String(product.slug ?? "").trim())
-      .map((product) =>
-        sitemapUrlNode(
-          baseUrl,
-          `/products/${encodeURIComponent(String(product.slug ?? ""))}`,
-          product.is_featured || product.is_bestseller || product.is_new_arrival ? "0.85" : "0.8",
-          typeof product.cover_image_url === "string" ? product.cover_image_url : undefined,
-          String(product.name ?? "Product"),
-          String(product.updated_at ?? product.created_at ?? SITEMAP_LASTMOD),
-        ),
+    ...staticPaths.map((path) => sitemapUrlNode(baseUrl, path)),
+    ...Array.from(collectionLastModified.entries()).map(([slug, updated]) =>
+      sitemapUrlNode(
+        baseUrl,
+        `/shop?collection=${encodeURIComponent(slug)}`,
+        undefined,
+        undefined,
+        updated,
       ),
+    ),
+    ...activeProducts.map((product) =>
+      sitemapUrlNode(
+        baseUrl,
+        `/products/${encodeURIComponent(String(product.slug ?? ""))}`,
+        typeof product.cover_image_url === "string" ? product.cover_image_url : undefined,
+        String(product.name ?? "Product"),
+        validLastModified(product.updated_at ?? product.created_at),
+      ),
+    ),
   ];
   const body = [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -791,10 +896,117 @@ async function handleSitemapRequest(request: Request, env: unknown): Promise<Res
     "</urlset>",
     "",
   ].join("\n");
+  if (Array.isArray(liveProducts) && liveProducts.length) {
+    sitemapDocumentCache = {
+      body,
+      expiresAt: Date.now() + CRAWL_DOCUMENT_MEMORY_TTL_MS,
+    };
+  }
   return new Response(request.method === "HEAD" ? null : body, {
     headers: {
       "content-type": "application/xml; charset=utf-8",
-      "cache-control": "public, max-age=300",
+      ...CRAWL_DOCUMENT_CACHE_HEADERS,
+    },
+  });
+}
+
+async function handleMerchantFeedRequest(request: Request, env: unknown): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (
+    (request.method !== "GET" && request.method !== "HEAD") ||
+    url.pathname !== "/merchant-feed.xml"
+  ) {
+    return null;
+  }
+  if (merchantFeedDocumentCache && merchantFeedDocumentCache.expiresAt > Date.now()) {
+    return new Response(request.method === "HEAD" ? null : merchantFeedDocumentCache.body, {
+      headers: {
+        "content-type": "application/xml; charset=utf-8",
+        ...CRAWL_DOCUMENT_CACHE_HEADERS,
+      },
+    });
+  }
+
+  const baseUrl = publicSiteUrl(env, request);
+  const liveProducts = await liveCatalogProducts(env, request);
+  const products = mergeLocalCatalogProducts(liveProducts) as Array<Record<string, unknown>>;
+  const items = products
+    .filter((product) => {
+      const image = String(product.cover_image_url ?? "").trim();
+      return (
+        product.is_active !== false &&
+        String(product.slug ?? "").trim() &&
+        image &&
+        catalogPrices(product).regular > 0
+      );
+    })
+    .map((product) => {
+      const slug = String(product.slug ?? "").trim();
+      const name = String(product.name ?? "Product").trim();
+      const category = catalogCollectionName(product);
+      const description =
+        String(product.description ?? product.short_description ?? "").trim() ||
+        `${name} from Fawzaan Store.`;
+      const images = [
+        product.cover_image_url,
+        ...(Array.isArray(product.images) ? product.images : []),
+      ]
+        .map((image) => String(image ?? "").trim())
+        .filter((image, index, values) => image && values.indexOf(image) === index);
+      const prices = catalogPrices(product);
+      const lines = [
+        "    <item>",
+        `      <g:id>${xmlEscape(product.id ?? slug)}</g:id>`,
+        `      <title>${xmlEscape(name)}</title>`,
+        `      <description>${xmlEscape(description)}</description>`,
+        `      <link>${xmlEscape(`${baseUrl}/products/${encodeURIComponent(slug)}`)}</link>`,
+        `      <g:image_link>${xmlEscape(new URL(images[0], `${baseUrl}/`).href)}</g:image_link>`,
+        ...images
+          .slice(1, 11)
+          .map(
+            (image) =>
+              `      <g:additional_image_link>${xmlEscape(new URL(image, `${baseUrl}/`).href)}</g:additional_image_link>`,
+          ),
+        `      <g:availability>${catalogAvailability(product)}</g:availability>`,
+        `      <g:condition>new</g:condition>`,
+        `      <g:price>${prices.regular.toFixed(2)} INR</g:price>`,
+        ...(prices.sale
+          ? [`      <g:sale_price>${prices.sale.toFixed(2)} INR</g:sale_price>`]
+          : []),
+        `      <g:brand>Fawzaan Store</g:brand>`,
+        `      <g:product_type>${xmlEscape(category)}</g:product_type>`,
+        `      <g:identifier_exists>no</g:identifier_exists>`,
+        "      <g:shipping>",
+        "        <g:country>IN</g:country>",
+        "        <g:service>Standard</g:service>",
+        "        <g:price>0.00 INR</g:price>",
+        "      </g:shipping>",
+        "    </item>",
+      ];
+      return lines.join("\n");
+    });
+  const body = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">',
+    "  <channel>",
+    "    <title>Fawzaan Store product feed</title>",
+    `    <link>${xmlEscape(baseUrl)}</link>`,
+    "    <description>Live Fawzaan Store product catalog</description>",
+    ...items,
+    "  </channel>",
+    "</rss>",
+    "",
+  ].join("\n");
+  if (Array.isArray(liveProducts) && liveProducts.length) {
+    merchantFeedDocumentCache = {
+      body,
+      expiresAt: Date.now() + CRAWL_DOCUMENT_MEMORY_TTL_MS,
+    };
+  }
+  return new Response(request.method === "HEAD" ? null : body, {
+    headers: {
+      "content-type": "application/xml; charset=utf-8",
+      ...CRAWL_DOCUMENT_CACHE_HEADERS,
     },
   });
 }
@@ -828,11 +1040,17 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     const finish = (response: Response) => withSecurityHeaders(response, request);
     try {
+      const canonicalHostRedirect = handleCanonicalHostRedirect(request, env);
+      if (canonicalHostRedirect) return finish(canonicalHostRedirect);
+
       const robotsResponse = handleRobotsRequest(request, env);
       if (robotsResponse) return finish(robotsResponse);
 
       const sitemapResponse = await handleSitemapRequest(request, env);
       if (sitemapResponse) return finish(sitemapResponse);
+
+      const merchantFeedResponse = await handleMerchantFeedRequest(request, env);
+      if (merchantFeedResponse) return finish(merchantFeedResponse);
 
       const mediaResponse = await handleMediaRequest(request, env);
       if (mediaResponse) return finish(mediaResponse);

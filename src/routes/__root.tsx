@@ -27,6 +27,11 @@ import {
   seo,
   SITE_URL,
 } from "@/lib/seo";
+import {
+  STORE_INSTAGRAM_URL,
+  STORE_SUPPORT_EMAIL,
+  STORE_WHATSAPP_DISPLAY,
+} from "@/lib/store-config";
 
 function NotFoundComponent() {
   return (
@@ -91,16 +96,21 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => {
     const defaultSeo = seo({ title: DEFAULT_TITLE, description: DEFAULT_DESCRIPTION, path: "/" });
+    const googleVerification = import.meta.env.VITE_GOOGLE_SITE_VERIFICATION?.trim();
+    const bingVerification = import.meta.env.VITE_BING_SITE_VERIFICATION?.trim();
     return {
       meta: [
         { charSet: "utf-8" },
         { name: "viewport", content: "width=device-width, initial-scale=1" },
         { name: "theme-color", content: "#0a0a0a" },
         ...defaultSeo.meta,
+        ...(googleVerification
+          ? [{ name: "google-site-verification", content: googleVerification }]
+          : []),
+        ...(bingVerification ? [{ name: "msvalidate.01", content: bingVerification }] : []),
       ],
       links: [
         { rel: "stylesheet", href: appCss },
-        ...defaultSeo.links,
         { rel: "icon", href: "/fawzaan-logo.svg", type: "image/svg+xml" },
         { rel: "apple-touch-icon", href: "/fawzaan-logo.png" },
         { rel: "manifest", href: "/site.webmanifest" },
@@ -120,14 +130,34 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             "@id": `${SITE_URL}/#store`,
             name: BRAND_NAME,
             alternateName: BRAND_ALTERNATE_NAMES,
+            description: DEFAULT_DESCRIPTION,
             url: SITE_URL,
             logo: absoluteUrl("/fawzaan-logo.png"),
             image: absoluteUrl("/og-image-v2.jpg"),
+            email: STORE_SUPPORT_EMAIL,
+            telephone: STORE_WHATSAPP_DISPLAY,
+            sameAs: [STORE_INSTAGRAM_URL],
+            currenciesAccepted: "INR",
+            address: {
+              "@type": "PostalAddress",
+              streetAddress: "Kurla West",
+              addressLocality: "Mumbai",
+              addressRegion: "Maharashtra",
+              postalCode: "400070",
+              addressCountry: "IN",
+            },
+            contactPoint: {
+              "@type": "ContactPoint",
+              contactType: "customer service",
+              telephone: STORE_WHATSAPP_DISPLAY,
+              email: STORE_SUPPORT_EMAIL,
+              areaServed: "IN",
+            },
             hasMerchantReturnPolicy: {
               "@type": "MerchantReturnPolicy",
               applicableCountry: "IN",
               returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
-              merchantReturnDays: 30,
+              merchantReturnDays: 5,
               returnPolicyUrl: absoluteUrl("/pages/returns"),
             },
           }),
@@ -160,7 +190,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en-IN">
       <head>
         <HeadContent />
       </head>

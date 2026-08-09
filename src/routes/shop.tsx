@@ -4,39 +4,99 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { StoreProductCard } from "@/components/store/product-card";
 import { StorePage } from "@/components/store/store-chrome";
-import { merchandiseProducts, toStoreProduct } from "@/data/store";
+import { merchandiseProducts, toStoreProduct, type StoreProduct } from "@/data/store";
 import {
   listCatalogPresentation,
   type CatalogBanner,
   type CatalogTaxonomyItem,
 } from "@/services/catalogPresentation";
 import { listActiveProducts } from "@/services/productService";
-import { seo } from "@/lib/seo";
+import { absoluteUrl, seo } from "@/lib/seo";
 import { productCountLabel } from "@/lib/catalog-copy";
 
 type ShopSearch = { collection?: string; filter?: string; q?: string };
 
 export const Route = createFileRoute("/shop")({
-  head: () =>
-    seo({
-      title: "Shop All | Fawzaan Store",
-      description:
-        "Browse all Fawzaan shemaghs, niqabs, kufis, watches, gloves and Kashmir honey with current prices and live availability.",
-      path: "/shop",
-    }),
-  loader: async () => {
-    const [products, presentation] = await Promise.all([
-      listActiveProducts(),
-      listCatalogPresentation(),
-    ]);
-    return { products: products.map(toStoreProduct), presentation };
-  },
   validateSearch: (search: Record<string, unknown>): ShopSearch => ({
     collection:
       typeof search.collection === "string" ? search.collection.trim().slice(0, 80) : undefined,
     filter: typeof search.filter === "string" ? search.filter.trim().slice(0, 80) : undefined,
     q: typeof search.q === "string" ? search.q.trim().slice(0, 120) : undefined,
   }),
+  loaderDeps: ({ search }) => search,
+  loader: async ({ deps }) => {
+    const [products, presentation] = await Promise.all([
+      listActiveProducts(),
+      listCatalogPresentation(),
+    ]);
+    return { products: products.map(toStoreProduct), presentation, requestedSearch: deps };
+  },
+  head: ({ loaderData }) => {
+    const products = (loaderData?.products ?? []) as StoreProduct[];
+    const presentation = loaderData?.presentation;
+    const requestedSearch = loaderData?.requestedSearch as ShopSearch | undefined;
+    const requestedCollection = String(requestedSearch?.collection ?? "")
+      .trim()
+      .toLowerCase();
+    const collection = presentation?.taxonomy.find(
+      (item) =>
+        item.type === "collection" &&
+        (item.slug.toLowerCase() === requestedCollection ||
+          item.name.toLowerCase() === requestedCollection),
+    );
+    const hasNarrowSearch = Boolean(requestedSearch?.filter || requestedSearch?.q);
+    const invalidCollection = Boolean(requestedCollection && !collection);
+    const visibleProducts = collection
+      ? products.filter(
+          (product) =>
+            String(product.collectionSlug ?? product.collection).toLowerCase() ===
+            collection.slug.toLowerCase(),
+        )
+      : products;
+    const pagePath = collection
+      ? `/shop?collection=${encodeURIComponent(collection.slug)}`
+      : "/shop";
+    const title = collection
+      ? `${collection.name} Online | Fawzaan Store`
+      : "Shop All | Fawzaan Store";
+    const description = collection
+      ? `Shop Fawzaan ${collection.name.toLowerCase()} online with current prices, product options and live availability.`
+      : "Browse all Fawzaan shemaghs, niqabs, kufis, watches, gloves and Kashmir honey with current prices and live availability.";
+    const metadata = seo({
+      title,
+      description,
+      path: pagePath,
+      noIndex: hasNarrowSearch || invalidCollection,
+    });
+    return {
+      ...metadata,
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "CollectionPage",
+            "@id": `${absoluteUrl(pagePath)}#collection`,
+            url: absoluteUrl(pagePath),
+            name: title,
+            description,
+            isPartOf: { "@id": `${absoluteUrl("/")}#website` },
+            mainEntity: {
+              "@type": "ItemList",
+              numberOfItems: visibleProducts.length,
+              itemListElement: visibleProducts.map((product, index) => ({
+                "@type": "ListItem",
+                position: index + 1,
+                url: absoluteUrl(`/products/${encodeURIComponent(product.slug)}`),
+                name: product.name,
+                image: product.images[0] ? absoluteUrl(product.images[0]) : undefined,
+              })),
+            },
+          }),
+        },
+      ],
+    };
+  },
   component: ShopPage,
 });
 

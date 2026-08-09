@@ -5,16 +5,6 @@ import { useState } from "react";
 import { StorePage } from "@/components/store/store-chrome";
 import { seo } from "@/lib/seo";
 
-export const Route = createFileRoute("/faq")({
-  head: () =>
-    seo({
-      title: "FAQ | Fawzaan Orders, Shipping & Returns",
-      description: "Answers to common questions about Fawzaan orders, shipping, returns and care.",
-      path: "/faq",
-    }),
-  component: FaqPage,
-});
-
 const faqs = [
   {
     section: "Orders and shipping",
@@ -38,7 +28,7 @@ const faqs = [
     items: [
       {
         q: "What is your return policy?",
-        a: "Eligible unused items may be returned within 30 days of delivery. Hygiene, food-safety, and final-sale exclusions apply. Read the returns page before opening or using an item.",
+        a: "Eligible unused items may be returned within 5 days of delivery. Hygiene, food-safety, and final-sale exclusions apply. Read the returns page before opening or using an item.",
       },
       {
         q: "Who pays for return shipping?",
@@ -73,6 +63,36 @@ const faqs = [
     ],
   },
 ];
+
+export const Route = createFileRoute("/faq")({
+  head: () => {
+    const metadata = seo({
+      title: "FAQ | Fawzaan Orders, Shipping & Returns",
+      description: "Answers to common questions about Fawzaan orders, shipping, returns and care.",
+      path: "/faq",
+    });
+    return {
+      ...metadata,
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: faqs.flatMap((section) =>
+              section.items.map((item) => ({
+                "@type": "Question",
+                name: item.q,
+                acceptedAnswer: { "@type": "Answer", text: item.a },
+              })),
+            ),
+          }),
+        },
+      ],
+    };
+  },
+  component: FaqPage,
+});
 
 function FaqPage() {
   const [open, setOpen] = useState<string | null>(faqs[0].items[0].q);

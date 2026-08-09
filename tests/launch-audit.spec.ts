@@ -8,11 +8,11 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
   await expect(page).toHaveTitle("Fawzaan Store | Shemaghs, Niqabs, Kufis & More");
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
-    "https://fawzaanstore.pages.dev/",
+    "https://officialfawzaanstore.com/",
   );
   await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
     "content",
-    "https://fawzaanstore.pages.dev/og-image-v2.jpg",
+    "https://officialfawzaanstore.com/og-image-v2.jpg",
   );
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "/fawzaan-logo.svg");
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute(
@@ -25,7 +25,7 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
     expect.arrayContaining(["OnlineStore", "WebSite"]),
   );
   expect(parsedHomeSchemas.find((value) => value["@type"] === "OnlineStore")?.logo).toBe(
-    "https://fawzaanstore.pages.dev/fawzaan-logo.png",
+    "https://officialfawzaanstore.com/fawzaan-logo.png",
   );
   const logo = await request.get("/fawzaan-logo.png");
   expect(logo.ok()).toBeTruthy();
@@ -57,12 +57,12 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
   expect(sitemap.ok()).toBeTruthy();
   const sitemapXml = await sitemap.text();
   expect(sitemapXml).toContain("/products/yemeni-shemagh");
-  expect(sitemapXml).not.toContain("<loc>https://fawzaanstore.pages.dev/men</loc>");
-  expect(sitemapXml).not.toContain("<loc>https://fawzaanstore.pages.dev/women</loc>");
-  expect(sitemapXml).not.toContain("<loc>https://fawzaanstore.pages.dev/privacy</loc>");
+  expect(sitemapXml).not.toContain("<loc>https://officialfawzaanstore.com/men</loc>");
+  expect(sitemapXml).not.toContain("<loc>https://officialfawzaanstore.com/women</loc>");
+  expect(sitemapXml).not.toContain("<loc>https://officialfawzaanstore.com/privacy</loc>");
 
   const robots = await request.get("/robots.txt");
-  expect(await robots.text()).toContain("https://fawzaanstore.pages.dev/sitemap.xml");
+  expect(await robots.text()).toContain("https://officialfawzaanstore.com/sitemap.xml");
   const account = await request.get("/account");
   expect(account.headers()["x-robots-tag"]).toBe("noindex, nofollow");
 });
