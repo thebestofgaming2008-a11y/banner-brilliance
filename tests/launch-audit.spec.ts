@@ -22,6 +22,10 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
     "href",
     "/apple-touch-icon.png",
   );
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute(
+    "href",
+    "/site-v2.webmanifest",
+  );
   const homeSchemas = await page.locator('script[type="application/ld+json"]').allTextContents();
   const parsedHomeSchemas = homeSchemas.map((value) => JSON.parse(value));
   expect(parsedHomeSchemas.map((value) => value["@type"])).toEqual(
@@ -44,6 +48,15 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
     const icon = await request.get(iconPath);
     expect(icon.ok(), `${iconPath} should load`).toBeTruthy();
   }
+  const manifest = await request.get("/site-v2.webmanifest");
+  expect(manifest.ok()).toBeTruthy();
+  expect(await manifest.json()).toMatchObject({
+    icons: expect.arrayContaining([
+      expect.objectContaining({ src: "/icon-192.png", sizes: "192x192" }),
+      expect.objectContaining({ src: "/icon-512.png", sizes: "512x512" }),
+      expect.objectContaining({ src: "/icon-maskable-512.png", purpose: "maskable" }),
+    ]),
+  });
 
   const catalog = await request.get("/api/catalog/products");
   expect(catalog.ok()).toBeTruthy();
