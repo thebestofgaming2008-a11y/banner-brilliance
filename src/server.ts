@@ -752,7 +752,6 @@ function handleRobotsRequest(request: Request, env: unknown): Response | null {
   const body = [
     rulesFor("*"),
     rulesFor("OAI-SearchBot"),
-    rulesFor("GPTBot"),
     rulesFor("ChatGPT-User"),
     `Sitemap: ${publicSiteUrl(env, request)}/sitemap.xml`,
     "",
