@@ -1,5 +1,5 @@
 export const SITE_URL = (
-  import.meta.env.VITE_PUBLIC_SITE_URL || "https://officialfawzaanstore.com"
+  import.meta.env.VITE_PUBLIC_SITE_URL || "https://fawzaanstore.pages.dev"
 ).replace(/\/+$/, "");
 
 export const BRAND_NAME = import.meta.env.VITE_STORE_NAME || "Fawzaan Store";

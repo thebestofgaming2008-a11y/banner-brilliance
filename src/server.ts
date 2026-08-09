@@ -28,8 +28,7 @@ type R2BucketLike = {
   get: (key: string) => Promise<R2ObjectBody | null>;
 };
 
-const PUBLIC_SITE_URL = "https://officialfawzaanstore.com";
-const LEGACY_PUBLIC_HOSTS = new Set(["fawzaanstore.pages.dev"]);
+const PUBLIC_SITE_URL = "https://fawzaanstore.pages.dev";
 const CRAWL_DOCUMENT_CACHE_HEADERS = {
   "cache-control": "public, max-age=900, s-maxage=3600, stale-while-revalidate=86400",
 };
@@ -704,29 +703,6 @@ function publicSiteUrl(env: unknown, request: Request) {
   return (envString(env, "VITE_PUBLIC_SITE_URL", request) || PUBLIC_SITE_URL).replace(/\/+$/, "");
 }
 
-function handleCanonicalHostRedirect(request: Request, env: unknown): Response | null {
-  if (request.method !== "GET" && request.method !== "HEAD") return null;
-  const url = new URL(request.url);
-  if (!LEGACY_PUBLIC_HOSTS.has(url.hostname.toLowerCase())) return null;
-
-  const crawlDocument = new Set(["/robots.txt", "/sitemap.xml", "/merchant-feed.xml"]).has(
-    url.pathname,
-  );
-  const pageRequest =
-    url.pathname === "/" ||
-    (!url.pathname.startsWith("/api/") && !/\.[a-z0-9]{2,8}$/i.test(url.pathname));
-  if (!crawlDocument && !pageRequest) return null;
-
-  const destination = new URL(`${url.pathname}${url.search}`, publicSiteUrl(env, request));
-  return new Response(null, {
-    status: 308,
-    headers: {
-      location: destination.href,
-      "cache-control": "public, max-age=3600, s-maxage=86400",
-    },
-  });
-}
-
 function handleRobotsRequest(request: Request, env: unknown): Response | null {
   const url = new URL(request.url);
   if ((request.method !== "GET" && request.method !== "HEAD") || url.pathname !== "/robots.txt") {
@@ -1039,9 +1015,6 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     const finish = (response: Response) => withSecurityHeaders(response, request);
     try {
-      const canonicalHostRedirect = handleCanonicalHostRedirect(request, env);
-      if (canonicalHostRedirect) return finish(canonicalHostRedirect);
-
       const robotsResponse = handleRobotsRequest(request, env);
       if (robotsResponse) return finish(robotsResponse);
 
