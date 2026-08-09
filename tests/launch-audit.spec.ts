@@ -14,10 +14,13 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
     "content",
     "https://officialfawzaanstore.com/og-image-v2.jpg",
   );
-  await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "/fawzaan-logo.svg");
+  await expect(page.locator('link[rel="icon"][sizes="32x32"]')).toHaveAttribute(
+    "href",
+    "/favicon-32.png",
+  );
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute(
     "href",
-    "/fawzaan-logo.png",
+    "/apple-touch-icon.png",
   );
   const homeSchemas = await page.locator('script[type="application/ld+json"]').allTextContents();
   const parsedHomeSchemas = homeSchemas.map((value) => JSON.parse(value));
@@ -30,6 +33,17 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
   const logo = await request.get("/fawzaan-logo.png");
   expect(logo.ok()).toBeTruthy();
   expect(logo.headers()["content-type"]).toBe("image/png");
+  for (const iconPath of [
+    "/favicon-32.png",
+    "/favicon.ico",
+    "/apple-touch-icon.png",
+    "/icon-192.png",
+    "/icon-512.png",
+    "/icon-maskable-512.png",
+  ]) {
+    const icon = await request.get(iconPath);
+    expect(icon.ok(), `${iconPath} should load`).toBeTruthy();
+  }
 
   const catalog = await request.get("/api/catalog/products");
   expect(catalog.ok()).toBeTruthy();

@@ -23,7 +23,7 @@ test("gift-shaped offer trigger stays circular and opens the discount panel", as
   await page.goto("/");
   await expect(page.getByRole("link", { name: "Fawzaan home" }).locator("img")).toHaveAttribute(
     "src",
-    "/fawzaan-logo-640.png",
+    "/fawzaan-logo.png",
   );
   const trigger = page.getByRole("button", { name: /show (current offer|gifts and offers)/i });
   await expect(trigger).toBeVisible();
