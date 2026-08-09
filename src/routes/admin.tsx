@@ -2845,7 +2845,7 @@ const EMPTY_CAMPAIGN: MarketingCampaignInput = {
   preheader: "",
   body: "",
   buttonLabel: "Shop now",
-  buttonUrl: "https://fawzaanstore.pages.dev/shop",
+  buttonUrl: "https://officialfawzaanstore.com/shop",
 };
 
 function MarketingPanel({
