@@ -22,8 +22,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-
-const ORDER_STATUSES = ["processing", "shipped", "delivered", "cancelled", "returned"] as const;
+import { normalizeOrderStatus, ORDER_STATUS_OPTIONS, orderStatusLabel } from "@/lib/order-status";
 
 function formatPrice(value: number | null | undefined) {
   return new Intl.NumberFormat("en-IN", {
@@ -52,12 +51,6 @@ function titleCase(value: string | null | undefined, fallback = "Not recorded") 
   return text.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function normalizeOrderStatus(value: string | null | undefined) {
-  return ORDER_STATUSES.includes(value as (typeof ORDER_STATUSES)[number])
-    ? (value as (typeof ORDER_STATUSES)[number])
-    : "processing";
-}
-
 function normalizePhone(value: string | null | undefined) {
   const digits = String(value ?? "").replace(/\D/g, "");
   if (!digits) return "";
@@ -78,12 +71,12 @@ function statusClasses(value: string | null | undefined) {
   if (status === "refunded") return "border-violet-200 bg-violet-50 text-violet-800";
   if (status === "cancelled" || status === "returned" || status === "failed")
     return "border-rose-200 bg-rose-50 text-rose-800";
-  if (status === "shipped" || status === "processing")
+  if (status === "shipped" || status === "booked" || status === "processing")
     return "border-amber-200 bg-amber-50 text-amber-800";
   return "border-[#D1D5DB] bg-[#F9FAFB] text-[#4B5563]";
 }
 
-function StatusPill({ value }: { value: string | null | undefined }) {
+function StatusPill({ value, label }: { value: string | null | undefined; label?: string }) {
   return (
     <span
       className={cn(
@@ -91,7 +84,7 @@ function StatusPill({ value }: { value: string | null | undefined }) {
         statusClasses(value),
       )}
     >
-      {titleCase(value)}
+      {label ?? titleCase(value)}
     </span>
   );
 }
@@ -174,7 +167,7 @@ export function OrderDetailsSheet({
               </SheetDescription>
             </div>
             <div className="flex flex-wrap gap-2">
-              <StatusPill value={order.status} />
+              <StatusPill value={order.status} label={orderStatusLabel(order.status)} />
               <StatusPill value={order.payment_status} />
             </div>
           </div>
@@ -505,9 +498,9 @@ export function OrderDetailsSheet({
                   onChange={(event) => void onStatusChange(order.id, event.target.value)}
                   className="h-10 w-full rounded-md border border-[#D1D5DB] bg-white px-3 text-sm outline-none focus:border-[#111827]"
                 >
-                  {ORDER_STATUSES.map((status) => (
+                  {ORDER_STATUS_OPTIONS.map((status) => (
                     <option key={status} value={status}>
-                      {titleCase(status)}
+                      {orderStatusLabel(status)}
                     </option>
                   ))}
                 </select>

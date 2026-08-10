@@ -79,6 +79,7 @@ const ORDER_STATUSES = new Set([
   "packed",
   "confirmed",
   "processing",
+  "booked",
   "shipped",
   "delivered",
   "cancelled",
@@ -89,6 +90,7 @@ const WHATSAPP_STOCK_STATUSES = new Set([
   "packed",
   "confirmed",
   "processing",
+  "booked",
   "shipped",
   "delivered",
 ]);

@@ -8,6 +8,7 @@ import { api } from "../../convex/_generated/api";
 import { StorePage } from "@/components/store/store-chrome";
 import { useCurrency } from "@/hooks/use-currency";
 import { convex } from "@/lib/backend";
+import { orderStatusLabel } from "@/lib/order-status";
 import { seo } from "@/lib/seo";
 
 type OrderSearch = { email?: string };
@@ -135,7 +136,7 @@ function OrderLookup({ orderNumber, email }: { orderNumber: string; email: strin
               ORDER {trackedOrder.order_number}
             </h1>
             <span className="brand-mango-bg px-3 py-2 text-[10px] font-bold uppercase">
-              {trackedOrder.status ?? "Processing"}
+              {orderStatusLabel(trackedOrder.status)}
             </span>
           </div>
           <p className="mt-2 text-sm text-black/50">

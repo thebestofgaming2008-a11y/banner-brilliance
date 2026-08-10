@@ -121,6 +121,7 @@ import {
 } from "@/services/adminService";
 import type { Product } from "@/services/productService";
 import { catalog as storefrontCatalog } from "@/lib/products";
+import { normalizeOrderStatus, ORDER_STATUS_OPTIONS, orderStatusLabel } from "@/lib/order-status";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -215,7 +216,7 @@ const NAV = [
 
 const PAGE_DESCRIPTIONS: Record<TabKey, string> = {
   dash: "See what needs attention today.",
-  orders: "Confirm, pack, ship, and track customer orders.",
+  orders: "Confirm, pack, dispatch, and track customer orders.",
   products: "Add products and manage their details, images, and visibility.",
   inventory: "Keep stock accurate and find low-stock products.",
   promotions: "Create checkout codes and choose which offer appears on the storefront.",
@@ -227,27 +228,16 @@ const PAGE_DESCRIPTIONS: Record<TabKey, string> = {
 
 type TabKey = (typeof NAV)[number]["key"];
 
-const STATUS_OPTIONS = ["processing", "shipped", "delivered", "cancelled", "returned"] as const;
-
 const ORDER_FILTERS = [
   { key: "all", label: "All orders" },
+  { key: "awaiting_dispatch", label: "Awaiting dispatch" },
   { key: "processing", label: "Processing" },
-  { key: "shipped_no_tracking", label: "Shipped missing tracking" },
-  { key: "shipped_tracked", label: "Shipped tracked" },
+  { key: "booked", label: "Booked" },
+  { key: "shipped_no_tracking", label: "Dispatch missing tracking" },
+  { key: "shipped_tracked", label: "Dispatch tracked" },
   { key: "delivered", label: "Delivered" },
   { key: "returns", label: "Returns / cancellations" },
 ] as const;
-
-function normalizeOrderStatus(status: string | null | undefined) {
-  if (
-    status === "shipped" ||
-    status === "delivered" ||
-    status === "cancelled" ||
-    status === "returned"
-  )
-    return status;
-  return "processing";
-}
 
 function normalizeTaxonomySlug(value: string | null | undefined) {
   return String(value ?? "")
@@ -517,7 +507,7 @@ const Admin = () => {
     const lines = [
       `Assalamu alaikum ${order.customer_name ?? ""},`.trim(),
       "",
-      `Your order ${orderNumber} has shipped.`,
+      `Your order ${orderNumber} has been dispatched.`,
       payload.carrier.trim() ? `Carrier: ${payload.carrier.trim()}` : "",
       `Tracking number: ${payload.trackingNumber.trim()}`,
       payload.trackingUrl.trim() ? `Track here: ${payload.trackingUrl.trim()}` : "",
@@ -539,7 +529,10 @@ const Admin = () => {
     return orders.filter((o) => {
       const status = normalizeOrderStatus(o.status);
       const hasTracking = Boolean(o.tracking_number);
+      if (orderFilter === "awaiting_dispatch" && status !== "processing" && status !== "booked")
+        return false;
       if (orderFilter === "processing" && status !== "processing") return false;
+      if (orderFilter === "booked" && status !== "booked") return false;
       if (orderFilter === "shipped_no_tracking" && !(status === "shipped" && !hasTracking))
         return false;
       if (orderFilter === "shipped_tracked" && !(status === "shipped" && hasTracking)) return false;
@@ -578,6 +571,10 @@ const Admin = () => {
 
   const processingOrders = useMemo(
     () => orders.filter((o) => normalizeOrderStatus(o.status) === "processing"),
+    [orders],
+  );
+  const bookedOrders = useMemo(
+    () => orders.filter((o) => normalizeOrderStatus(o.status) === "booked"),
     [orders],
   );
   const shippedMissingTracking = useMemo(
@@ -669,7 +666,8 @@ const Admin = () => {
   const inTransitOrders = orders.filter(
     (o) => normalizeOrderStatus(o.status) === "shipped" && Boolean(o.tracking_number),
   ).length;
-  const toActionOrders = processingOrders.length + shippedMissingTracking.length;
+  const toActionOrders =
+    processingOrders.length + bookedOrders.length + shippedMissingTracking.length;
   const initials =
     (adminEmail || "HE")
       .split("@")[0]
@@ -693,7 +691,11 @@ const Admin = () => {
     },
   ];
   const navBadges: Partial<Record<TabKey, number>> = {
-    orders: processingOrders.length + shippedMissingTracking.length + paymentRecoveries.length,
+    orders:
+      processingOrders.length +
+      bookedOrders.length +
+      shippedMissingTracking.length +
+      paymentRecoveries.length,
     inventory: opsStats.lowStock + opsStats.outOfStock,
     reviews: pendingReviews,
   };
@@ -953,16 +955,16 @@ const Admin = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
                     <AttentionCard
-                      title="Awaiting shipment"
-                      count={processingOrders.length}
-                      description="Orders not yet sent"
+                      title="Awaiting dispatch"
+                      count={processingOrders.length + bookedOrders.length}
+                      description="Processing or booked"
                       Icon={PackageOpen}
                       accent="warning"
                     />
                     <AttentionCard
                       title="Missing tracking"
                       count={shippedMissingTracking.length}
-                      description="Shipped without tracker"
+                      description="Dispatched without tracker"
                       Icon={CircleAlert}
                       accent="info"
                     />
@@ -975,7 +977,7 @@ const Admin = () => {
                     <AttentionCard
                       title="To action"
                       count={toActionOrders}
-                      description="Unshipped + missing tracking"
+                      description="Awaiting dispatch + tracking"
                       Icon={Clock}
                     />
                   </div>
@@ -1029,10 +1031,10 @@ const Admin = () => {
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
                   {[
                     {
-                      label: "Not shipped",
-                      count: processingOrders.length,
-                      detail: "Awaiting fulfillment",
-                      filter: "processing",
+                      label: "Awaiting dispatch",
+                      count: processingOrders.length + bookedOrders.length,
+                      detail: "Processing or booked",
+                      filter: "awaiting_dispatch",
                       Icon: PackageOpen,
                     },
                     {
@@ -1166,9 +1168,9 @@ const Admin = () => {
                         <div className="flex gap-2">
                           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                           <div>
-                            <p className="font-semibold">Shipped orders missing tracking</p>
+                            <p className="font-semibold">Dispatched orders missing tracking</p>
                             <p className="text-amber-800/80">
-                              {shippedMissingTracking.length} shipped order
+                              {shippedMissingTracking.length} dispatched order
                               {shippedMissingTracking.length === 1 ? "" : "s"} need a tracking
                               number before customers can be updated.
                             </p>
@@ -2007,8 +2009,15 @@ const STATUS_BADGE: Record<
     border: "border-amber-200",
     Icon: Package,
   },
+  booked: {
+    label: "Booked",
+    bg: "bg-cyan-50",
+    text: "text-cyan-800",
+    border: "border-cyan-200",
+    Icon: PackageCheck,
+  },
   shipped: {
-    label: "Shipped",
+    label: "Dispatch",
     bg: "bg-blue-50",
     text: "text-blue-800",
     border: "border-blue-200",
@@ -2038,8 +2047,7 @@ const STATUS_BADGE: Record<
 };
 
 function statusLabel(status: string) {
-  if (status === "processing") return "Processing / In fulfillment";
-  return STATUS_BADGE[status]?.label ?? status;
+  return orderStatusLabel(status);
 }
 
 function StatusBadge({ status, testId }: { status: string | null | undefined; testId?: string }) {
@@ -2282,7 +2290,7 @@ function OrderRow({
             className="text-xs h-8 rounded-md border border-border bg-background px-2 capitalize cursor-pointer hover:border-foreground/40 focus:outline-none focus:border-foreground transition-colors"
             aria-label="Change order status"
           >
-            {STATUS_OPTIONS.map((s) => (
+            {ORDER_STATUS_OPTIONS.map((s) => (
               <option key={s} value={s} className="capitalize">
                 {statusLabel(s)}
               </option>
@@ -2367,7 +2375,7 @@ function OrderRow({
           className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm capitalize outline-none transition-colors focus:border-foreground"
           aria-label="Change order status"
         >
-          {STATUS_OPTIONS.map((s) => (
+          {ORDER_STATUS_OPTIONS.map((s) => (
             <option key={s} value={s} className="capitalize">
               {statusLabel(s)}
             </option>

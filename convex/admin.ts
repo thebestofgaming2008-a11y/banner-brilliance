@@ -823,16 +823,16 @@ export const notifications = query({
     const notices = [
       {
         id: "unshipped",
-        count: orders.filter((o) => o.status === "processing").length,
-        title: "Orders need fulfillment",
-        body: "orders are processing",
+        count: orders.filter((o) => o.status === "processing" || o.status === "booked").length,
+        title: "Orders awaiting dispatch",
+        body: "orders are processing or booked",
         section: "orders",
       },
       {
         id: "tracking",
         count: orders.filter((o) => o.status === "shipped" && !o.tracking_number).length,
         title: "Missing tracking",
-        body: "shipped orders need tracking",
+        body: "dispatched orders need tracking",
         section: "orders",
       },
       {
