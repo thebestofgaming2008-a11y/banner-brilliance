@@ -775,9 +775,15 @@ function sitemapUrlNode(
   const parts = ["  <url>", `    <loc>${xmlEscape(loc)}</loc>`];
   if (lastModified) parts.push(`    <lastmod>${xmlEscape(lastModified)}</lastmod>`);
   if (image) {
+    const imageUrl = new URL(image, baseUrl);
+    if (LEGACY_PUBLIC_HOSTS.has(imageUrl.hostname)) {
+      const canonicalUrl = new URL(baseUrl);
+      imageUrl.protocol = canonicalUrl.protocol;
+      imageUrl.host = canonicalUrl.host;
+    }
     parts.push(
       "    <image:image>",
-      `      <image:loc>${xmlEscape(new URL(image, baseUrl).href)}</image:loc>`,
+      `      <image:loc>${xmlEscape(imageUrl.href)}</image:loc>`,
       `      <image:title>${xmlEscape(imageTitle)}</image:title>`,
       "    </image:image>",
     );

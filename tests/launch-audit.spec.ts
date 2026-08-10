@@ -97,6 +97,7 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
   expect(sitemap.ok()).toBeTruthy();
   const sitemapXml = await sitemap.text();
   expect(sitemapXml).toContain("/products/yemeni-shemagh");
+  expect(sitemapXml).not.toContain("fawzaanstore.pages.dev");
   expect(sitemapXml).not.toContain("<loc>https://officialfawzaanstore.com/men</loc>");
   expect(sitemapXml).not.toContain("<loc>https://officialfawzaanstore.com/women</loc>");
   expect(sitemapXml).not.toContain("<loc>https://officialfawzaanstore.com/privacy</loc>");
