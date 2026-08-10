@@ -103,6 +103,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         { charSet: "utf-8" },
         { name: "viewport", content: "width=device-width, initial-scale=1" },
         { name: "theme-color", content: "#0a0a0a" },
+        { name: "application-name", content: BRAND_NAME },
+        { name: "apple-mobile-web-app-title", content: BRAND_NAME },
         ...defaultSeo.meta,
         ...(googleVerification
           ? [{ name: "google-site-verification", content: googleVerification }]
@@ -133,7 +135,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             name: BRAND_NAME,
             alternateName: BRAND_ALTERNATE_NAMES,
             description: DEFAULT_DESCRIPTION,
-            url: SITE_URL,
+            url: absoluteUrl("/"),
             logo: absoluteUrl("/fawzaan-logo.png"),
             image: absoluteUrl("/og-image-v2.jpg"),
             email: STORE_SUPPORT_EMAIL,
@@ -172,7 +174,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             "@id": `${SITE_URL}/#website`,
             name: BRAND_NAME,
             alternateName: BRAND_ALTERNATE_NAMES,
-            url: SITE_URL,
+            url: absoluteUrl("/"),
             publisher: { "@id": `${SITE_URL}/#store` },
             potentialAction: {
               "@type": "SearchAction",

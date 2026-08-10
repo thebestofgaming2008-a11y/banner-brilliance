@@ -26,6 +26,10 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
     "href",
     "/site-v2.webmanifest",
   );
+  await expect(page.locator('meta[name="application-name"]')).toHaveAttribute(
+    "content",
+    "Fawzaan Store",
+  );
   const homeSchemas = await page.locator('script[type="application/ld+json"]').allTextContents();
   const parsedHomeSchemas = homeSchemas.map((value) => JSON.parse(value));
   expect(parsedHomeSchemas.map((value) => value["@type"])).toEqual(
@@ -34,6 +38,12 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
   expect(parsedHomeSchemas.find((value) => value["@type"] === "OnlineStore")?.logo).toBe(
     "https://officialfawzaanstore.com/fawzaan-logo.png",
   );
+  const websiteSchema = parsedHomeSchemas.find((value) => value["@type"] === "WebSite");
+  expect(websiteSchema).toMatchObject({
+    name: "Fawzaan Store",
+    alternateName: ["Official Fawzaan Store"],
+    url: "https://officialfawzaanstore.com/",
+  });
   const logo = await request.get("/fawzaan-logo.png");
   expect(logo.ok()).toBeTruthy();
   expect(logo.headers()["content-type"]).toBe("image/png");
@@ -57,6 +67,9 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
       expect.objectContaining({ src: "/icon-maskable-512.png", purpose: "maskable" }),
     ]),
   });
+  const indexNowKey = await request.get("/7864d7e0b55641339f02b9d647bcfaad.txt");
+  expect(indexNowKey.ok()).toBeTruthy();
+  expect((await indexNowKey.text()).trim()).toBe("7864d7e0b55641339f02b9d647bcfaad");
 
   const catalog = await request.get("/api/catalog/products");
   expect(catalog.ok()).toBeTruthy();

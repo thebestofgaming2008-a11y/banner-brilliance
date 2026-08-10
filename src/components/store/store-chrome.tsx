@@ -155,12 +155,12 @@ export function StoreHeader() {
           </ChromeButton>
           <a
             href="/"
-            aria-label="Fawzaan home"
+            aria-label="Fawzaan Store home"
             className="absolute left-1/2 top-1/2 h-[42px] w-[100px] -translate-x-1/2 -translate-y-1/2 sm:h-[44px] sm:w-[105px]"
           >
             <img
               src={STORE_LOGO_URL}
-              alt="Fawzaan"
+              alt="Fawzaan Store"
               width={640}
               height={214}
               className="h-full w-full object-contain"
@@ -218,7 +218,13 @@ export function StoreHeader() {
         className={`store-drawer store-drawer--menu fixed inset-y-0 left-0 z-[70] flex h-[100dvh] w-full max-w-[420px] flex-col bg-white ${drawer === "menu" ? "is-open" : ""}`}
       >
         <div className="drawer-reveal flex h-[65px] items-center justify-between border-b border-black/10 px-6">
-          <img src={STORE_LOGO_URL} alt="Fawzaan" width={640} height={214} className="h-9 w-auto" />
+          <img
+            src={STORE_LOGO_URL}
+            alt="Fawzaan Store"
+            width={640}
+            height={214}
+            className="h-9 w-auto"
+          />
           <ChromeButton label="Close menu" onClick={() => setDrawer(null)}>
             <X size={23} />
           </ChromeButton>
@@ -460,7 +466,7 @@ export function StoreHeaderPreview() {
         <span className="absolute left-1/2 top-1/2 h-[42px] w-[100px] -translate-x-1/2 -translate-y-1/2 sm:h-[44px] sm:w-[105px]">
           <img
             src={STORE_LOGO_URL}
-            alt="Fawzaan"
+            alt="Fawzaan Store"
             width={640}
             height={214}
             className="h-full w-full object-contain"
@@ -493,7 +499,7 @@ export function StoreFooter() {
         <div>
           <img
             src={STORE_LOGO_URL}
-            alt="Fawzaan"
+            alt="Fawzaan Store"
             width={640}
             height={214}
             className="-ml-[26px] h-14 w-auto"

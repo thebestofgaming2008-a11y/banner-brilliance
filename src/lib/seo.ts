@@ -4,7 +4,7 @@ export const SITE_URL = (
 
 export const BRAND_NAME = import.meta.env.VITE_STORE_NAME || "Fawzaan Store";
 export const BRAND_SEARCH_NAME = BRAND_NAME;
-export const BRAND_ALTERNATE_NAMES = ["Fawzaan"];
+export const BRAND_ALTERNATE_NAMES = ["Official Fawzaan Store"];
 
 export const DEFAULT_TITLE = `${BRAND_SEARCH_NAME} | Shemaghs, Niqabs, Kufis & More`;
 

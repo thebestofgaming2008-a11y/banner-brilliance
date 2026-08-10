@@ -21,10 +21,9 @@ test("gift-shaped offer trigger stays circular and opens the discount panel", as
   });
 
   await page.goto("/");
-  await expect(page.getByRole("link", { name: "Fawzaan home" }).locator("img")).toHaveAttribute(
-    "src",
-    "/fawzaan-logo.png",
-  );
+  await expect(
+    page.getByRole("link", { name: "Fawzaan Store home" }).locator("img"),
+  ).toHaveAttribute("src", "/fawzaan-logo.png");
   const trigger = page.getByRole("button", { name: /show (current offer|gifts and offers)/i });
   await expect(trigger).toBeVisible();
   await expect(page.getByRole("dialog", { name: "Launch special" })).toHaveCount(0);
