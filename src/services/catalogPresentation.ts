@@ -40,6 +40,17 @@ export type CatalogPresentation = {
   taxonomy: CatalogTaxonomyItem[];
   banners: CatalogBanner[];
   homepage?: HomepageData | null;
+  testimonials?: HomepageTestimonial[];
+};
+
+export type HomepageTestimonial = {
+  id: string;
+  productId: string;
+  customerName: string;
+  rating: number;
+  title: string | null;
+  body: string | null;
+  createdAt: string | null;
 };
 
 export const fallbackTaxonomy: CatalogTaxonomyItem[] = [
@@ -89,15 +100,17 @@ async function fetchCatalogPresentation(): Promise<CatalogPresentation> {
       );
     }
     if (convexHttp) {
-      const [taxonomy, banners, homepage] = await Promise.all([
+      const [taxonomy, banners, homepage, testimonials] = await Promise.all([
         convexHttp.query(api.catalog.listActiveTaxonomy, {}),
         convexHttp.query(api.catalog.listActiveBanners, {}),
         convexHttp.query(api.homepage.getPublished, {}),
+        convexHttp.query(api.reviews.listHomepageTestimonials, { limit: 3 }),
       ]);
       return {
         taxonomy: taxonomy.length ? taxonomy : fallbackTaxonomy,
         banners,
         homepage,
+        testimonials,
       } as CatalogPresentation;
     }
   } catch (error) {

@@ -57,6 +57,7 @@ test("coded homepage uses the client-approved hero gradients", async ({ page }) 
   });
 
   await page.goto("/");
+  await expect(page.getByTestId("homepage-testimonials")).toHaveCount(0);
   const hero = page.getByRole("region", { name: "Featured collection" });
   const ikhwaan = hero.locator('[data-default-hero="AL-IKHWAAN SET"]');
   await expect(ikhwaan).toHaveCSS(
@@ -97,6 +98,17 @@ test("published visual homepage content renders responsively", async ({ page }) 
       body: JSON.stringify({
         taxonomy: [],
         banners: [],
+        testimonials: [
+          {
+            id: "review-homepage-1",
+            productId: "product-1",
+            customerName: "Amina K.",
+            rating: 5,
+            title: "Beautiful quality",
+            body: "The material and finish were even better than expected.",
+            createdAt: "2026-08-14T10:00:00.000Z",
+          },
+        ],
         homepage: {
           schemaVersion: 2,
           root: { props: { title: "Homepage test", backgroundColor: "#ffffff" } },
@@ -190,6 +202,16 @@ test("published visual homepage content renders responsively", async ({ page }) 
   await page.goto("/");
   const hero = page.getByRole("region", { name: "Featured collection" });
   await expect(hero.getByRole("heading", { name: "FIRST HERO" })).toBeVisible({ timeout: 2_000 });
+  const testimonials = page.getByTestId("homepage-testimonials");
+  await expect(testimonials.getByText("Customer feedback")).toBeVisible();
+  await expect(testimonials.getByText("Beautiful quality")).toBeVisible();
+  await expect(testimonials.getByText("Amina K. · Verified purchase")).toBeVisible();
+  expect(
+    await testimonials.evaluate((section) => {
+      const hero = document.querySelector('[aria-label="Featured collection"]');
+      return Boolean(hero?.parentElement?.nextElementSibling === section);
+    }),
+  ).toBeTruthy();
   await expect
     .poll(() =>
       hero.evaluate((element) =>
@@ -458,9 +480,15 @@ test("published banner scenes preserve responsive layers, fills, and links", asy
   });
 
   await page.goto("/");
-  const scene = page.locator('.homepage-banner-scene[data-editor-banner-key="scene-hero:hero:0"]');
-  const title = page.getByRole("heading", { level: 1, name: "SCENE HERO" });
+  const responsiveScene = page.locator(
+    '[data-responsive-banner-scene]:has([data-editor-banner-key="scene-hero:hero:0"])',
+  );
+  const scene = responsiveScene.locator(
+    '.homepage-banner-scene[data-editor-banner-key="scene-hero:hero:0"]:visible',
+  );
+  const title = scene.getByRole("heading", { level: 1, name: "SCENE HERO" });
   await expect(scene).toBeVisible();
+  await expect(responsiveScene.locator(".homepage-banner-scene-variant")).toHaveCount(2);
   await expect(scene.locator('[data-fill-id="fill-radial"]')).toHaveCSS(
     "background-image",
     /radial-gradient/,
@@ -484,8 +512,8 @@ test("published banner scenes preserve responsive layers, fills, and links", asy
   }
 
   const poster = page.locator('[data-homepage-banner-id="image-only-poster"]');
-  const posterScene = poster.locator(".homepage-banner-scene");
-  const posterImage = poster.locator('[data-banner-layer="banner-image"]');
+  const posterScene = poster.locator(".homepage-banner-scene-variant:visible");
+  const posterImage = posterScene.locator('[data-banner-layer="banner-image"]');
   await expect(posterImage.locator("img")).toBeVisible();
   await expect(poster.locator('[data-banner-layer="banner-overlay"]')).toHaveCount(0);
   await expect(poster.locator('[data-banner-layer="button"]')).toHaveCount(0);

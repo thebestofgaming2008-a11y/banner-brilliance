@@ -4,6 +4,16 @@ import { nowIso, requireAdmin, requireIdentity, writeAuditLog } from "./lib";
 
 const reviewStatus = new Set(["pending", "published", "hidden"]);
 
+const homepageTestimonialValidator = v.object({
+  id: v.id("reviews"),
+  productId: v.string(),
+  customerName: v.string(),
+  rating: v.number(),
+  title: v.union(v.string(), v.null()),
+  body: v.union(v.string(), v.null()),
+  createdAt: v.union(v.string(), v.null()),
+});
+
 function cleanText(value: string | null | undefined, max = 1000) {
   return String(value ?? "")
     .replace(/[<>]/g, "")
@@ -70,6 +80,12 @@ function normalizeOrderNumber(value: string) {
   return /^\d+$/.test(raw) ? `#${raw}` : raw;
 }
 
+function publicCustomerName(value: string | null | undefined) {
+  const parts = cleanText(value, 120).split(" ").filter(Boolean);
+  if (!parts.length) return "Verified customer";
+  return parts.length === 1 ? parts[0] : `${parts[0]} ${parts.at(-1)?.charAt(0)}.`;
+}
+
 async function hasReviewedByEmail(ctx: any, email: string, productId: string) {
   const rows = await ctx.db
     .query("reviews")
@@ -92,6 +108,32 @@ export const listPublishedForProduct = query({
       .filter((row) => row.status === "published")
       .map(publicReview)
       .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
+  },
+});
+
+export const listHomepageTestimonials = query({
+  args: { limit: v.optional(v.number()) },
+  returns: v.array(homepageTestimonialValidator),
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 3), 1), 6);
+    const rows = await ctx.db
+      .query("reviews")
+      .withIndex("by_status", (q) => q.eq("status", "published"))
+      .order("desc")
+      .take(limit * 4);
+
+    return rows
+      .filter((row) => Boolean(cleanNullable(row.body, 1600) || cleanNullable(row.title, 120)))
+      .slice(0, limit)
+      .map((row) => ({
+        id: row._id,
+        productId: row.product_id,
+        customerName: publicCustomerName(row.customer_name),
+        rating: Math.max(1, Math.min(5, row.rating)),
+        title: cleanNullable(row.title, 120),
+        body: cleanNullable(row.body, 420),
+        createdAt: cleanNullable(row.created_at, 40),
+      }));
   },
 });
 

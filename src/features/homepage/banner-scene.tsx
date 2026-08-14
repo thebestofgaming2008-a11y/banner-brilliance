@@ -1,7 +1,5 @@
 import {
-  useEffect,
   useMemo,
-  useState,
   type CSSProperties,
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
@@ -16,7 +14,6 @@ import type {
 } from "./types";
 import { layerShadowValue } from "./shadow-effects";
 import { useStudioBannerSession, useStudioViewport } from "./studio-session-context";
-import { HOMEPAGE_MOBILE_MAX_WIDTH } from "./studio-model";
 
 type SceneViewport = HomepageViewport | "auto";
 
@@ -180,19 +177,6 @@ function layerCss(
   };
 }
 
-function useSceneViewport(viewport: SceneViewport) {
-  const [automatic, setAutomatic] = useState<HomepageViewport>("desktop");
-  useEffect(() => {
-    if (viewport !== "auto") return;
-    const media = window.matchMedia(`(max-width: ${HOMEPAGE_MOBILE_MAX_WIDTH}px)`);
-    const update = () => setAutomatic(media.matches ? "mobile" : "desktop");
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, [viewport]);
-  return viewport === "auto" ? automatic : viewport;
-}
-
 export function BannerSceneView({
   scene,
   editorKey,
@@ -248,10 +232,59 @@ export function BannerSceneView({
   const cropChange = studio?.onCropChange ?? onCropChange;
   const selectBackground = studio?.onSelectBackground ?? onSelectBackground;
   const backgroundCropChange = studio?.onBackgroundCropChange ?? onBackgroundCropChange;
-  const resolvedViewport = useSceneViewport(studioViewport ?? viewport);
+  const requestedViewport = studioViewport ?? viewport;
+  const fills = useMemo(() => scene.fills.filter((fill) => fill.enabled), [scene.fills]);
+
+  // Public pages render both responsive geometries so CSS can choose the correct
+  // one before hydration. This prevents a phone from briefly painting desktop
+  // coordinates while preserving explicit viewport control inside the editor.
+  if (!studio && requestedViewport === "auto") {
+    const responsiveHeight =
+      scene.coordinateMode === "original-hero"
+        ? ({ height: "100%" } as CSSProperties)
+        : ({
+            "--homepage-banner-scene-height": `${Math.max(160, scene.height)}px`,
+            "--homepage-banner-scene-mobile-height": `${Math.max(160, scene.mobileHeight)}px`,
+          } as CSSProperties);
+    const sharedProps = {
+      scene,
+      editorKey,
+      selectedLayerId,
+      editingLayerId,
+      cropLayerId,
+      interactive,
+      priority,
+      onSelectLayer,
+      onEditLayer,
+      onTextChange,
+      onCropChange,
+      onSelectBackground,
+      onBackgroundCropChange,
+    };
+
+    return (
+      <div
+        className={`homepage-banner-scene-responsive relative w-full overflow-hidden ${className}`}
+        style={responsiveHeight}
+        data-responsive-banner-scene
+      >
+        <BannerSceneView
+          {...sharedProps}
+          viewport="desktop"
+          className="homepage-banner-scene-variant homepage-banner-scene-variant--desktop"
+        />
+        <BannerSceneView
+          {...sharedProps}
+          viewport="mobile"
+          className="homepage-banner-scene-variant homepage-banner-scene-variant--mobile"
+        />
+      </div>
+    );
+  }
+
+  const resolvedViewport: HomepageViewport = requestedViewport === "mobile" ? "mobile" : "desktop";
   const height = resolvedViewport === "mobile" ? scene.mobileHeight : scene.height;
   const fixedHoneyPreset = scene.preset === "honey-banner";
-  const fills = useMemo(() => scene.fills.filter((fill) => fill.enabled), [scene.fills]);
   const backgroundSelected = Boolean(
     studio && !studio.interactionDisabled && studio.selectedLayerIds.length === 0,
   );

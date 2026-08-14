@@ -33,6 +33,7 @@ import {
   listCatalogPresentation,
   useCatalogPresentation,
   type CatalogBanner,
+  type HomepageTestimonial,
 } from "@/services/catalogPresentation";
 import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, seo } from "@/lib/seo";
 import { PromotionPopover } from "@/components/store/promotion-popover";
@@ -1103,15 +1104,80 @@ function Index() {
   useScrollReveal();
   useHashScroll();
   const initialPresentation = Route.useLoaderData();
-  const { homepage } = useCatalogPresentation(initialPresentation);
+  const { homepage, testimonials } = useCatalogPresentation(initialPresentation);
 
   return (
     <main className="min-h-screen bg-white font-sans-ui text-black antialiased">
       <StoreHeader />
-      <LegacyHomepageContent homepage={homepage} />
+      <LegacyHomepageContent homepage={homepage} testimonials={testimonials} />
       <StoreFooter />
       <PromotionPopover />
     </main>
+  );
+}
+
+function HomepageTestimonials({ testimonials }: { testimonials?: HomepageTestimonial[] }) {
+  const visible = (testimonials ?? []).filter((item) => item.title || item.body).slice(0, 3);
+  if (!visible.length) return null;
+
+  return (
+    <section
+      className="border-b border-black/10 bg-white px-[22px] py-8 md:px-8 md:py-10"
+      aria-labelledby="homepage-testimonials-title"
+      data-testid="homepage-testimonials"
+    >
+      <div className="mx-auto max-w-[1120px]">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="section-kicker text-black/50">Verified purchases</p>
+            <h2
+              id="homepage-testimonials-title"
+              className="mt-1 text-[20px] font-bold uppercase md:text-[22px]"
+            >
+              Customer feedback
+            </h2>
+          </div>
+          <div
+            className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-[#A84624]"
+            aria-label="Verified reviews"
+          >
+            <Star size={14} fill="currentColor" aria-hidden="true" />
+            <span className="hidden sm:inline">Verified reviews</span>
+          </div>
+        </div>
+        <div className="mt-6 grid gap-0 border-y border-black/10 md:grid-cols-3 md:border-y-0 md:divide-x md:divide-black/10">
+          {visible.map((testimonial) => (
+            <figure
+              key={testimonial.id}
+              className="border-b border-black/10 py-5 last:border-b-0 md:border-b-0 md:px-6 md:first:pl-0 md:last:pr-0"
+            >
+              <div
+                className="flex items-center gap-0.5 text-[#D9643C]"
+                aria-label={`${testimonial.rating} out of 5 stars`}
+              >
+                {Array.from({ length: 5 }, (_, index) => (
+                  <Star
+                    key={index}
+                    size={12}
+                    fill={index < Math.round(testimonial.rating) ? "currentColor" : "none"}
+                    aria-hidden="true"
+                  />
+                ))}
+              </div>
+              <blockquote className="mt-3 text-[14px] leading-6 text-black/75">
+                {testimonial.title ? (
+                  <strong className="mb-1 block font-bold text-black">{testimonial.title}</strong>
+                ) : null}
+                <span>{testimonial.body}</span>
+              </blockquote>
+              <figcaption className="mt-3 text-[10px] font-bold uppercase text-black/52">
+                {testimonial.customerName} · Verified purchase
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1129,10 +1195,12 @@ function editorSlice(data: HomepageData, mode: "hero" | "after-honey"): Homepage
 
 export function LegacyHomepageContent({
   homepage,
+  testimonials,
   editMode = false,
   onAddMosaicCard,
 }: {
   homepage?: HomepageData | null;
+  testimonials?: HomepageTestimonial[];
   editMode?: boolean;
   onAddMosaicCard?: () => void;
 }) {
@@ -1145,6 +1213,7 @@ export function LegacyHomepageContent({
       ) : (
         <HeroSlider />
       )}
+      <HomepageTestimonials testimonials={testimonials} />
       <CollectionBanners />
       <ShopAllProducts />
       <HomepageCollectionMosaic homepage={editorHomepage} onAddMosaicCard={onAddMosaicCard} />

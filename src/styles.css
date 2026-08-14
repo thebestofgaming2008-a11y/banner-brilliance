@@ -1312,8 +1312,28 @@
   height: var(--homepage-scene-height);
 }
 
+.homepage-banner-scene-responsive {
+  height: var(--homepage-banner-scene-height, 100%);
+}
+
+.homepage-banner-scene-variant--mobile {
+  display: none;
+}
+
 @media (max-width: 1023px) {
   .homepage-scene-hero {
     height: var(--homepage-scene-mobile-height);
+  }
+
+  .homepage-banner-scene-responsive {
+    height: var(--homepage-banner-scene-mobile-height, 100%);
+  }
+
+  .homepage-banner-scene-variant--desktop {
+    display: none;
+  }
+
+  .homepage-banner-scene-variant--mobile {
+    display: block;
   }
 }
