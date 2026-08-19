@@ -10,8 +10,11 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "seo:indexnow": "node scripts/submit-indexnow.mjs",
+    "seo:verify": "npm run typecheck && npm run test:unit && npm run build:pages && playwright test tests/launch-audit.spec.ts --project=mobile-chromium",
+    "seo:verify:production": "node scripts/verify-production-seo.mjs",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

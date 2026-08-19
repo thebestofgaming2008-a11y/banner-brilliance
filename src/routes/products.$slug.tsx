@@ -102,11 +102,14 @@ export const Route = createFileRoute("/products/$slug")({
                 "@type": "OfferShippingDetails",
                 shippingRate: { "@type": "MonetaryAmount", value: 0, currency: "INR" },
                 shippingDestination: { "@type": "DefinedRegion", addressCountry: "IN" },
-                handlingTime: {
-                  "@type": "QuantitativeValue",
-                  minValue: 1,
-                  maxValue: 2,
-                  unitCode: "DAY",
+                deliveryTime: {
+                  "@type": "ShippingDeliveryTime",
+                  handlingTime: {
+                    "@type": "QuantitativeValue",
+                    minValue: 1,
+                    maxValue: 2,
+                    unitCode: "DAY",
+                  },
                 },
               },
               hasMerchantReturnPolicy: {

@@ -4,10 +4,27 @@ const OPTIMIZED_PRODUCT_MEDIA: Record<string, string> = {
   "1784454353251-f538ae9f-3b66-4696-b7aa-8edae7295335.png": "/product-media/khadija-niqab.webp",
 };
 
+const LEGACY_STOREFRONT_HOST_SUFFIX = ".fawzaanstore.pages.dev";
+
+function canonicalStorefrontPath(src: string) {
+  try {
+    const url = new URL(src);
+    if (
+      url.hostname === "fawzaanstore.pages.dev" ||
+      url.hostname.endsWith(LEGACY_STOREFRONT_HOST_SUFFIX)
+    ) {
+      return `${url.pathname}${url.search}${url.hash}`;
+    }
+  } catch {
+    // Relative and bundled asset paths are already canonical.
+  }
+  return src;
+}
+
 export function storefrontImageUrl(src: string) {
   const clean = src.split("#")[0];
   const match = Object.entries(OPTIMIZED_PRODUCT_MEDIA).find(([fileName]) =>
     clean.includes(fileName),
   );
-  return match?.[1] ?? src;
+  return match?.[1] ?? canonicalStorefrontPath(src);
 }

@@ -29,10 +29,7 @@ type R2BucketLike = {
 };
 
 const PUBLIC_SITE_URL = "https://officialfawzaanstore.com";
-const LEGACY_PUBLIC_HOSTS = new Set([
-  "fawzaanstore.pages.dev",
-  "www.officialfawzaanstore.com",
-]);
+const LEGACY_PUBLIC_HOSTS = new Set(["fawzaanstore.pages.dev", "www.officialfawzaanstore.com"]);
 const CRAWL_DOCUMENT_CACHE_HEADERS = {
   "cache-control": "public, max-age=900, s-maxage=3600, stale-while-revalidate=86400",
 };
@@ -968,18 +965,27 @@ async function handleMerchantFeedRequest(request: Request, env: unknown): Promis
         .map((image) => String(image ?? "").trim())
         .filter((image, index, values) => image && values.indexOf(image) === index);
       const prices = catalogPrices(product);
+      const canonicalMediaUrl = (image: string) => {
+        const imageUrl = new URL(image, `${baseUrl}/`);
+        if (LEGACY_PUBLIC_HOSTS.has(imageUrl.hostname)) {
+          const canonicalUrl = new URL(baseUrl);
+          imageUrl.protocol = canonicalUrl.protocol;
+          imageUrl.host = canonicalUrl.host;
+        }
+        return imageUrl.href;
+      };
       const lines = [
         "    <item>",
         `      <g:id>${xmlEscape(product.id ?? slug)}</g:id>`,
-        `      <title>${xmlEscape(name)}</title>`,
-        `      <description>${xmlEscape(description)}</description>`,
-        `      <link>${xmlEscape(`${baseUrl}/products/${encodeURIComponent(slug)}`)}</link>`,
-        `      <g:image_link>${xmlEscape(new URL(images[0], `${baseUrl}/`).href)}</g:image_link>`,
+        `      <g:title>${xmlEscape(name)}</g:title>`,
+        `      <g:description>${xmlEscape(description)}</g:description>`,
+        `      <g:link>${xmlEscape(`${baseUrl}/products/${encodeURIComponent(slug)}`)}</g:link>`,
+        `      <g:image_link>${xmlEscape(canonicalMediaUrl(images[0]))}</g:image_link>`,
         ...images
           .slice(1, 11)
           .map(
             (image) =>
-              `      <g:additional_image_link>${xmlEscape(new URL(image, `${baseUrl}/`).href)}</g:additional_image_link>`,
+              `      <g:additional_image_link>${xmlEscape(canonicalMediaUrl(image))}</g:additional_image_link>`,
           ),
         `      <g:availability>${catalogAvailability(product)}</g:availability>`,
         `      <g:condition>new</g:condition>`,

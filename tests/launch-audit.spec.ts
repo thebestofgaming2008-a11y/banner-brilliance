@@ -93,6 +93,13 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
   expect(product?.name).toContain("Makkah gloves");
   expect(product?.offers?.priceCurrency).toBe("INR");
   expect(product?.offers?.availability).toBe("https://schema.org/InStock");
+  expect(product?.offers?.shippingDetails?.deliveryTime?.handlingTime).toMatchObject({
+    minValue: 1,
+    maxValue: 2,
+    unitCode: "DAY",
+  });
+  expect(product?.offers?.shippingDetails?.handlingTime).toBeUndefined();
+  expect(JSON.stringify(product)).not.toContain("fawzaanstore.pages.dev");
   expect(product?.aggregateRating).toBeUndefined();
   expect(await page.locator("body").innerText()).not.toContain("1240");
 
@@ -104,6 +111,13 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
   expect(sitemapXml).not.toContain("<loc>https://officialfawzaanstore.com/men</loc>");
   expect(sitemapXml).not.toContain("<loc>https://officialfawzaanstore.com/women</loc>");
   expect(sitemapXml).not.toContain("<loc>https://officialfawzaanstore.com/privacy</loc>");
+
+  const merchantFeed = await request.get("/merchant-feed.xml");
+  expect(merchantFeed.ok()).toBeTruthy();
+  const merchantFeedXml = await merchantFeed.text();
+  expect(merchantFeedXml).toContain("<g:title>");
+  expect(merchantFeedXml).toContain("<g:link>https://officialfawzaanstore.com/products/");
+  expect(merchantFeedXml).not.toContain("fawzaanstore.pages.dev");
 
   const robots = await request.get("/robots.txt");
   expect(await robots.text()).toContain("https://officialfawzaanstore.com/sitemap.xml");
