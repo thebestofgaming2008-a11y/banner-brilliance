@@ -12,6 +12,7 @@ import type {
   BannerScene,
   HomepageViewport,
 } from "./types";
+import { canonicalStorefrontHref } from "@/lib/seo";
 import { layerShadowValue } from "./shadow-effects";
 import { useStudioBannerSession, useStudioViewport } from "./studio-session-context";
 
@@ -39,7 +40,8 @@ function snapPosition(value: number, size: number, targets: number[]) {
 
 function safeHref(value: string | undefined) {
   const href = String(value || "#").trim();
-  return href.startsWith("/") || href.startsWith("#") || /^https:\/\//i.test(href) ? href : "#";
+  if (href.startsWith("/")) return canonicalStorefrontHref(href);
+  return href.startsWith("#") || /^https:\/\//i.test(href) ? href : "#";
 }
 
 function focusEditableText(layerElement: HTMLElement) {

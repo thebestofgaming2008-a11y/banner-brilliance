@@ -239,7 +239,7 @@ function HeroBanner({
       data-default-hero={banner.title}
     >
       <a
-        href={banner.href}
+        href={canonicalStorefrontHref(banner.href)}
         aria-label={`Shop ${banner.title}`}
         className="absolute inset-0 z-[15]"
       />
@@ -384,7 +384,7 @@ function ManagedHeroBanner({
           ) : null}
           {banner.button_label && banner.button_url ? (
             <a
-              href={banner.button_url}
+              href={canonicalStorefrontHref(banner.button_url)}
               className={`mt-7 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase ${
                 lightBackground ? "bg-black text-white" : "bg-white text-black"
               }`}
@@ -592,7 +592,7 @@ function CollectionBanners() {
           {collectionBanners.map((banner, index) => (
             <a
               key={banner.title}
-              href={banner.href}
+              href={canonicalStorefrontHref(banner.href)}
               className="collection-banner group relative block aspect-[9/16] overflow-hidden bg-black text-white"
               data-reveal
             >
@@ -1001,7 +1001,7 @@ function MosaicCollectionCard({
 }) {
   return (
     <a
-      href={collection.href}
+      href={canonicalStorefrontHref(collection.href)}
       className={`collection-banner homepage-mosaic__card ${added ? "homepage-mosaic__card--added" : `homepage-mosaic__card--${index + 1}`} group relative block overflow-hidden bg-black text-white`}
       data-reveal
       data-mosaic-card={collection.title}
@@ -1391,7 +1391,7 @@ function ManagedHomepageBanners() {
               ) : null}
               {banner.button_label && banner.button_url ? (
                 <a
-                  href={banner.button_url}
+                  href={canonicalStorefrontHref(banner.button_url)}
                   className={`mt-6 inline-flex h-11 items-center px-6 text-[11px] font-bold uppercase ${
                     banner.text_theme === "light" ? "bg-black text-white" : "bg-white text-black"
                   }`}
