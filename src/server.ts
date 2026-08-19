@@ -29,7 +29,10 @@ type R2BucketLike = {
 };
 
 const PUBLIC_SITE_URL = "https://officialfawzaanstore.com";
-const LEGACY_PUBLIC_HOSTS = new Set(["fawzaanstore.pages.dev"]);
+const LEGACY_PUBLIC_HOSTS = new Set([
+  "fawzaanstore.pages.dev",
+  "www.officialfawzaanstore.com",
+]);
 const CRAWL_DOCUMENT_CACHE_HEADERS = {
   "cache-control": "public, max-age=900, s-maxage=3600, stale-while-revalidate=86400",
 };
