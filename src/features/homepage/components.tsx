@@ -12,6 +12,7 @@ import { StoreProductCard } from "@/components/store/product-card";
 import { merchandiseProducts, useStoreProducts } from "@/data/store";
 import { useCatalogPresentation } from "@/services/catalogPresentation";
 import { productCountLabel } from "@/lib/catalog-copy";
+import { canonicalStorefrontHref } from "@/lib/seo";
 import { BannerSceneView } from "./banner-scene";
 import { normalizeHomepageData } from "./default-data";
 import { ensureHomepageScenes } from "./studio-model";
@@ -52,11 +53,10 @@ function textAlignClass(value: "left" | "center" | "right") {
 
 function safeLink(url: string) {
   const value = String(url || "#").trim();
-  return (value.startsWith("/") && !value.startsWith("//")) ||
-    value.startsWith("#") ||
-    /^https:\/\//i.test(value)
-    ? value
-    : "#";
+  if (value.startsWith("/") && !value.startsWith("//")) {
+    return canonicalStorefrontHref(value);
+  }
+  return value.startsWith("#") || /^https:\/\//i.test(value) ? value : "#";
 }
 
 export function HomepageHero({

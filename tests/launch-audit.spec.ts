@@ -44,7 +44,7 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
   const websiteSchema = parsedHomeSchemas.find((value) => value["@type"] === "WebSite");
   expect(websiteSchema).toMatchObject({
     name: "Fawzaan Store",
-    alternateName: ["Official Fawzaan Store"],
+    alternateName: ["Official Fawzaan Store", "officialfawzaanstore.com"],
     url: "https://officialfawzaanstore.com/",
   });
   const logo = await request.get("/fawzaan-logo.png");

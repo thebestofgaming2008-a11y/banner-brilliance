@@ -204,7 +204,8 @@ function createMosaicCollectionCard(
   const usedLinks = new Set(cards.map((card) => card.href));
   const category =
     collectionCategories.find(
-      (candidate) => !usedLinks.has(`/shop?collection=${encodeURIComponent(candidate.name)}`),
+      (candidate) =>
+        !usedLinks.has(`/shop?collection=${encodeURIComponent(candidate.slug.toLowerCase())}`),
     ) ?? collectionCategories[0];
 
   return {
@@ -213,7 +214,9 @@ function createMosaicCollectionCard(
     eyebrow: "Explore",
     image: "",
     imagePosition: "center",
-    href: category ? `/shop?collection=${encodeURIComponent(category.name)}` : "/shop",
+    href: category
+      ? `/shop?collection=${encodeURIComponent(category.slug.toLowerCase())}`
+      : "/shop",
   };
 }
 
@@ -740,7 +743,7 @@ function MosaicEditorDialog({
                           ? "/shop"
                           : categories.some(
                                 (category) =>
-                                  `/shop?collection=${encodeURIComponent(category.name)}` ===
+                                  `/shop?collection=${encodeURIComponent(category.slug.toLowerCase())}` ===
                                   selected.href,
                               )
                             ? selected.href
@@ -757,7 +760,7 @@ function MosaicEditorDialog({
                         .map((category) => (
                           <option
                             key={category.slug}
-                            value={`/shop?collection=${encodeURIComponent(category.name)}`}
+                            value={`/shop?collection=${encodeURIComponent(category.slug.toLowerCase())}`}
                           >
                             {category.name}
                           </option>
@@ -772,7 +775,7 @@ function MosaicEditorDialog({
                       maxLength={300}
                       value={selected.href}
                       onChange={(event) => patchCard({ href: event.target.value })}
-                      placeholder="/shop?collection=Shemaghs"
+                      placeholder="/shop?collection=shemaghs"
                     />
                   </label>
                   <div

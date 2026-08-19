@@ -16,6 +16,7 @@ import shemaghProfile from "@/assets/product-photos/shemagh-profile.webp";
 import shemaghRearSide from "@/assets/product-photos/shemagh-rear-side.webp";
 import shemaghRedFront from "@/assets/product-photos/shemagh-red-front.webp";
 import shemaghRedFull from "@/assets/product-photos/shemagh-red-full.webp";
+import { createContext, createElement, useContext, type ReactNode } from "react";
 import type { Product } from "@/lib/products";
 import { useCatalogProduct, useCatalogProducts } from "@/services/productService";
 
@@ -290,11 +291,24 @@ export function toStoreProduct(product: Product): StoreProduct {
 }
 
 export function useStoreProducts() {
-  const catalog = useCatalogProducts();
+  const providedProducts = useContext(StoreProductsContext);
+  const catalog = useCatalogProducts(providedProducts ?? undefined);
   return {
     products: catalog.products.map(toStoreProduct),
     loading: catalog.loading,
   };
+}
+
+const StoreProductsContext = createContext<Product[] | null>(null);
+
+export function StoreProductsProvider({
+  products,
+  children,
+}: {
+  products: Product[];
+  children: ReactNode;
+}) {
+  return createElement(StoreProductsContext.Provider, { value: products }, children);
 }
 
 export function useStoreProduct(slug: string) {

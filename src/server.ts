@@ -30,6 +30,19 @@ type R2BucketLike = {
 
 const PUBLIC_SITE_URL = "https://officialfawzaanstore.com";
 const LEGACY_PUBLIC_HOSTS = new Set(["fawzaanstore.pages.dev", "www.officialfawzaanstore.com"]);
+const LEGACY_PRODUCT_REDIRECTS: Record<string, string> = {
+  "/products/yemeni-shemagh-red": "/products/yemeni-shemagh",
+  "/products/ivory-embroidered-shemagh": "/shop?collection=shemaghs",
+  "/products/rouge-niqab": "/products/Maroon-niqab",
+  "/products/kashmir-multiflora-honey": "/shop?collection=honey",
+  "/products/kashmir-acacia-honey": "/shop?collection=honey",
+  "/products/kashmir-black-honey": "/shop?collection=honey",
+  "/products/sabr-watch-green": "/shop?collection=watches",
+  "/products/sabr-watch-blue": "/shop?collection=watches",
+  "/products/sabr-watch-black": "/shop?collection=watches",
+  "/products/sabr-watch-white": "/shop?collection=watches",
+  "/products/leather-gloves": "/shop?collection=gloves",
+};
 const CRAWL_DOCUMENT_CACHE_HEADERS = {
   "cache-control": "public, max-age=900, s-maxage=3600, stale-while-revalidate=86400",
 };
@@ -154,9 +167,18 @@ function withSecurityHeaders(response: Response, request: Request) {
     );
   const isPreviewHostname =
     url.hostname.endsWith(".fawzaanstore.pages.dev") && url.hostname !== "fawzaanstore.pages.dev";
-  if (privatePath || isPreviewHostname) headers.set("x-robots-tag", "noindex, nofollow");
+  if (privatePath || isPreviewHostname || response.status >= 500) {
+    headers.set("x-robots-tag", "noindex, nofollow");
+  } else if (response.status === 404) {
+    headers.set("x-robots-tag", "noindex, follow");
+  }
   if (response.headers.get("content-type")?.includes("text/html")) {
-    headers.set("cache-control", privatePath ? "no-store" : "no-cache");
+    headers.set(
+      "cache-control",
+      privatePath || response.status !== 200
+        ? "no-store"
+        : "public, max-age=0, s-maxage=60, stale-while-revalidate=3600, stale-if-error=86400",
+    );
   }
   if (url.protocol === "https:") {
     headers.set("strict-transport-security", "max-age=31536000; includeSubDomains");
@@ -733,6 +755,33 @@ function handleCanonicalHostRedirect(request: Request, env: unknown): Response |
   });
 }
 
+function handleCanonicalPathRedirect(request: Request, env: unknown): Response | null {
+  if (request.method !== "GET" && request.method !== "HEAD") return null;
+  const url = new URL(request.url);
+  const legacyDestination = LEGACY_PRODUCT_REDIRECTS[url.pathname.toLowerCase()];
+  let destination = legacyDestination
+    ? new URL(legacyDestination, publicSiteUrl(env, request))
+    : null;
+
+  if (!destination && url.pathname === "/shop") {
+    const collection = url.searchParams.get("collection")?.trim();
+    const canonicalCollection = collection?.toLowerCase();
+    if (collection && canonicalCollection && collection !== canonicalCollection) {
+      destination = new URL(`${url.pathname}${url.search}`, publicSiteUrl(env, request));
+      destination.searchParams.set("collection", canonicalCollection);
+    }
+  }
+
+  if (!destination) return null;
+  return new Response(null, {
+    status: 308,
+    headers: {
+      location: destination.href,
+      "cache-control": "public, max-age=3600, s-maxage=86400",
+    },
+  });
+}
+
 function handleRobotsRequest(request: Request, env: unknown): Response | null {
   const url = new URL(request.url);
   if ((request.method !== "GET" && request.method !== "HEAD") || url.pathname !== "/robots.txt") {
@@ -1062,6 +1111,9 @@ export default {
     try {
       const canonicalHostRedirect = handleCanonicalHostRedirect(request, env);
       if (canonicalHostRedirect) return finish(canonicalHostRedirect);
+
+      const canonicalPathRedirect = handleCanonicalPathRedirect(request, env);
+      if (canonicalPathRedirect) return finish(canonicalPathRedirect);
 
       const robotsResponse = handleRobotsRequest(request, env);
       if (robotsResponse) return finish(robotsResponse);

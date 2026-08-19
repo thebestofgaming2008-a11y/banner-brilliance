@@ -9,7 +9,7 @@ export const DEFAULT_MOSAIC_COLLECTIONS: HomepageMosaicCard[] = [
     eyebrow: "The harvest",
     image: "/homepage/mosaic-honey.webp",
     imagePosition: "center",
-    href: "/shop?collection=Honey",
+    href: "/shop?collection=honey",
   },
   {
     id: "mosaic-gloves",
@@ -17,7 +17,7 @@ export const DEFAULT_MOSAIC_COLLECTIONS: HomepageMosaicCard[] = [
     eyebrow: "Coming next",
     image: "/homepage/makkah-gloves.jpg",
     imagePosition: "center",
-    href: "/shop?collection=Gloves",
+    href: "/shop?collection=gloves",
   },
   {
     id: "mosaic-shemaghs",
@@ -25,7 +25,7 @@ export const DEFAULT_MOSAIC_COLLECTIONS: HomepageMosaicCard[] = [
     eyebrow: "For the brothers",
     image: "/homepage/mosaic-shemaghs.webp",
     imagePosition: "62% center",
-    href: "/shop?collection=Shemaghs",
+    href: "/shop?collection=shemaghs",
   },
   {
     id: "mosaic-niqabs",
@@ -33,7 +33,7 @@ export const DEFAULT_MOSAIC_COLLECTIONS: HomepageMosaicCard[] = [
     eyebrow: "For the sisters",
     image: "/homepage/mosaic-niqabs.webp",
     imagePosition: "50% 30%",
-    href: "/shop?collection=Niqabs",
+    href: "/shop?collection=niqabs",
   },
   {
     id: "mosaic-kufis",
@@ -41,7 +41,7 @@ export const DEFAULT_MOSAIC_COLLECTIONS: HomepageMosaicCard[] = [
     eyebrow: "Daily prayerwear",
     image: "/homepage/mosaic-kufis.webp",
     imagePosition: "center 28%",
-    href: "/shop?collection=Kufis",
+    href: "/shop?collection=kufis",
   },
   {
     id: "mosaic-watches",
@@ -49,7 +49,7 @@ export const DEFAULT_MOSAIC_COLLECTIONS: HomepageMosaicCard[] = [
     eyebrow: "Arabic dial watches",
     image: "/homepage/sabr-watch-black.jpg",
     imagePosition: "center",
-    href: "/shop?collection=Watches",
+    href: "/shop?collection=watches",
   },
   {
     id: "mosaic-shop-all",

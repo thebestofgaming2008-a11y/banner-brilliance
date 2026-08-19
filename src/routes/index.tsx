@@ -20,6 +20,7 @@ import { StoreFooter, StoreHeader } from "@/components/store/store-chrome";
 import {
   isPreOrderProduct,
   merchandiseProducts,
+  StoreProductsProvider,
   type StoreProduct,
   useStoreProducts,
 } from "@/data/store";
@@ -35,20 +36,27 @@ import {
   type CatalogBanner,
   type HomepageTestimonial,
 } from "@/services/catalogPresentation";
-import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, seo } from "@/lib/seo";
+import { canonicalStorefrontHref, DEFAULT_DESCRIPTION, DEFAULT_TITLE, seo } from "@/lib/seo";
 import { PromotionPopover } from "@/components/store/promotion-popover";
 import { ProductQuickAdd } from "@/components/store/product-quick-add";
 import { productCountLabel } from "@/lib/catalog-copy";
+import { listActiveProducts } from "@/services/productService";
 
 import heroNiqabFull from "@/assets/hero-products/hero-niqab-full.webp";
 import heroShemaghFull from "@/assets/hero-products/hero-shemagh-full.webp";
 
 export const Route = createFileRoute("/")({
-  loader: () => listCatalogPresentation(),
+  loader: async () => {
+    const [presentation, products] = await Promise.all([
+      listCatalogPresentation(),
+      listActiveProducts(),
+    ]);
+    return { presentation, products };
+  },
   head: ({ loaderData }) => {
     const metadata = seo({ title: DEFAULT_TITLE, description: DEFAULT_DESCRIPTION, path: "/" });
-    const publishedHomepage = isHomepageEditorData(loaderData?.homepage)
-      ? loaderData.homepage
+    const publishedHomepage = isHomepageEditorData(loaderData?.presentation.homepage)
+      ? loaderData.presentation.homepage
       : null;
     const publishedHero = publishedHomepage?.content.find((item) => item.type === "Hero");
     const heroPreload =
@@ -97,7 +105,7 @@ const defaultHeroBanners: Banner[] = [
     titleX: 37,
     titleY: 121,
     titleW: 316,
-    href: "/shop?collection=Shemaghs",
+    href: "/shop?collection=shemaghs",
     gradient: IKHWAAN_HERO_GRADIENT,
   },
   {
@@ -108,7 +116,7 @@ const defaultHeroBanners: Banner[] = [
     titleX: 41,
     titleY: 100,
     titleW: 319,
-    href: "/shop?collection=Niqabs",
+    href: "/shop?collection=niqabs",
     gradient: SALIHAAT_HERO_GRADIENT,
   },
 ];
@@ -120,7 +128,7 @@ const collectionBanners = [
     copy: "Raw floral honey from Kashmir.",
     image: "/homepage/honey.jpg",
     imageClassName: "object-center",
-    href: "/shop?collection=Honey",
+    href: "/shop?collection=honey",
   },
   {
     title: "MAKKAH GLOVES",
@@ -128,7 +136,7 @@ const collectionBanners = [
     copy: "Gold artwork cases in staple colours.",
     image: "/homepage/makkah-gloves.jpg",
     imageClassName: "object-center",
-    href: "/shop?collection=Gloves",
+    href: "/shop?collection=gloves",
   },
 ];
 
@@ -1103,19 +1111,21 @@ function HomepageCollectionMosaic({
 function Index() {
   useScrollReveal();
   useHashScroll();
-  const initialPresentation = Route.useLoaderData();
-  const { homepage, testimonials } = useCatalogPresentation(initialPresentation);
+  const initialData = Route.useLoaderData();
+  const { homepage, testimonials } = useCatalogPresentation(initialData.presentation);
 
   return (
-    <main className="min-h-screen bg-white font-sans-ui text-black antialiased">
-      <StoreHeader />
-      <h1 className="sr-only">
-        Fawzaan Store - Shemaghs, Niqabs, Kufis, Gloves, Watches and Kashmir Honey
-      </h1>
-      <LegacyHomepageContent homepage={homepage} testimonials={testimonials} />
-      <StoreFooter />
-      <PromotionPopover />
-    </main>
+    <StoreProductsProvider products={initialData.products}>
+      <main className="min-h-screen bg-white font-sans-ui text-black antialiased">
+        <StoreHeader />
+        <h1 className="sr-only">
+          Fawzaan Store - Shemaghs, Niqabs, Kufis, Gloves, Watches and Kashmir Honey
+        </h1>
+        <LegacyHomepageContent homepage={homepage} testimonials={testimonials} />
+        <StoreFooter />
+        <PromotionPopover />
+      </main>
+    </StoreProductsProvider>
   );
 }
 
@@ -1254,8 +1264,9 @@ function ManagedCollectionSections() {
         ).slice(0, Math.min(8, Math.max(2, banner.product_limit ?? 4)));
         const lightBackground = banner.text_theme === "light";
         const alignment = managedBannerAlignmentClass(banner.content_alignment);
-        const collectionUrl =
-          banner.button_url || `/shop?collection=${encodeURIComponent(categorySlug)}`;
+        const collectionUrl = canonicalStorefrontHref(
+          banner.button_url || `/shop?collection=${encodeURIComponent(categorySlug)}`,
+        );
 
         return (
           <section

@@ -16,13 +16,18 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import type { CarouselApi } from "@/components/ui/carousel";
-import { isPreOrderProduct, toStoreProduct, useStoreProducts } from "@/data/store";
+import { isPreOrderProduct, toStoreProduct } from "@/data/store";
 import { useCurrency } from "@/hooks/use-currency";
 import { convex } from "@/lib/backend";
 import { useCart } from "@/lib/cart";
 import { useWishlist } from "@/lib/wishlist";
 import type { Product } from "@/lib/products";
-import { getProductBySlug } from "@/services/productService";
+import {
+  getProductBySlug,
+  listActiveProducts,
+  listPublishedProductReviews,
+  type PublishedProductReview,
+} from "@/services/productService";
 import { absoluteUrl, BRAND_NAME, seo } from "@/lib/seo";
 
 function productSeoDescription(product: Product) {
@@ -36,13 +41,18 @@ function productSeoDescription(product: Product) {
 
 export const Route = createFileRoute("/products/$slug")({
   loader: async ({ params }) => {
-    const product = await getProductBySlug(params.slug);
+    const products = await listActiveProducts();
+    const product =
+      products.find((item) => item.slug === params.slug) ?? (await getProductBySlug(params.slug));
     if (!product) throw notFound();
-    return { product };
+    const reviews =
+      product.id && product.reviews > 0 ? await listPublishedProductReviews(product.id) : [];
+    return { product, products, reviews };
   },
   head: ({ loaderData }) => {
     const product = loaderData?.product as Product | undefined;
     if (!product) return seo({ title: "Product | Fawzaan Store", noIndex: true });
+    const publishedReviews = (loaderData?.reviews ?? []) as PublishedProductReview[];
     const path = `/products/${encodeURIComponent(product.slug)}`;
     const description = productSeoDescription(product);
     const productUrl = absoluteUrl(path);
@@ -84,6 +94,24 @@ export const Route = createFileRoute("/products/$slug")({
             category: product.collectionLabel || product.collection,
             brand: { "@type": "Brand", name: BRAND_NAME },
             aggregateRating,
+            review: publishedReviews.length
+              ? publishedReviews.map((review) => ({
+                  "@type": "Review",
+                  author: {
+                    "@type": "Person",
+                    name: review.customer_name || "Verified customer",
+                  },
+                  datePublished: review.created_at || undefined,
+                  name: review.title || undefined,
+                  reviewBody: review.body || undefined,
+                  reviewRating: {
+                    "@type": "Rating",
+                    ratingValue: review.rating,
+                    bestRating: 5,
+                    worstRating: 1,
+                  },
+                }))
+              : undefined,
             additionalProperty: additionalProperty.length ? additionalProperty : undefined,
             offers: {
               "@type": "Offer",
@@ -141,9 +169,12 @@ export const Route = createFileRoute("/products/$slug")({
 });
 
 function ProductPage() {
-  const { product: catalogProduct } = Route.useLoaderData() as { product: Product };
+  const { product: catalogProduct, products: catalogProducts } = Route.useLoaderData() as {
+    product: Product;
+    products: Product[];
+  };
   const product = toStoreProduct(catalogProduct);
-  const { products } = useStoreProducts();
+  const products = useMemo(() => catalogProducts.map(toStoreProduct), [catalogProducts]);
   const { add, isReady: isCartReady } = useCart();
   const wishlist = useWishlist();
   const { formatPrice } = useCurrency();

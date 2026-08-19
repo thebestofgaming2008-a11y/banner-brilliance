@@ -18,6 +18,17 @@ export function absoluteUrl(path = "/") {
   return `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+export function canonicalStorefrontHref(path: string) {
+  const value = String(path ?? "").trim();
+  if (!value.startsWith("/") || value.startsWith("//")) return value;
+  const url = new URL(value, SITE_URL);
+  if (url.pathname === "/shop" && url.searchParams.has("collection")) {
+    const collection = url.searchParams.get("collection")?.trim().toLowerCase();
+    if (collection) url.searchParams.set("collection", collection);
+  }
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 export function titleFromSlug(slug: string) {
   return slug
     .replace(/[-_]+/g, " ")
