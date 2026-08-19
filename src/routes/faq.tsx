@@ -67,7 +67,7 @@ const faqs = [
 export const Route = createFileRoute("/faq")({
   head: () => {
     const metadata = seo({
-      title: "FAQ | Fawzaan Orders, Shipping & Returns",
+      title: "FAQ | Fawzaan Store Orders, Shipping & Returns",
       description: "Answers to common questions about Fawzaan orders, shipping, returns and care.",
       path: "/faq",
     });
