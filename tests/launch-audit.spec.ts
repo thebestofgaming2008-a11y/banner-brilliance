@@ -6,6 +6,9 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
 }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page).toHaveTitle("Fawzaan Store | Shemaghs, Niqabs, Kufis & More");
+  const pageHeadings = page.locator("h1");
+  await expect(pageHeadings).toHaveCount(1);
+  await expect(pageHeadings).toContainText("Fawzaan Store");
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
     "https://officialfawzaanstore.com/",

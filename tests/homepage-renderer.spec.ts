@@ -486,7 +486,7 @@ test("published banner scenes preserve responsive layers, fills, and links", asy
   const scene = responsiveScene.locator(
     '.homepage-banner-scene[data-editor-banner-key="scene-hero:hero:0"]:visible',
   );
-  const title = scene.getByRole("heading", { level: 1, name: "SCENE HERO" });
+  const title = scene.getByRole("heading", { level: 2, name: "SCENE HERO" });
   await expect(scene).toBeVisible();
   await expect(responsiveScene.locator(".homepage-banner-scene-variant")).toHaveCount(2);
   await expect(scene.locator('[data-fill-id="fill-radial"]')).toHaveCSS(

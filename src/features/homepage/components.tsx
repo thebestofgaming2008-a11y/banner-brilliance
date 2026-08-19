@@ -374,7 +374,7 @@ export function HomepageHero({
                       className="absolute inset-x-0 bottom-0 z-10 mx-auto h-auto w-full select-none object-contain object-bottom"
                     />
                   ) : null}
-                  <h1
+                  <h2
                     className="absolute z-20 m-0 whitespace-nowrap text-center font-serif-display font-normal leading-none"
                     style={{
                       left: `${(originalTitle.left / 390) * 100}%`,
@@ -384,7 +384,7 @@ export function HomepageHero({
                     }}
                   >
                     {slide.title}
-                  </h1>
+                  </h2>
                   <span
                     className="absolute z-20 text-[12px] font-semibold uppercase leading-none underline underline-offset-4"
                     style={{ left: `${(25 / 390) * 100}%`, top: `${(614 / 649) * 100}%` }}
@@ -423,14 +423,14 @@ export function HomepageHero({
                           {slide.eyebrow}
                         </p>
                       ) : null}
-                      <h1
+                      <h2
                         className={`mt-3 leading-[0.92] ${fontClass(slideTitleFont)}`}
                         style={{
                           fontSize: `clamp(${Math.max(28, slideMobileTitleSize)}px, 7vw, ${Math.max(36, slideTitleSize)}px)`,
                         }}
                       >
                         {slide.title}
-                      </h1>
+                      </h2>
                       {slide.body ? (
                         <p
                           className={`mt-4 max-w-lg text-sm leading-6 ${lightText ? "text-white/78" : "text-black/70"}`}

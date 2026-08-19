@@ -255,9 +255,9 @@ function HeroBanner({
       </div>
       <span className="hero-mobile-legibility-scrim" aria-hidden="true" />
       <div className="hero-conversion-copy pointer-events-none absolute z-20">
-        <h1 className="hero-conversion-title m-0 whitespace-nowrap font-serif-display font-normal">
+        <h2 className="hero-conversion-title m-0 whitespace-nowrap font-serif-display font-normal">
           {banner.title}
-        </h1>
+        </h2>
         <p className="hero-conversion-subtitle whitespace-nowrap font-bold uppercase">
           {banner.subtitle}
         </p>
@@ -364,9 +364,9 @@ function ManagedHeroBanner({
               {banner.eyebrow}
             </p>
           ) : null}
-          <h1 className="banner-heading mt-3 text-[50px] leading-[0.9] md:text-[82px]">
+          <h2 className="banner-heading mt-3 text-[50px] leading-[0.9] md:text-[82px]">
             {banner.title}
-          </h1>
+          </h2>
           {banner.body ? (
             <p
               className={`mt-4 max-w-lg text-[14px] leading-6 ${lightBackground ? "text-black/70" : "text-white/78"}`}
@@ -1109,6 +1109,9 @@ function Index() {
   return (
     <main className="min-h-screen bg-white font-sans-ui text-black antialiased">
       <StoreHeader />
+      <h1 className="sr-only">
+        Fawzaan Store - Shemaghs, Niqabs, Kufis, Gloves, Watches and Kashmir Honey
+      </h1>
       <LegacyHomepageContent homepage={homepage} testimonials={testimonials} />
       <StoreFooter />
       <PromotionPopover />

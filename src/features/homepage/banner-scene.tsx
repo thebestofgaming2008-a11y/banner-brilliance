@@ -760,7 +760,7 @@ export function BannerSceneView({
               </a>
             );
           }
-          const TextTag = layer.semantic || "p";
+          const TextTag = !studio && layer.semantic === "h1" ? "h2" : layer.semantic || "p";
           return (
             <TextTag key={layer.id} {...commonProps}>
               {content}
