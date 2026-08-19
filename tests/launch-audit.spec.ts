@@ -121,6 +121,11 @@ test("crawler metadata, structured data, sitemap and private indexing rules", as
 
   const robots = await request.get("/robots.txt");
   expect(await robots.text()).toContain("https://officialfawzaanstore.com/sitemap.xml");
+  const contact = await request.get("/pages/contact");
+  expect(contact.headers()["cache-control"]).toContain("no-transform");
+  const contactHtml = await contact.text();
+  expect(contactHtml).toContain("mailto:");
+  expect(contactHtml).not.toContain("/cdn-cgi/l/email-protection");
   const account = await request.get("/account");
   expect(account.headers()["x-robots-tag"]).toBe("noindex, nofollow");
 });

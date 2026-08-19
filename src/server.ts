@@ -176,8 +176,8 @@ function withSecurityHeaders(response: Response, request: Request) {
     headers.set(
       "cache-control",
       privatePath || response.status !== 200
-        ? "no-store"
-        : "public, max-age=0, s-maxage=60, stale-while-revalidate=3600, stale-if-error=86400",
+        ? "no-store, no-transform"
+        : "public, max-age=0, s-maxage=60, stale-while-revalidate=3600, stale-if-error=86400, no-transform",
     );
   }
   if (url.protocol === "https:") {
