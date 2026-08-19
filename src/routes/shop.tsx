@@ -271,6 +271,11 @@ function ShopPage() {
     <StorePage>
       <section className="px-[22px] py-8 md:px-8 md:py-12">
         <div className="mx-auto max-w-[1180px]">
+          <h1 className="sr-only">
+            {selectedCollection
+              ? `Shop Fawzaan ${selectedCollection.name}`
+              : "Shop all Fawzaan Store products"}
+          </h1>
           <div className="grid gap-4 border-b border-black/10 pb-6">
             <div
               className="relative grid min-w-0 grid-cols-[36px_minmax(0,1fr)_36px] items-center gap-2"
