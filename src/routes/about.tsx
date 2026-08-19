@@ -22,14 +22,14 @@ function AboutPage() {
       <main>
         <section className="px-[22px] py-14 text-center md:px-8 md:py-24">
           <div className="mx-auto max-w-3xl">
-            <p className="section-kicker text-black/45">About Fawzaan</p>
+            <p className="section-kicker text-black/45">About Fawzaan Store</p>
             <h1 className="section-heading mt-3 text-[44px] md:text-[68px]">
               MODEST ESSENTIALS, CLEARLY CHOSEN
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-[15px] leading-7 text-black/65">
-              Fawzaan brings together shemaghs, niqabs, kufis, watches, gloves, and Kashmir honey in
-              one focused store. Each product page presents the current price, options, stock, and
-              product details needed to order with confidence.
+              Fawzaan Store brings together shemaghs, niqabs, kufis, watches, gloves, and Kashmir
+              honey in one focused store. Each product page presents the current price, options,
+              stock, and product details needed to order with confidence.
             </p>
           </div>
         </section>
