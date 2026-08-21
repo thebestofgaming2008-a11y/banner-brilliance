@@ -41,9 +41,13 @@ function productSeoDescription(product: Product) {
 
 export const Route = createFileRoute("/products/$slug")({
   loader: async ({ params }) => {
-    const products = await listActiveProducts();
-    const product =
-      products.find((item) => item.slug === params.slug) ?? (await getProductBySlug(params.slug));
+    const [fullProduct, products] = await Promise.all([
+      getProductBySlug(params.slug),
+      listActiveProducts(),
+    ]);
+    // Catalog cards intentionally omit the gallery payload. Product pages must
+    // prefer the full record so every published image reaches the gallery.
+    const product = fullProduct ?? products.find((item) => item.slug === params.slug);
     if (!product) throw notFound();
     const reviews =
       product.id && product.reviews > 0 ? await listPublishedProductReviews(product.id) : [];

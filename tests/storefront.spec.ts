@@ -846,8 +846,30 @@ test("storefront motion respects reduced-motion preferences", async ({ page }) =
     .toBe("none");
 });
 
-test("vertical scrolling over the mobile product gallery moves the page", async ({ page }) => {
+test("the mobile product gallery loads every image and only captures horizontal gestures", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  const productResponse = await page.request.get("/api/catalog/product?slug=khadija-niqab");
+  expect(productResponse.ok()).toBeTruthy();
+  const fullProduct = (await productResponse.json()) as {
+    cover_image_url?: string | null;
+    images?: string[] | null;
+    hidden_image_urls?: string[] | null;
+  };
+  const hiddenImages = new Set(
+    (fullProduct.hidden_image_urls ?? []).map((image) => image.split("#")[0]),
+  );
+  const expectedImages = Array.from(
+    new Set([fullProduct.cover_image_url, ...(fullProduct.images ?? [])].filter(Boolean)),
+  ).filter((image) => !hiddenImages.has(String(image).split("#")[0]));
+  expect(expectedImages.length).toBeGreaterThan(1);
+  for (const image of expectedImages) {
+    const imageResponse = await page.request.get(String(image));
+    expect(imageResponse.ok(), `${image} must remain available`).toBeTruthy();
+    expect(imageResponse.headers()["content-type"]).toMatch(/^image\//);
+  }
+
   await page.goto("/products/khadija-niqab", {
     waitUntil: "networkidle",
     timeout: 60_000,
@@ -855,6 +877,32 @@ test("vertical scrolling over the mobile product gallery moves the page", async 
 
   const gallery = page.getByTestId("mobile-product-gallery");
   await expect(gallery).toBeVisible();
+  const galleryImages = gallery.locator("img");
+  await expect(galleryImages).toHaveCount(expectedImages.length);
+  await expect
+    .poll(() => galleryImages.first().evaluate((element) => element.naturalWidth))
+    .toBeGreaterThan(0);
+  await expect(gallery.locator(".overflow-hidden").first()).toHaveCSS(
+    "touch-action",
+    "pan-y pinch-zoom",
+  );
+  await expect(gallery).toHaveAttribute("aria-label", /product images$/);
+  await expect(gallery.locator('[aria-label^="Image "]')).toHaveAttribute(
+    "aria-label",
+    `Image 1 of ${expectedImages.length}`,
+  );
+  await gallery.getByRole("button", { name: "Next slide" }).click();
+  await expect(gallery.locator('[aria-label^="Image "]')).toHaveAttribute(
+    "aria-label",
+    `Image 2 of ${expectedImages.length}`,
+  );
+  for (let index = 2; index < expectedImages.length; index += 1) {
+    await gallery.getByRole("button", { name: `View image ${index + 1}` }).click();
+    await expect(gallery.locator('[aria-label^="Image "]')).toHaveAttribute(
+      "aria-label",
+      `Image ${index + 1} of ${expectedImages.length}`,
+    );
+  }
   const galleryBox = await gallery.boundingBox();
   expect(galleryBox).not.toBeNull();
 
