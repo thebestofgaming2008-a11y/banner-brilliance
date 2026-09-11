@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { InfoPage } from "@/components/store/info-page";
-import { seo } from "@/lib/seo";
+import { infoSeo } from "@/lib/info-seo";
 export const Route = createFileRoute("/pages/returns")({
   head: () =>
-    seo({
+    infoSeo({
       title: "Returns Policy | Fawzaan Store",
       description:
         "Read the Fawzaan Store 5-day return window, eligibility rules and return process.",
       path: "/pages/returns",
+      label: "Returns and refunds",
     }),
   component: ReturnsPage,
 });
@@ -15,7 +16,8 @@ function ReturnsPage() {
   return (
     <InfoPage
       eyebrow="Customer care"
-      title="RETURNS"
+      title="Returns and refunds"
+      intro="Check the return window and item conditions, then contact support for return instructions."
       sections={[
         {
           title: "Return window",

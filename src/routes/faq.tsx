@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ChevronDown } from "lucide-react";
-import { useState } from "react";
 
 import { StorePage } from "@/components/store/store-chrome";
-import { seo } from "@/lib/seo";
+import { infoSeo } from "@/lib/info-seo";
+import { absoluteUrl } from "@/lib/seo";
+import { InformationHeader, SupportNavigation } from "@/components/store/support-navigation";
 
 const faqs = [
   {
@@ -66,19 +67,23 @@ const faqs = [
 
 export const Route = createFileRoute("/faq")({
   head: () => {
-    const metadata = seo({
+    const metadata = infoSeo({
       title: "FAQ | Fawzaan Store Orders, Shipping & Returns",
       description: "Answers to common questions about Fawzaan orders, shipping, returns and care.",
       path: "/faq",
+      label: "Frequently asked questions",
+      type: "FAQPage",
     });
     return {
       ...metadata,
       scripts: [
+        ...metadata.scripts,
         {
           type: "application/ld+json",
           children: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "FAQPage",
+            "@id": `${absoluteUrl("/faq")}#webpage`,
             mainEntity: faqs.flatMap((section) =>
               section.items.map((item) => ({
                 "@type": "Question",
@@ -95,42 +100,55 @@ export const Route = createFileRoute("/faq")({
 });
 
 function FaqPage() {
-  const [open, setOpen] = useState<string | null>(faqs[0].items[0].q);
   return (
     <StorePage>
-      <main className="mx-auto max-w-3xl px-[22px] py-12 md:px-8 md:py-20">
-        <p className="section-kicker text-black/45">Help centre</p>
-        <h1 className="section-heading mt-2 text-[42px] md:text-[58px]">QUESTIONS AND ANSWERS</h1>
+      <InformationHeader
+        eyebrow="Help centre"
+        title="Frequently asked questions"
+        intro="Answers about ordering, delivery, returns, sizing and product care. For help with your own order, contact the store with your order number."
+      />
+      <div className="mx-auto max-w-[1000px] px-[22px] py-10 md:px-8 md:py-14">
+        <nav aria-label="FAQ topics" className="flex flex-wrap gap-3">
+          {faqs.map((section, index) => (
+            <a
+              key={section.section}
+              href={`#faq-topic-${index}`}
+              className="rounded-full bg-[#F7F7F5] px-4 py-3 text-[13px] font-medium hover:bg-black/10"
+            >
+              {section.section}
+            </a>
+          ))}
+        </nav>
 
-        {faqs.map((section) => (
-          <section key={section.section} className="mt-10">
-            <h2 className="text-[20px] font-bold uppercase">{section.section}</h2>
-            <div className="mt-3 border-t border-black/10">
-              {section.items.map((item) => {
-                const isOpen = open === item.q;
-                return (
-                  <div key={item.q} className="border-b border-black/10">
-                    <button
-                      type="button"
-                      onClick={() => setOpen(isOpen ? null : item.q)}
-                      aria-expanded={isOpen}
-                      className="flex w-full items-center justify-between gap-4 py-4 text-left text-sm font-medium"
-                    >
-                      {item.q}
-                      <ChevronDown
-                        className={`h-4 w-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}
-                      />
-                    </button>
-                    {isOpen ? (
-                      <p className="pb-5 text-sm leading-6 text-black/65">{item.a}</p>
-                    ) : null}
-                  </div>
-                );
-              })}
+        {faqs.map((section, sectionIndex) => (
+          <section
+            key={section.section}
+            id={`faq-topic-${sectionIndex}`}
+            className="mt-10 scroll-mt-24"
+          >
+            <h2 className="text-[22px] font-semibold">{section.section}</h2>
+            <div className="mt-4 space-y-3">
+              {section.items.map((item, itemIndex) => (
+                <details
+                  key={item.q}
+                  open={sectionIndex === 0 && itemIndex === 0}
+                  className="group rounded-lg bg-[#F7F7F5] px-5"
+                >
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-[15px] font-semibold [&::-webkit-details-marker]:hidden">
+                    {item.q}
+                    <ChevronDown
+                      aria-hidden="true"
+                      className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180"
+                    />
+                  </summary>
+                  <p className="max-w-3xl pb-5 text-[15px] leading-7 text-black/75">{item.a}</p>
+                </details>
+              ))}
             </div>
           </section>
         ))}
-      </main>
+        <SupportNavigation />
+      </div>
     </StorePage>
   );
 }

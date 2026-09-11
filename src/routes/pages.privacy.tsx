@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { InfoPage } from "@/components/store/info-page";
-import { seo } from "@/lib/seo";
+import { infoSeo } from "@/lib/info-seo";
 export const Route = createFileRoute("/pages/privacy")({
   head: () =>
-    seo({
+    infoSeo({
       title: "Privacy Policy | Fawzaan Store",
       description: "How Fawzaan Store collects, uses and protects customer information.",
       path: "/pages/privacy",
+      label: "Privacy policy",
     }),
   component: PrivacyPage,
 });
@@ -14,8 +15,8 @@ function PrivacyPage() {
   return (
     <InfoPage
       eyebrow="Legal"
-      title="PRIVACY"
-      intro="We collect strictly what is necessary to deliver your orders and offer helpful support. We are committed to protecting your privacy—your data is never sold, and you remain in complete control to delete it anytime."
+      title="Privacy policy"
+      intro="How customer information is used to process orders and provide support, and how to request access, correction or deletion of eligible information."
       sections={[
         {
           title: "Information we collect",
