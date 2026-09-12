@@ -49,9 +49,11 @@ export type Product = {
   features: string[];
   materials: string;
   care: string;
-  tag?: "Bestseller" | "New" | "Limited";
+  tag?: string;
   inStock?: boolean;
   stockQuantity?: number;
+  mediaFit?: "cover" | "contain";
+  mediaPosition?: string;
 };
 
 export const catalog: Product[] = [
@@ -65,7 +67,13 @@ export const catalog: Product[] = [
     rating: 0,
     reviews: 0,
     images: [shemaghRedHead],
-    sizes: ["Standard · 130 × 130 cm"],
+    colors: [
+      { name: "Brown", swatch: "#6f3f28" },
+      { name: "Purple", swatch: "#5d3a82" },
+      { name: "Blue", swatch: "#325c8f" },
+      { name: "Red", swatch: "#b91c1c" },
+    ],
+    sizes: ["60 x 60 cm"],
     short: "The heritage red-and-white keffiyeh, hand-loomed in Yemen.",
     description:
       "Hand-loomed in 100% long-staple cotton with the classic red-and-white herringbone weave. A generous 130 × 130 cm cut wraps without slipping — the honest Yemeni original.",
@@ -117,18 +125,11 @@ export const catalog: Product[] = [
     rating: 0,
     reviews: 0,
     images: [niqabKhadija2, niqabKhadija1, niqabKhadija3, niqabKhadija4],
-    colors: [{ name: "Onyx Black", swatch: "#000000" }],
-    sizes: ["One Size"],
-    short: "Two-layer chiffon niqab with long draping veil.",
-    description:
-      "Featherlight two-layer chiffon niqab with an extended draping veil. Breathable, opaque, and drapes without static. Cut generously to layer beautifully over any abaya.",
-    features: [
-      "First layer: 54 in — Second layer: 34 in",
-      "Face veil: 22.5 × 13.5 in",
-      "Gear: 82 in",
-      "Premium chiffon fabric",
-      "Adjustable elastic band",
-    ],
+    colors: [{ name: "Black", swatch: "#000000" }],
+    sizes: ["One Size - Layers: 54 / 34 in; Veil: 22.5 x 13.5 in; Gear: 82 in"],
+    short: "Daily comfort wear.",
+    description: "Daily comfort wear.",
+    features: ["Premium chiffon fabric"],
     materials: "Premium chiffon.",
     care: "Hand wash cold, hang dry.",
     tag: "Bestseller",
@@ -164,8 +165,8 @@ export const catalog: Product[] = [
     rating: 0,
     reviews: 0,
     images: [kufiFront, kufiSide],
-    colors: [{ name: "Ivory White", swatch: "#f5f2ea" }],
-    sizes: ["S", "M", "L"],
+    colors: [{ name: "White", swatch: "#ffffff" }],
+    sizes: ["Free Size"],
     short: "Breathable openwork kufi for daily wear.",
     description: "Openwork cotton kufi, hand-finished. Sits softly and holds shape all day.",
     features: ["Breathable openwork", "Cotton blend", "Holds shape"],
@@ -206,13 +207,13 @@ export const catalog: Product[] = [
     reviews: 0,
     images: [honeyAcacia],
     sizes: ["500g"],
-    short: "Light, floral Kashmiri acacia. Slow to crystallise.",
+    short: "Light, floral Kashmiri acacia. Unheated.",
     description:
-      "Delicate acacia honey from Kashmir — light golden in colour, gentle on the palate, and slow to crystallise. Pure and unfiltered.",
+      "Delicate acacia honey from Kashmir — light golden in colour, gentle on the palate, and kept unheated.",
     features: [
       "Kashmir acacia origin",
       "100% pure — no adulteration",
-      "Slow to crystallise",
+      "Unheated",
       "500g glass jar",
     ],
     materials: "Raw acacia honey.",

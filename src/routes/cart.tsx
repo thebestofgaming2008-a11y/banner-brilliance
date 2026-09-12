@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 
 import { StorePage } from "@/components/store/store-chrome";
+import { GiftLines } from "@/components/store/gift-lines";
 import { useCurrency } from "@/hooks/use-currency";
 import { useCart } from "@/lib/cart";
 import { seo } from "@/lib/seo";
@@ -45,7 +46,7 @@ function CartPage() {
                         <p className="section-kicker text-black/45">Fawzaan</p>
                         <a
                           href={`/products/${slug}`}
-                          className="mt-1 block text-[15px] font-semibold"
+                          className="product-name mt-1 block text-[17px]"
                         >
                           {line.name}
                         </a>
@@ -89,6 +90,7 @@ function CartPage() {
                     </article>
                   );
                 })}
+                <GiftLines variant="cart" />
               </div>
               <aside className="h-fit border border-black/10 p-6 md:sticky md:top-24">
                 <h2 className="text-[20px] font-bold uppercase">Order summary</h2>
@@ -108,7 +110,7 @@ function CartPage() {
                 </div>
                 <a
                   href="/checkout"
-                  className="mt-6 flex h-12 w-full items-center justify-center bg-[#f4b400] text-[11px] font-bold uppercase"
+                  className="brand-mango-bg mt-6 flex h-12 w-full items-center justify-center text-[11px] font-bold uppercase"
                 >
                   Proceed to checkout
                 </a>
@@ -130,7 +132,7 @@ function CartPage() {
               <h2 className="mt-5 text-[24px] font-bold uppercase">Your cart is empty</h2>
               <a
                 href="/shop"
-                className="mt-7 inline-flex bg-[#f4b400] px-7 py-3 text-[11px] font-bold uppercase"
+                className="brand-mango-bg mt-7 inline-flex px-7 py-3 text-[11px] font-bold uppercase"
               >
                 Start shopping
               </a>

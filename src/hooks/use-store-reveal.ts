@@ -17,12 +17,12 @@ export function useStoreReveal() {
           observer.unobserve(entry.target);
         });
       },
-      { rootMargin: "0px 0px -7% 0px", threshold: 0.08 },
+      { rootMargin: "0px 0px 6% 0px", threshold: 0.02 },
     );
 
     const observe = (element: HTMLElement, index = 0) => {
       if (element.classList.contains("is-visible")) return;
-      element.style.setProperty("--store-reveal-delay", `${Math.min(index % 4, 3) * 28}ms`);
+      element.style.setProperty("--store-reveal-delay", `${Math.min(index % 4, 3) * 22}ms`);
       observer.observe(element);
     };
 

@@ -1,60 +1,79 @@
 import { Heart, Star } from "lucide-react";
 import { toast } from "sonner";
 
-import { type StoreProduct } from "@/data/store";
+import { isPreOrderProduct, type StoreProduct } from "@/data/store";
 import { useCurrency } from "@/hooks/use-currency";
 import { useWishlist } from "@/lib/wishlist";
+import { ProductQuickAdd } from "@/components/store/product-quick-add";
 
 export function StoreProductCard({
   product,
   priority = false,
+  interactive = true,
 }: {
   product: StoreProduct;
   priority?: boolean;
+  interactive?: boolean;
 }) {
   const { formatPrice } = useCurrency();
-  const wishlist = useWishlist();
-  const isSaved = wishlist.has(product.slug);
-
-  const toggleWishlist = async () => {
-    try {
-      await wishlist.toggle(product.slug);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not update your wishlist.");
-    }
-  };
+  const available = product.inStock !== false && Number(product.stockQuantity ?? 1) > 0;
+  const preOrder = isPreOrderProduct(product);
+  const lowStock =
+    available &&
+    typeof product.stockQuantity === "number" &&
+    product.stockQuantity > 0 &&
+    product.stockQuantity <= 3;
 
   return (
-    <article className="store-product-card group min-w-0">
-      <div className="relative aspect-[3/4] overflow-hidden bg-white">
-        <a href={`/products/${product.slug}`} aria-label={`View ${product.name}`}>
+    <article
+      className="store-product-card group flex min-w-0 flex-col"
+      data-store-reveal
+      data-product-stock={available ? "available" : "sold-out"}
+    >
+      <div className="store-product-card__media relative aspect-[3/4] overflow-hidden rounded-md bg-[#F7F7F5]">
+        <a
+          href={interactive ? `/products/${product.slug}` : undefined}
+          aria-label={`View ${product.name}`}
+          aria-disabled={!interactive || undefined}
+        >
           <img
             src={product.images[0]}
             alt={product.name}
             loading={priority ? "eager" : "lazy"}
-            className={`h-full w-full ${product.mediaFit === "contain" ? "object-contain" : "object-cover"} transition-transform duration-500 group-hover:scale-[1.018] ${product.imageClassName ?? ""}`}
+            style={{ objectPosition: product.mediaPosition ?? "center" }}
+            className={`h-full w-full ${product.mediaFit === "contain" ? "object-contain p-3" : "object-cover"} transition-transform duration-500 ${available ? "group-hover:scale-[1.018]" : ""} ${product.imageClassName ?? ""}`}
           />
         </a>
-        {product.badge ? (
+        {!available ? (
+          <span className="absolute left-2 top-2 rounded-md bg-black px-2.5 py-1.5 text-[9px] font-bold uppercase text-white shadow-sm">
+            Sold out
+          </span>
+        ) : product.badge && !preOrder ? (
           <span className="absolute left-2 top-2 bg-white px-2 py-1 text-[9px] font-bold uppercase">
             {product.badge}
           </span>
         ) : null}
-        <button
-          type="button"
-          aria-label={isSaved ? `Remove ${product.name} from wishlist` : `Save ${product.name}`}
-          aria-pressed={isSaved}
-          title={isSaved ? "Remove from wishlist" : "Save to wishlist"}
-          onClick={toggleWishlist}
-          className="absolute right-2 top-2 grid h-9 w-9 place-items-center bg-white text-black transition-colors hover:bg-black hover:text-white"
-        >
-          <Heart size={16} fill={isSaved ? "currentColor" : "none"} />
-        </button>
+        {interactive ? (
+          <WishlistButton product={product} />
+        ) : (
+          <button
+            type="button"
+            aria-label={`Wishlist preview for ${product.name}`}
+            disabled
+            className="absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-full bg-white text-[#D9643C] shadow-sm"
+          >
+            <Heart size={16} />
+          </button>
+        )}
       </div>
-      <div className="mt-3">
-        <p className="section-kicker text-black/45">{product.collection}</p>
-        <a href={`/products/${product.slug}`} className="block">
-          <h3 className="mt-1 min-h-8 text-[13px] font-semibold leading-4 md:text-[14px]">
+      <div className="mt-3 flex flex-1 flex-col">
+        <p className="section-kicker text-black/60">{product.collection}</p>
+        <a
+          href={interactive ? `/products/${product.slug}` : undefined}
+          className="block"
+          aria-disabled={!interactive || undefined}
+        >
+          <h3 className="product-name mt-1 min-h-8 text-[15px] leading-4 md:text-[16px]">
             {product.name}
           </h3>
         </a>
@@ -68,12 +87,46 @@ export function StoreProductCard({
         <div className="mt-1.5 flex items-center gap-2">
           <span className="text-[13px] font-semibold">{formatPrice(product.price)}</span>
           {product.compareAt ? (
-            <span className="text-[12px] text-black/35 line-through">
+            <span className="text-[12px] text-black/60 line-through">
               {formatPrice(product.compareAt)}
             </span>
           ) : null}
         </div>
+        {lowStock ? (
+          <p className="mt-2 text-[9px] font-bold uppercase text-[#A84624]">
+            Only {product.stockQuantity} left
+          </p>
+        ) : null}
+        <div className="mt-auto">
+          <ProductQuickAdd product={product} interactive={interactive} />
+        </div>
       </div>
     </article>
+  );
+}
+
+function WishlistButton({ product }: { product: StoreProduct }) {
+  const wishlist = useWishlist();
+  const isSaved = wishlist.has(product.slug);
+
+  const toggleWishlist = async () => {
+    try {
+      await wishlist.toggle(product.slug);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update your wishlist.");
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      aria-label={isSaved ? `Remove ${product.name} from wishlist` : `Save ${product.name}`}
+      aria-pressed={isSaved}
+      title={isSaved ? "Remove from wishlist" : "Save to wishlist"}
+      onClick={toggleWishlist}
+      className="absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-full bg-white text-[#D9643C] shadow-sm transition-transform hover:scale-105"
+    >
+      <Heart size={16} fill={isSaved ? "currentColor" : "none"} />
+    </button>
   );
 }

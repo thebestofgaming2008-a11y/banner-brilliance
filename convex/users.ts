@@ -109,7 +109,8 @@ export const listCustomers = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const rows = await ctx.db.query("profiles").take(args.limit ?? 200);
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 200), 1), 500);
+    const rows = await ctx.db.query("profiles").take(limit);
     return rows
       .map(publicProfile)
       .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));

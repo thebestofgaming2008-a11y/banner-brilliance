@@ -33,7 +33,7 @@ function WishlistPage() {
             </p>
             <Link
               to="/account"
-              className="mt-7 inline-flex h-12 items-center bg-[#f4b400] px-7 text-[11px] font-bold uppercase"
+              className="brand-mango-bg mt-7 inline-flex h-12 items-center px-7 text-[11px] font-bold uppercase"
             >
               Sign in or create account
             </Link>

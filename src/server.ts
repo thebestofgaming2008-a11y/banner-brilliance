@@ -28,14 +28,63 @@ type R2BucketLike = {
   get: (key: string) => Promise<R2ObjectBody | null>;
 };
 
-const PUBLIC_SITE_URL = "https://fawzaanstore.pages.dev";
-const SITEMAP_LASTMOD = "2026-07-18";
+const PUBLIC_SITE_URL = "https://officialfawzaanstore.com";
+const LEGACY_PUBLIC_HOSTS = new Set(["fawzaanstore.pages.dev", "www.officialfawzaanstore.com"]);
+const LEGACY_PRODUCT_REDIRECTS: Record<string, string> = {
+  "/products/yemeni-shemagh-red": "/products/yemeni-shemagh",
+  "/products/ivory-embroidered-shemagh": "/shop?collection=shemaghs",
+  "/products/rouge-niqab": "/products/Maroon-niqab",
+  "/products/kashmir-multiflora-honey": "/shop?collection=honey",
+  "/products/kashmir-acacia-honey": "/shop?collection=honey",
+  "/products/kashmir-black-honey": "/shop?collection=honey",
+  "/products/sabr-watch-green": "/shop?collection=watches",
+  "/products/sabr-watch-blue": "/shop?collection=watches",
+  "/products/sabr-watch-black": "/shop?collection=watches",
+  "/products/sabr-watch-white": "/shop?collection=watches",
+  "/products/leather-gloves": "/shop?collection=gloves",
+};
+const CRAWL_DOCUMENT_CACHE_HEADERS = {
+  "cache-control": "public, max-age=900, s-maxage=3600, stale-while-revalidate=86400",
+};
+const CRAWL_DOCUMENT_MEMORY_TTL_MS = 15 * 60 * 1000;
+let sitemapDocumentCache: { body: string; expiresAt: number } | null = null;
+let merchantFeedDocumentCache: { body: string; expiresAt: number } | null = null;
 const CATALOG_CACHE_HEADERS = {
-  "cache-control": "no-store",
+  "cache-control": "public, max-age=0, s-maxage=60, stale-while-revalidate=300",
 };
 const CURRENCY_CACHE_HEADERS = {
   "cache-control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
 };
+const FALLBACK_CURRENCY_RATES: Record<string, number> = {
+  INR: 1,
+  USD: 0.012,
+  EUR: 0.011,
+  GBP: 0.0095,
+  AED: 0.044,
+  CAD: 0.016,
+  AUD: 0.018,
+  SAR: 0.045,
+  QAR: 0.044,
+  KWD: 0.0037,
+  MYR: 0.052,
+  SGD: 0.016,
+  ZAR: 0.21,
+  JPY: 1.8,
+  BDT: 1.43,
+};
+const PROMOTION_CACHE_HEADERS = {
+  "cache-control": "public, max-age=30, s-maxage=60, stale-while-revalidate=300",
+};
+const MAX_PRODUCT_MEDIA_BYTES = 25 * 1024 * 1024;
+const ALLOWED_PRODUCT_MEDIA_TYPES = new Set([
+  "image/avif",
+  "image/gif",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "video/mp4",
+  "video/webm",
+]);
 const FALLBACK_TAXONOMY = [
   { slug: "shemaghs", name: "Shemaghs", type: "collection", sort_order: 10 },
   { slug: "niqabs", name: "Niqabs", type: "collection", sort_order: 20 },
@@ -118,9 +167,18 @@ function withSecurityHeaders(response: Response, request: Request) {
     );
   const isPreviewHostname =
     url.hostname.endsWith(".fawzaanstore.pages.dev") && url.hostname !== "fawzaanstore.pages.dev";
-  if (privatePath || isPreviewHostname) headers.set("x-robots-tag", "noindex, nofollow");
+  if (privatePath || isPreviewHostname || response.status >= 500) {
+    headers.set("x-robots-tag", "noindex, nofollow");
+  } else if (response.status === 404) {
+    headers.set("x-robots-tag", "noindex, follow");
+  }
   if (response.headers.get("content-type")?.includes("text/html")) {
-    headers.set("cache-control", privatePath ? "no-store" : "no-cache");
+    headers.set(
+      "cache-control",
+      privatePath || response.status !== 200
+        ? "no-store, no-transform"
+        : "public, max-age=0, s-maxage=60, stale-while-revalidate=3600, stale-if-error=86400, no-transform",
+    );
   }
   if (url.protocol === "https:") {
     headers.set("strict-transport-security", "max-age=31536000; includeSubDomains");
@@ -161,10 +219,18 @@ function trustedCorsHeaders(request: Request, env: unknown) {
   return {
     "access-control-allow-origin": origin,
     "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-allow-headers": "content-type, x-admin-upload-token, x-file-name",
+    "access-control-allow-headers": "content-type, x-admin-upload-token, x-file-name, x-file-size",
     "access-control-max-age": "86400",
     vary: "origin",
   };
+}
+
+function hasTrustedRequestOrigin(request: Request, env: unknown) {
+  const origin = request.headers.get("origin");
+  if (!origin) return true;
+  const requestOrigin = new URL(request.url).origin;
+  const publicOrigin = envString(env, "VITE_PUBLIC_SITE_URL", request) || PUBLIC_SITE_URL;
+  return origin === requestOrigin || origin === publicOrigin;
 }
 
 function safeFileName(value: string | null) {
@@ -244,13 +310,19 @@ async function handleCatalogRequest(request: Request, env: unknown): Promise<Res
     const client = convexClient(env, request);
     if (!client)
       return jsonResponse({ taxonomy: FALLBACK_TAXONOMY, banners: [] }, 200, CATALOG_CACHE_HEADERS);
-    const [taxonomy, banners, homepage] = await Promise.all([
+    const [taxonomy, banners, homepage, testimonials] = await Promise.all([
       client.query(api.catalog.listActiveTaxonomy, {}),
       client.query(api.catalog.listActiveBanners, {}),
       client.query(api.homepage.getPublished, {}),
+      client.query(api.reviews.listHomepageTestimonials, { limit: 3 }),
     ]);
     return jsonResponse(
-      { taxonomy: taxonomy.length ? taxonomy : FALLBACK_TAXONOMY, banners, homepage },
+      {
+        taxonomy: taxonomy.length ? taxonomy : FALLBACK_TAXONOMY,
+        banners,
+        homepage,
+        testimonials,
+      },
       200,
       CATALOG_CACHE_HEADERS,
     );
@@ -273,12 +345,30 @@ async function handleCatalogRequest(request: Request, env: unknown): Promise<Res
   return jsonResponse(fallback, fallback ? 200 : 404, CATALOG_CACHE_HEADERS);
 }
 
+async function handlePromotionRequest(request: Request, env: unknown): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (request.method !== "GET" || url.pathname !== "/api/promotions/featured") return null;
+  try {
+    const client = convexClient(env, request);
+    const promotion = client
+      ? await client.query(api.promotions.getFeatured, { now: Date.now() })
+      : null;
+    return jsonResponse(promotion, 200, PROMOTION_CACHE_HEADERS);
+  } catch (error) {
+    console.error("Featured promotion unavailable", error);
+    return jsonResponse(null, 200, PROMOTION_CACHE_HEADERS);
+  }
+}
+
 async function handleMediaRequest(request: Request, env: unknown): Promise<Response | null> {
   const url = new URL(request.url);
   const bucket = r2Bucket(env, request);
 
   if (url.pathname === "/api/media/upload") {
     const corsHeaders = trustedCorsHeaders(request, env);
+    if (!hasTrustedRequestOrigin(request, env)) {
+      return jsonResponse({ error: "Request origin is not allowed." }, 403);
+    }
     if (request.method === "OPTIONS")
       return new Response(null, { status: 204, headers: corsHeaders });
     if (request.method !== "POST")
@@ -295,10 +385,24 @@ async function handleMediaRequest(request: Request, env: unknown): Promise<Respo
       return jsonResponse({ error: "No upload body was received." }, 400, corsHeaders);
 
     const contentType = request.headers.get("content-type") || "application/octet-stream";
+    const declaredSize = Number(request.headers.get("x-file-size"));
+    const contentLength = Number(request.headers.get("content-length") || declaredSize);
+    if (!ALLOWED_PRODUCT_MEDIA_TYPES.has(contentType)) {
+      return jsonResponse({ error: "Unsupported product media type." }, 415, corsHeaders);
+    }
+    if (
+      !Number.isFinite(declaredSize) ||
+      declaredSize <= 0 ||
+      declaredSize > MAX_PRODUCT_MEDIA_BYTES ||
+      !Number.isFinite(contentLength) ||
+      contentLength <= 0 ||
+      contentLength > MAX_PRODUCT_MEDIA_BYTES ||
+      contentLength !== declaredSize
+    ) {
+      return jsonResponse({ error: "Product media must be 25 MB or smaller." }, 413, corsHeaders);
+    }
     const fileName = safeFileName(request.headers.get("x-file-name"));
-    const extension = fileName.includes(".")
-      ? fileName.split(".").pop()?.toLowerCase() || extensionForContentType(contentType)
-      : extensionForContentType(contentType);
+    const extension = extensionForContentType(contentType);
     const key = `products/${Date.now()}-${crypto.randomUUID()}.${extension}`;
 
     await bucket.put(key, request.body, {
@@ -381,7 +485,7 @@ async function handleCurrencyRequest(request: Request, env: unknown): Promise<Re
   }
   const fallback = {
     base: "INR",
-    rates: { INR: 1 },
+    rates: FALLBACK_CURRENCY_RATES,
     detected_currency: detectedCurrencyForRequest(request),
     source: "fallback",
     fetchedAt: new Date().toISOString(),
@@ -442,10 +546,21 @@ function handleGeoRequest(request: Request): Response | null {
 }
 
 function cleanApiError(error: unknown) {
-  const message = error instanceof Error ? error.message : "Payment request failed.";
-  const uncaught = [...message.matchAll(/Uncaught Error:\s*([^\n]+)/gi)].at(-1)?.[1]?.trim();
+  const data =
+    error && typeof error === "object" && "data" in error
+      ? (error as { data?: unknown }).data
+      : null;
+  const message =
+    typeof data === "string" && data.trim()
+      ? data
+      : error instanceof Error
+        ? error.message
+        : "Payment request failed.";
+  const uncaught = [...message.matchAll(/Uncaught (?:ConvexError|Error):\s*([^\n]+)/gi)]
+    .at(-1)?.[1]
+    ?.trim();
   const clean = (uncaught ?? message)
-    .replace(/^Uncaught Error:\s*/i, "")
+    .replace(/^Uncaught (?:ConvexError|Error):\s*/i, "")
     .replace(/\s+at\s+handler[\s\S]*$/i, "")
     .replace(/\s*\n[\s\S]*$/, "")
     .trim();
@@ -466,7 +581,8 @@ function cleanApiError(error: unknown) {
 function paymentErrorStatus(message: string, fallback = 500) {
   if (/payment provider|secure payment|temporarily unavailable|did not respond/i.test(message))
     return 503;
-  if (/missing|required|invalid|mismatch|signature|amount/i.test(message)) return 400;
+  if (/missing|required|invalid|mismatch|signature|amount|promotion|discount/i.test(message))
+    return 400;
   return fallback;
 }
 
@@ -484,6 +600,9 @@ async function handleRazorpayApiRequest(request: Request, env: unknown): Promise
     return null;
   }
   const corsHeaders = trustedCorsHeaders(request, env);
+  if (!hasTrustedRequestOrigin(request, env)) {
+    return jsonResponse({ error: "Request origin is not allowed." }, 403);
+  }
   if (request.method === "OPTIONS")
     return new Response(null, { status: 204, headers: corsHeaders });
   if (request.method !== "POST") {
@@ -509,10 +628,23 @@ async function handleRazorpayApiRequest(request: Request, env: unknown): Promise
           corsHeaders,
         );
       }
+      const checkoutServerToken =
+        envString(env, "CHECKOUT_API_SECRET", request) ||
+        envString(env, "ADMIN_UPLOAD_TOKEN", request);
+      if (!checkoutServerToken) {
+        return jsonResponse(
+          { error: "Secure checkout is not fully configured." },
+          503,
+          corsHeaders,
+        );
+      }
       const client = convexClient(env, request);
       if (!client)
         return jsonResponse({ error: "Convex backend is not configured." }, 500, corsHeaders);
-      const order = await client.action(api.orders.createRazorpayCheckoutOrder, body as never);
+      const order = await client.action(api.orders.createRazorpayCheckoutOrder, {
+        ...(body as Record<string, unknown>),
+        server_token: checkoutServerToken,
+      } as never);
       return jsonResponse(
         {
           order_id: order.orderId,
@@ -546,11 +678,18 @@ async function handleRazorpayApiRequest(request: Request, env: unknown): Promise
         { "cache-control": "no-store", ...corsHeaders },
       );
     }
+    const checkoutServerToken =
+      envString(env, "CHECKOUT_API_SECRET", request) ||
+      envString(env, "ADMIN_UPLOAD_TOKEN", request);
+    if (!checkoutServerToken) {
+      return jsonResponse({ error: "Secure checkout is not fully configured." }, 503, corsHeaders);
+    }
     const client = convexClient(env, request);
     if (!client)
       return jsonResponse({ error: "Convex backend is not configured." }, 500, corsHeaders);
     const order = await client.action(api.orders.verifyRazorpayPayment, {
       ...(verifyBody.payload as Record<string, unknown>),
+      server_token: checkoutServerToken,
       razorpay_payment_id: verifyBody.razorpay_payment_id,
       razorpay_order_id: verifyBody.razorpay_order_id,
       razorpay_signature: verifyBody.razorpay_signature,
@@ -593,25 +732,89 @@ function publicSiteUrl(env: unknown, request: Request) {
   return (envString(env, "VITE_PUBLIC_SITE_URL", request) || PUBLIC_SITE_URL).replace(/\/+$/, "");
 }
 
+function handleCanonicalHostRedirect(request: Request, env: unknown): Response | null {
+  if (request.method !== "GET" && request.method !== "HEAD") return null;
+  const url = new URL(request.url);
+  if (!LEGACY_PUBLIC_HOSTS.has(url.hostname.toLowerCase())) return null;
+
+  const crawlDocument = new Set(["/robots.txt", "/sitemap.xml", "/merchant-feed.xml"]).has(
+    url.pathname,
+  );
+  const pageRequest =
+    url.pathname === "/" ||
+    (!url.pathname.startsWith("/api/") && !/\.[a-z0-9]{2,8}$/i.test(url.pathname));
+  if (!crawlDocument && !pageRequest) return null;
+
+  const destination = new URL(`${url.pathname}${url.search}`, publicSiteUrl(env, request));
+  return new Response(null, {
+    status: 308,
+    headers: {
+      location: destination.href,
+      "cache-control": "public, max-age=3600, s-maxage=86400",
+    },
+  });
+}
+
+function handleCanonicalPathRedirect(request: Request, env: unknown): Response | null {
+  if (request.method !== "GET" && request.method !== "HEAD") return null;
+  const url = new URL(request.url);
+  const legacyDestination = LEGACY_PRODUCT_REDIRECTS[url.pathname.toLowerCase()];
+  let destination = legacyDestination
+    ? new URL(legacyDestination, publicSiteUrl(env, request))
+    : null;
+
+  if (!destination && url.pathname === "/shop") {
+    const collection = url.searchParams.get("collection")?.trim();
+    const canonicalCollection = collection?.toLowerCase();
+    if (collection && canonicalCollection && collection !== canonicalCollection) {
+      destination = new URL(`${url.pathname}${url.search}`, publicSiteUrl(env, request));
+      destination.searchParams.set("collection", canonicalCollection);
+    }
+  }
+
+  if (!destination) return null;
+  return new Response(null, {
+    status: 308,
+    headers: {
+      location: destination.href,
+      "cache-control": "public, max-age=3600, s-maxage=86400",
+    },
+  });
+}
+
 function handleRobotsRequest(request: Request, env: unknown): Response | null {
   const url = new URL(request.url);
   if ((request.method !== "GET" && request.method !== "HEAD") || url.pathname !== "/robots.txt") {
     return null;
   }
-  const body = `User-agent: *
-Allow: /
-Disallow: /admin
-Disallow: /account
-Disallow: /cart
-Disallow: /checkout
-Disallow: /search
-
-Sitemap: ${publicSiteUrl(env, request)}/sitemap.xml
-`;
+  const privatePaths = [
+    "/admin",
+    "/account",
+    "/cart",
+    "/checkout",
+    "/order/",
+    "/search",
+    "/track-order",
+    "/unsubscribe",
+    "/wishlist",
+  ];
+  const rulesFor = (userAgent: string) =>
+    [
+      `User-agent: ${userAgent}`,
+      "Allow: /",
+      ...privatePaths.map((path) => `Disallow: ${path}`),
+    ].join("\n");
+  const body = [
+    rulesFor("*"),
+    rulesFor("OAI-SearchBot"),
+    rulesFor("ChatGPT-User"),
+    `Sitemap: ${publicSiteUrl(env, request)}/sitemap.xml`,
+    "",
+  ].join("\n\n");
   return new Response(request.method === "HEAD" ? null : body, {
     headers: {
       "content-type": "text/plain; charset=utf-8",
-      "cache-control": "public, max-age=300",
+      ...CRAWL_DOCUMENT_CACHE_HEADERS,
     },
   });
 }
@@ -619,23 +822,23 @@ Sitemap: ${publicSiteUrl(env, request)}/sitemap.xml
 function sitemapUrlNode(
   baseUrl: string,
   path: string,
-  priority: string,
   image?: string,
   imageTitle?: string,
-  lastModified = SITEMAP_LASTMOD,
+  lastModified?: string,
 ) {
   const loc = `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
-  const parts = [
-    "  <url>",
-    `    <loc>${xmlEscape(loc)}</loc>`,
-    `    <lastmod>${xmlEscape(lastModified)}</lastmod>`,
-    "    <changefreq>weekly</changefreq>",
-    `    <priority>${priority}</priority>`,
-  ];
+  const parts = ["  <url>", `    <loc>${xmlEscape(loc)}</loc>`];
+  if (lastModified) parts.push(`    <lastmod>${xmlEscape(lastModified)}</lastmod>`);
   if (image) {
+    const imageUrl = new URL(image, baseUrl);
+    if (LEGACY_PUBLIC_HOSTS.has(imageUrl.hostname)) {
+      const canonicalUrl = new URL(baseUrl);
+      imageUrl.protocol = canonicalUrl.protocol;
+      imageUrl.host = canonicalUrl.host;
+    }
     parts.push(
       "    <image:image>",
-      `      <image:loc>${xmlEscape(new URL(image, baseUrl).href)}</image:loc>`,
+      `      <image:loc>${xmlEscape(imageUrl.href)}</image:loc>`,
       `      <image:title>${xmlEscape(imageTitle)}</image:title>`,
       "    </image:image>",
     );
@@ -644,10 +847,62 @@ function sitemapUrlNode(
   return parts.join("\n");
 }
 
+function validLastModified(value: unknown) {
+  const timestamp = Date.parse(String(value ?? ""));
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : undefined;
+}
+
+function catalogCollectionSlug(product: Record<string, unknown>) {
+  const raw = String(product.category_id ?? product.category ?? "other")
+    .trim()
+    .toLowerCase();
+  const known = FALLBACK_TAXONOMY.find(
+    (item) => raw === item.slug || raw === item.name.toLowerCase(),
+  );
+  return known?.slug ?? (raw.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "other");
+}
+
+function catalogCollectionName(product: Record<string, unknown>) {
+  const slug = catalogCollectionSlug(product);
+  return (
+    FALLBACK_TAXONOMY.find((item) => item.slug === slug)?.name ||
+    String(product.category ?? slug).trim() ||
+    "Other"
+  );
+}
+
+function isPreOrderCatalogProduct(product: Record<string, unknown>) {
+  return /^pre[\s-]?order$/i.test(String(product.badge ?? "").trim());
+}
+
+function catalogAvailability(product: Record<string, unknown>) {
+  if (isPreOrderCatalogProduct(product)) return "preorder";
+  const stock = product.stock_quantity;
+  if (product.in_stock === false || (stock != null && Number(stock) <= 0)) return "out_of_stock";
+  return "in_stock";
+}
+
+function catalogPrices(product: Record<string, unknown>) {
+  const regular = Number(product.price_inr ?? product.price ?? 0);
+  const sale = Number(product.sale_price_inr ?? product.sale_price ?? 0);
+  return {
+    regular,
+    sale: sale > 0 && sale < regular ? sale : null,
+  };
+}
+
 async function handleSitemapRequest(request: Request, env: unknown): Promise<Response | null> {
   const url = new URL(request.url);
   if ((request.method !== "GET" && request.method !== "HEAD") || url.pathname !== "/sitemap.xml") {
     return null;
+  }
+  if (sitemapDocumentCache && sitemapDocumentCache.expiresAt > Date.now()) {
+    return new Response(request.method === "HEAD" ? null : sitemapDocumentCache.body, {
+      headers: {
+        "content-type": "application/xml; charset=utf-8",
+        ...CRAWL_DOCUMENT_CACHE_HEADERS,
+      },
+    });
   }
   const baseUrl = publicSiteUrl(env, request);
   const staticPaths = [
@@ -661,23 +916,38 @@ async function handleSitemapRequest(request: Request, env: unknown): Promise<Res
     "/pages/privacy",
     "/terms",
   ];
-  const products = mergeLocalCatalogProducts(await liveCatalogProducts(env, request)) as Array<
-    Record<string, unknown>
-  >;
+  const liveProducts = await liveCatalogProducts(env, request);
+  const products = mergeLocalCatalogProducts(liveProducts) as Array<Record<string, unknown>>;
+  const activeProducts = products.filter(
+    (product) => product.is_active !== false && String(product.slug ?? "").trim(),
+  );
+  const collectionLastModified = new Map<string, string | undefined>();
+  activeProducts.forEach((product) => {
+    const slug = catalogCollectionSlug(product);
+    const updated = validLastModified(product.updated_at ?? product.created_at);
+    const existing = collectionLastModified.get(slug);
+    if (!existing || (updated && updated > existing)) collectionLastModified.set(slug, updated);
+  });
   const nodes = [
-    ...staticPaths.map((path) => sitemapUrlNode(baseUrl, path, path === "/" ? "1.0" : "0.7")),
-    ...products
-      .filter((product) => product.is_active !== false && String(product.slug ?? "").trim())
-      .map((product) =>
-        sitemapUrlNode(
-          baseUrl,
-          `/products/${encodeURIComponent(String(product.slug ?? ""))}`,
-          product.is_featured || product.is_bestseller || product.is_new_arrival ? "0.85" : "0.8",
-          typeof product.cover_image_url === "string" ? product.cover_image_url : undefined,
-          String(product.name ?? "Product"),
-          String(product.updated_at ?? product.created_at ?? SITEMAP_LASTMOD),
-        ),
+    ...staticPaths.map((path) => sitemapUrlNode(baseUrl, path)),
+    ...Array.from(collectionLastModified.entries()).map(([slug, updated]) =>
+      sitemapUrlNode(
+        baseUrl,
+        `/shop?collection=${encodeURIComponent(slug)}`,
+        undefined,
+        undefined,
+        updated,
       ),
+    ),
+    ...activeProducts.map((product) =>
+      sitemapUrlNode(
+        baseUrl,
+        `/products/${encodeURIComponent(String(product.slug ?? ""))}`,
+        typeof product.cover_image_url === "string" ? product.cover_image_url : undefined,
+        String(product.name ?? "Product"),
+        validLastModified(product.updated_at ?? product.created_at),
+      ),
+    ),
   ];
   const body = [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -686,10 +956,126 @@ async function handleSitemapRequest(request: Request, env: unknown): Promise<Res
     "</urlset>",
     "",
   ].join("\n");
+  if (Array.isArray(liveProducts) && liveProducts.length) {
+    sitemapDocumentCache = {
+      body,
+      expiresAt: Date.now() + CRAWL_DOCUMENT_MEMORY_TTL_MS,
+    };
+  }
   return new Response(request.method === "HEAD" ? null : body, {
     headers: {
       "content-type": "application/xml; charset=utf-8",
-      "cache-control": "public, max-age=300",
+      ...CRAWL_DOCUMENT_CACHE_HEADERS,
+    },
+  });
+}
+
+async function handleMerchantFeedRequest(request: Request, env: unknown): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (
+    (request.method !== "GET" && request.method !== "HEAD") ||
+    url.pathname !== "/merchant-feed.xml"
+  ) {
+    return null;
+  }
+  if (merchantFeedDocumentCache && merchantFeedDocumentCache.expiresAt > Date.now()) {
+    return new Response(request.method === "HEAD" ? null : merchantFeedDocumentCache.body, {
+      headers: {
+        "content-type": "application/xml; charset=utf-8",
+        ...CRAWL_DOCUMENT_CACHE_HEADERS,
+      },
+    });
+  }
+
+  const baseUrl = publicSiteUrl(env, request);
+  const liveProducts = await liveCatalogProducts(env, request);
+  const products = mergeLocalCatalogProducts(liveProducts) as Array<Record<string, unknown>>;
+  const items = products
+    .filter((product) => {
+      const image = String(product.cover_image_url ?? "").trim();
+      return (
+        product.is_active !== false &&
+        String(product.slug ?? "").trim() &&
+        image &&
+        catalogPrices(product).regular > 0
+      );
+    })
+    .map((product) => {
+      const slug = String(product.slug ?? "").trim();
+      const name = String(product.name ?? "Product").trim();
+      const category = catalogCollectionName(product);
+      const description =
+        String(product.description ?? product.short_description ?? "").trim() ||
+        `${name} from Fawzaan Store.`;
+      const images = [
+        product.cover_image_url,
+        ...(Array.isArray(product.images) ? product.images : []),
+      ]
+        .map((image) => String(image ?? "").trim())
+        .filter((image, index, values) => image && values.indexOf(image) === index);
+      const prices = catalogPrices(product);
+      const canonicalMediaUrl = (image: string) => {
+        const imageUrl = new URL(image, `${baseUrl}/`);
+        if (LEGACY_PUBLIC_HOSTS.has(imageUrl.hostname)) {
+          const canonicalUrl = new URL(baseUrl);
+          imageUrl.protocol = canonicalUrl.protocol;
+          imageUrl.host = canonicalUrl.host;
+        }
+        return imageUrl.href;
+      };
+      const lines = [
+        "    <item>",
+        `      <g:id>${xmlEscape(product.id ?? slug)}</g:id>`,
+        `      <g:title>${xmlEscape(name)}</g:title>`,
+        `      <g:description>${xmlEscape(description)}</g:description>`,
+        `      <g:link>${xmlEscape(`${baseUrl}/products/${encodeURIComponent(slug)}`)}</g:link>`,
+        `      <g:image_link>${xmlEscape(canonicalMediaUrl(images[0]))}</g:image_link>`,
+        ...images
+          .slice(1, 11)
+          .map(
+            (image) =>
+              `      <g:additional_image_link>${xmlEscape(canonicalMediaUrl(image))}</g:additional_image_link>`,
+          ),
+        `      <g:availability>${catalogAvailability(product)}</g:availability>`,
+        `      <g:condition>new</g:condition>`,
+        `      <g:price>${prices.regular.toFixed(2)} INR</g:price>`,
+        ...(prices.sale
+          ? [`      <g:sale_price>${prices.sale.toFixed(2)} INR</g:sale_price>`]
+          : []),
+        `      <g:brand>Fawzaan Store</g:brand>`,
+        `      <g:product_type>${xmlEscape(category)}</g:product_type>`,
+        `      <g:identifier_exists>no</g:identifier_exists>`,
+        "      <g:shipping>",
+        "        <g:country>IN</g:country>",
+        "        <g:service>Standard</g:service>",
+        "        <g:price>0.00 INR</g:price>",
+        "      </g:shipping>",
+        "    </item>",
+      ];
+      return lines.join("\n");
+    });
+  const body = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">',
+    "  <channel>",
+    "    <title>Fawzaan Store product feed</title>",
+    `    <link>${xmlEscape(baseUrl)}</link>`,
+    "    <description>Live Fawzaan Store product catalog</description>",
+    ...items,
+    "  </channel>",
+    "</rss>",
+    "",
+  ].join("\n");
+  if (Array.isArray(liveProducts) && liveProducts.length) {
+    merchantFeedDocumentCache = {
+      body,
+      expiresAt: Date.now() + CRAWL_DOCUMENT_MEMORY_TTL_MS,
+    };
+  }
+  return new Response(request.method === "HEAD" ? null : body, {
+    headers: {
+      "content-type": "application/xml; charset=utf-8",
+      ...CRAWL_DOCUMENT_CACHE_HEADERS,
     },
   });
 }
@@ -723,17 +1109,29 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     const finish = (response: Response) => withSecurityHeaders(response, request);
     try {
+      const canonicalHostRedirect = handleCanonicalHostRedirect(request, env);
+      if (canonicalHostRedirect) return finish(canonicalHostRedirect);
+
+      const canonicalPathRedirect = handleCanonicalPathRedirect(request, env);
+      if (canonicalPathRedirect) return finish(canonicalPathRedirect);
+
       const robotsResponse = handleRobotsRequest(request, env);
       if (robotsResponse) return finish(robotsResponse);
 
       const sitemapResponse = await handleSitemapRequest(request, env);
       if (sitemapResponse) return finish(sitemapResponse);
 
+      const merchantFeedResponse = await handleMerchantFeedRequest(request, env);
+      if (merchantFeedResponse) return finish(merchantFeedResponse);
+
       const mediaResponse = await handleMediaRequest(request, env);
       if (mediaResponse) return finish(mediaResponse);
 
       const catalogResponse = await handleCatalogRequest(request, env);
       if (catalogResponse) return finish(catalogResponse);
+
+      const promotionResponse = await handlePromotionRequest(request, env);
+      if (promotionResponse) return finish(promotionResponse);
 
       const razorpayResponse = await handleRazorpayApiRequest(request, env);
       if (razorpayResponse) return finish(razorpayResponse);

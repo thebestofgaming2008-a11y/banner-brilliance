@@ -1,30 +1,336 @@
-import { Puck, type Data } from "@puckeditor/core";
-import "@puckeditor/core/puck.css";
-import { Eye, History, Loader2, RotateCcw, Save, Store, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  AlignCenterHorizontal,
+  AlignCenterVertical,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Circle,
+  Copy,
+  Crop,
+  Eye,
+  GripVertical,
+  History,
+  Image as ImageIcon,
+  LayoutGrid,
+  Loader2,
+  Lock,
+  Minus,
+  Monitor,
+  MousePointer2,
+  Plus,
+  RectangleHorizontal,
+  Redo2,
+  RotateCcw,
+  Save,
+  Smartphone,
+  Sparkles,
+  Trash2,
+  Type,
+  Undo2,
+  Unlock,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import "./homepage-studio.css";
 
+import { useStoreProducts, type StoreProduct } from "@/data/store";
 import type { AdminCategory } from "@/services/adminService";
 import { refreshPublicCatalog } from "@/services/adminService";
 import {
   discardHomepageDraft,
   getHomepageEditorState,
   publishHomepage,
+  resetHomepageToOriginal,
   restoreHomepageVersion,
   saveHomepageDraft,
 } from "@/services/homepageService";
-import { cloneDefaultHomepageData } from "./default-data";
-import { createHomepagePuckConfig } from "./puck-config";
-import type { HomepageData, HomepageVersion } from "./types";
+import {
+  cloneDefaultHomepageData,
+  isHomepageEditorData,
+  normalizeHomepageData,
+} from "./default-data";
+import { StorefrontFramePreview, StudioCanvas } from "./studio-canvas";
+import { StudioInspector } from "./studio-inspector";
+import { StudioTemplateInspector, type HomepageTemplatePatch } from "./studio-template-inspector";
+import { HomepageImageInput } from "./homepage-image-field";
+import { CORE_MOSAIC_CARD_COUNT, homepageMosaicCards, MAX_MOSAIC_CARDS } from "./mosaic-data";
+import {
+  createHeroSlide,
+  createLayer,
+  createStudioId,
+  constrainOriginalHeroLayerForViewport,
+  ensureHomepageScenes,
+  getScene,
+  HOMEPAGE_MOBILE_MAX_WIDTH,
+  listStudioBanners,
+  migratePresetBannerScene,
+  originalHeroSceneIssues,
+  sceneFromCollectionFeature,
+  sceneFromHero,
+  sceneFromPromo,
+  updateScene,
+  type StudioBannerRef,
+} from "./studio-model";
+import type {
+  BannerFill,
+  BannerLayer,
+  BannerLayerStyle,
+  BannerScene,
+  CollectionFeatureProps,
+  HeroSlide,
+  HomepageData,
+  HomepageEditorState,
+  HomepageMosaicCard,
+  HomepageVersion,
+  HomepageViewport,
+  PromoBannerProps,
+} from "./types";
 
-const AUTOSAVE_DELAY_MS = 4_000;
+const LOCAL_BACKUP_KEY = "fawzaan.homepage-studio.local-v4";
+const LEGACY_BACKUP_KEYS = [
+  "fawzaan.homepage-studio.local-v1",
+  "fawzaan.homepage-studio.local-v2",
+  "fawzaan.homepage-studio.local-v3",
+];
+const ALL_BACKUP_KEYS = [LOCAL_BACKUP_KEY, ...LEGACY_BACKUP_KEYS];
+const HISTORY_LIMIT = 80;
+const ADVANCED_LAYOUT_TOOLS = false;
 
-function cloneData(data: HomepageData) {
-  return JSON.parse(JSON.stringify(data)) as HomepageData;
+type LocalBackup = { revision?: number; savedAt?: string; data?: HomepageData };
+
+type CropSnapshot =
+  | {
+      kind: "layer";
+      id: string;
+      data: HomepageData;
+      dirty: boolean;
+      unpublished: boolean;
+      past: HomepageData[];
+      future: HomepageData[];
+    }
+  | {
+      kind: "fill";
+      id: string;
+      data: HomepageData;
+      dirty: boolean;
+      unpublished: boolean;
+      past: HomepageData[];
+      future: HomepageData[];
+    };
+
+function openBackupStore() {
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open("fawzaan-homepage-editor", 1);
+    request.onupgradeneeded = () => request.result.createObjectStore("drafts");
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function readLocalBackup(): Promise<LocalBackup | null> {
+  if (!("indexedDB" in window)) return null;
+  const db = await openBackupStore();
+  return new Promise<LocalBackup | null>((resolve, reject) => {
+    const request = db
+      .transaction("drafts", "readonly")
+      .objectStore("drafts")
+      .get(LOCAL_BACKUP_KEY);
+    request.onsuccess = () => resolve((request.result as LocalBackup | undefined) ?? null);
+    request.onerror = () => reject(request.error);
+  }).finally(() => db.close());
+}
+
+async function writeLocalBackup(backup: LocalBackup | null) {
+  if (!("indexedDB" in window)) return;
+  const db = await openBackupStore();
+  await new Promise<void>((resolve, reject) => {
+    const store = db.transaction("drafts", "readwrite").objectStore("drafts");
+    const request = backup ? store.put(backup, LOCAL_BACKUP_KEY) : store.delete(LOCAL_BACKUP_KEY);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+  db.close();
+}
+
+async function clearLocalBackups() {
+  for (const key of ALL_BACKUP_KEYS) {
+    try {
+      window.localStorage.removeItem(key);
+      window.sessionStorage.removeItem(key);
+    } catch {
+      // Browser privacy settings can disable storage; the server reset must still complete.
+    }
+  }
+  if ("indexedDB" in window) {
+    try {
+      const db = await openBackupStore();
+      await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction("drafts", "readwrite");
+        const store = transaction.objectStore("drafts");
+        ALL_BACKUP_KEYS.forEach((key) => store.delete(key));
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+      }).finally(() => db.close());
+    } catch {
+      // IndexedDB cleanup is best effort after the authoritative server reset.
+    }
+  }
+}
+
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function safeHomepageLink(value: string | undefined) {
+  const link = String(value ?? "").trim();
+  return (
+    !link ||
+    (link.startsWith("/") && !link.startsWith("//")) ||
+    link.startsWith("#") ||
+    /^https:\/\//i.test(link)
+  );
+}
+
+function createMosaicCollectionCard(
+  cards: HomepageMosaicCard[],
+  categories: AdminCategory[],
+): HomepageMosaicCard {
+  const collectionCategories = categories.filter((category) => category.type === "collection");
+  const usedLinks = new Set(cards.map((card) => card.href));
+  const category =
+    collectionCategories.find(
+      (candidate) =>
+        !usedLinks.has(`/shop?collection=${encodeURIComponent(candidate.slug.toLowerCase())}`),
+    ) ?? collectionCategories[0];
+
+  return {
+    id: createStudioId("mosaic"),
+    title: category?.name.trim().toUpperCase() || "NEW COLLECTION",
+    eyebrow: "Explore",
+    image: "",
+    imagePosition: "center",
+    href: category
+      ? `/shop?collection=${encodeURIComponent(category.slug.toLowerCase())}`
+      : "/shop",
+  };
+}
+
+function homepagePublishIssues(data: HomepageData, products: StoreProduct[]) {
+  const issues: string[] = [];
+  const mosaicIds = new Set<string>();
+  homepageMosaicCards(data).forEach((card, index) => {
+    const label = card.title.trim() || `Collection box ${index + 1}`;
+    if (!card.title.trim()) issues.push(`Collection box ${index + 1} needs a title.`);
+    if (!card.image.trim()) issues.push(`${label} needs an image.`);
+    if (!safeHomepageLink(card.href) || !card.href.trim()) {
+      issues.push(`${label} needs a valid shop link.`);
+    }
+    if (!card.id.trim() || mosaicIds.has(card.id)) {
+      issues.push(`${label} needs a unique ID.`);
+    }
+    mosaicIds.add(card.id);
+  });
+  data.content.forEach((item, index) => {
+    if (item.type === "Hero") {
+      item.props.slides.forEach((slide, slideIndex) => {
+        const scene = slide.scene;
+        if (!scene) {
+          issues.push(`Hero slide ${slideIndex + 1} needs its responsive layout restored.`);
+          return;
+        }
+        originalHeroSceneIssues(scene).forEach((issue) =>
+          issues.push(`Hero slide ${slideIndex + 1} ${issue}.`),
+        );
+      });
+      return;
+    }
+    if (item.type !== "CollectionFeature" && item.type !== "PromoBanner") return;
+    const label = item.props.title.trim() || `Banner ${index}`;
+    const image = item.type === "CollectionFeature" ? item.props.image : item.props.backgroundImage;
+    if (!image.trim()) issues.push(`${label} needs a banner image.`);
+    if (item.props.contentMode === "image-only" && !safeHomepageLink(item.props.imageLink)) {
+      issues.push(`${label} has an invalid poster link.`);
+    }
+    if (item.type === "PromoBanner" && item.props.contentMode !== "image-only") {
+      if (!item.props.buttonLabel.trim()) issues.push(`${label} needs shop button text.`);
+      if (!safeHomepageLink(item.props.buttonUrl) || !item.props.buttonUrl.trim()) {
+        issues.push(`${label} needs a valid shop button link.`);
+      }
+    }
+    const imageLayer = item.props.scene?.layers.find((layer) => layer.id === "banner-image");
+    if (!imageLayer) {
+      issues.push(`${label} needs its banner image frame restored.`);
+    } else {
+      [imageLayer.style, { ...imageLayer.style, ...(imageLayer.mobileStyle ?? {}) }].forEach(
+        (style, viewportIndex) => {
+          const viewportLabel = viewportIndex === 0 ? "desktop" : "mobile";
+          const zoom = Number(style.cropZoom ?? 100);
+          const cropX = Number(style.cropX ?? 0);
+          const cropY = Number(style.cropY ?? 0);
+          if (
+            !Number.isFinite(zoom) ||
+            zoom < 100 ||
+            zoom > 300 ||
+            !Number.isFinite(cropX) ||
+            Math.abs(cropX) > 50 ||
+            !Number.isFinite(cropY) ||
+            Math.abs(cropY) > 50
+          ) {
+            issues.push(`${label} has an invalid ${viewportLabel} crop.`);
+          }
+        },
+      );
+    }
+    if (item.type === "CollectionFeature") {
+      const available =
+        item.props.productSelection === "manual"
+          ? (item.props.productSlugs ?? []).filter((slug) =>
+              products.some((product) => product.slug === slug),
+            )
+          : products.filter(
+              (product) =>
+                item.props.collection.toLowerCase() === "all" ||
+                product.collectionSlug?.toLowerCase() === item.props.collection.toLowerCase() ||
+                product.collection.toLowerCase() === item.props.collection.toLowerCase(),
+            );
+      if (!available.length) issues.push(`${label} needs at least one available product.`);
+    }
+  });
+  return [...new Set(issues)];
+}
+
+function patchLayerForViewport(
+  layer: BannerLayer,
+  patch: Partial<BannerLayerStyle>,
+  viewport: HomepageViewport,
+): BannerLayer {
+  if (viewport === "mobile") {
+    return { ...layer, mobileStyle: { ...(layer.mobileStyle ?? {}), ...patch } };
+  }
+
+  // Desktop is the base style. Preserve any mobile values that currently inherit
+  // from it before changing the base, so editing one viewport cannot move or restyle
+  // the other viewport.
+  const mobileStyle: Partial<BannerLayerStyle> = { ...(layer.mobileStyle ?? {}) };
+  (Object.keys(patch) as Array<keyof BannerLayerStyle>).forEach((key) => {
+    if (patch[key] === undefined || Object.hasOwn(mobileStyle, key)) return;
+    Object.assign(mobileStyle, { [key]: layer.style[key] });
+  });
+
+  return {
+    ...layer,
+    style: { ...layer.style, ...patch },
+    mobileStyle,
+  };
 }
 
 function timeLabel(value: string | null | undefined) {
-  if (!value) return "Not saved yet";
+  if (!value) return "Not saved";
   return new Date(value).toLocaleString("en-IN", {
     day: "2-digit",
     month: "short",
@@ -33,54 +339,735 @@ function timeLabel(value: string | null | undefined) {
   });
 }
 
-export function HomepageVisualEditor({ categories }: { categories: AdminCategory[] }) {
-  const config = useMemo(() => createHomepagePuckConfig(categories), [categories]);
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function isConflict(error: unknown) {
+  return errorMessage(error, "").toLowerCase().includes("changed in another session");
+}
+
+function activeItem(data: HomepageData, ref: StudioBannerRef | null) {
+  return ref ? (data.content.find((item) => item.props.id === ref.itemId) ?? null) : null;
+}
+
+function uniqueScene(scene: BannerScene): BannerScene {
+  const idMap = new Map<string, string>();
+  return {
+    ...clone(scene),
+    name: `${scene.name} copy`,
+    fills: scene.fills.map((fill) => ({ ...fill, id: createStudioId("fill") })),
+    layers: scene.layers.map((layer) => {
+      const id = createStudioId(layer.type);
+      idMap.set(layer.id, id);
+      return { ...layer, id, name: `${layer.name} copy` };
+    }),
+  };
+}
+
+function preserveSceneTransforms(
+  generated: BannerScene,
+  previous?: BannerScene,
+  preserveFillTransforms = true,
+): BannerScene {
+  if (!previous) return generated;
+  const previousLayers = new Map(previous.layers.map((layer) => [layer.id, layer]));
+  const previousFills = new Map(previous.fills.map((fill) => [fill.id, fill]));
+  return {
+    ...generated,
+    fills: generated.fills.map((fill) => {
+      const existing = previousFills.get(fill.id);
+      if (!existing || !preserveFillTransforms) return fill;
+      return {
+        ...fill,
+        offsetX: existing.offsetX,
+        offsetY: existing.offsetY,
+        zoom: existing.zoom,
+        position: existing.position ?? fill.position,
+      };
+    }),
+    layers: generated.layers.map((layer) => {
+      const existing = previousLayers.get(layer.id);
+      return existing
+        ? {
+            ...layer,
+            style: { ...existing.style },
+            mobileStyle: existing.mobileStyle ? { ...existing.mobileStyle } : layer.mobileStyle,
+          }
+        : layer;
+    }),
+  };
+}
+
+function refreshHeroScene(
+  slide: HeroSlide,
+  index: number,
+  previous?: BannerScene,
+  preserveFillTransforms = true,
+): BannerScene {
+  return preserveSceneTransforms(sceneFromHero(slide, index), previous, preserveFillTransforms);
+}
+
+function refreshBannerPresentation(
+  generated: BannerScene,
+  previous?: BannerScene,
+  preserveFillTransforms = true,
+): BannerScene {
+  return migratePresetBannerScene(generated, previous, preserveFillTransforms);
+}
+
+function refreshCollectionScene(
+  props: CollectionFeatureProps,
+  previous?: BannerScene,
+  preserveFillTransforms = true,
+) {
+  return refreshBannerPresentation(
+    sceneFromCollectionFeature(props),
+    previous,
+    preserveFillTransforms,
+  );
+}
+
+function refreshPromoScene(
+  props: PromoBannerProps,
+  previous?: BannerScene,
+  preserveFillTransforms = true,
+) {
+  return refreshBannerPresentation(sceneFromPromo(props), previous, preserveFillTransforms);
+}
+
+function IconButton({
+  label,
+  active,
+  disabled,
+  children,
+  onClick,
+}: {
+  label: string;
+  active?: boolean;
+  disabled?: boolean;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      className={active ? "is-active" : ""}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function MosaicEditorDialog({
+  cards,
+  categories,
+  saving,
+  publishing,
+  dirty,
+  unpublished,
+  hasConflict,
+  publishBlocked,
+  initialSelectedId,
+  onChange,
+  onClose,
+  onSave,
+  onPublish,
+}: {
+  cards: HomepageMosaicCard[];
+  categories: AdminCategory[];
+  saving: boolean;
+  publishing: boolean;
+  dirty: boolean;
+  unpublished: boolean;
+  hasConflict: boolean;
+  publishBlocked: boolean;
+  initialSelectedId?: string;
+  onChange: (cards: HomepageMosaicCard[]) => void;
+  onClose: () => void;
+  onSave: () => void;
+  onPublish: () => void;
+}) {
+  const [selectedId, setSelectedId] = useState(initialSelectedId || cards[0]?.id || "");
+  const selectedIndex = Math.max(
+    0,
+    cards.findIndex((card) => card.id === selectedId),
+  );
+  const selected = cards[selectedIndex];
+  const selectedIsCore = selectedIndex < CORE_MOSAIC_CARD_COUNT;
+
+  useEffect(() => {
+    if (initialSelectedId && cards.some((card) => card.id === initialSelectedId)) {
+      setSelectedId(initialSelectedId);
+      return;
+    }
+    if (cards.some((card) => card.id === selectedId)) return;
+    setSelectedId(cards[0]?.id ?? "");
+  }, [cards, initialSelectedId, selectedId]);
+
+  const patchCard = (patch: Partial<HomepageMosaicCard>) => {
+    if (!selected) return;
+    onChange(cards.map((card) => (card.id === selected.id ? { ...card, ...patch } : card)));
+  };
+
+  const moveCard = (direction: -1 | 1) => {
+    if (!selected) return;
+    const nextIndex = selectedIndex + direction;
+    if (nextIndex < 0 || nextIndex >= cards.length) return;
+    if (selectedIsCore !== nextIndex < CORE_MOSAIC_CARD_COUNT) return;
+    const next = [...cards];
+    [next[selectedIndex], next[nextIndex]] = [next[nextIndex]!, next[selectedIndex]!];
+    onChange(next);
+  };
+
+  const addCard = () => {
+    if (cards.length >= MAX_MOSAIC_CARDS) return;
+    const card = createMosaicCollectionCard(cards, categories);
+    onChange([...cards, card]);
+    setSelectedId(card.id);
+  };
+
+  const duplicateCard = () => {
+    if (!selected || cards.length >= MAX_MOSAIC_CARDS) return;
+    const copy = { ...selected, id: createStudioId("mosaic"), title: `${selected.title} COPY` };
+    onChange([...cards, copy]);
+    setSelectedId(copy.id);
+  };
+
+  const deleteCard = () => {
+    if (!selected || selectedIsCore) return;
+    const next = cards.filter((card) => card.id !== selected.id);
+    setSelectedId(next[Math.min(selectedIndex, next.length - 1)]?.id ?? "");
+    onChange(next);
+  };
+
+  const selectedIssues = selected
+    ? [
+        !selected.image.trim() ? "Add an image" : "",
+        !selected.title.trim() ? "Add a title" : "",
+        !selected.href.trim() || !safeHomepageLink(selected.href) ? "Choose a valid link" : "",
+      ].filter(Boolean)
+    : [];
+
+  return (
+    <div
+      className="studio-modal-backdrop studio-mosaic-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Edit collection mosaic"
+      onMouseDown={onClose}
+    >
+      <section className="studio-mosaic-dialog" onMouseDown={(event) => event.stopPropagation()}>
+        <header className="studio-mosaic-header">
+          <div>
+            <p>Homepage</p>
+            <h2>Collection Mosaic</h2>
+            <span>Manage the collection tiles shown after Shop All.</span>
+          </div>
+          <button type="button" aria-label="Close collection editor" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="studio-mosaic-body">
+          <aside className="studio-mosaic-list">
+            <div className="studio-mosaic-list__title">
+              <span>{cards.length} collection boxes</span>
+              <button type="button" onClick={addCard} disabled={cards.length >= MAX_MOSAIC_CARDS}>
+                <Plus size={15} /> Add
+              </button>
+            </div>
+            <div className="studio-mosaic-list__items">
+              {cards.map((card, index) => (
+                <button
+                  type="button"
+                  key={card.id}
+                  className={card.id === selected?.id ? "is-active" : ""}
+                  onClick={() => setSelectedId(card.id)}
+                >
+                  <span className="studio-mosaic-thumb">
+                    {card.image ? <img src={card.image} alt="" /> : <ImageIcon size={16} />}
+                  </span>
+                  <span>
+                    <strong>{card.title || "Untitled collection"}</strong>
+                    <small>
+                      {index === 0
+                        ? "Core featured box"
+                        : index < CORE_MOSAIC_CARD_COUNT
+                          ? `Core box ${index + 1}`
+                          : `Added box ${index - CORE_MOSAIC_CARD_COUNT + 1}`}
+                    </small>
+                  </span>
+                  {!card.image.trim() || !card.title.trim() || !safeHomepageLink(card.href) ? (
+                    <span className="studio-mosaic-list__warning" aria-label="Needs attention" />
+                  ) : null}
+                  <ChevronRight size={15} />
+                </button>
+              ))}
+            </div>
+          </aside>
+
+          {selected ? (
+            <div className="studio-mosaic-fields">
+              <div className="studio-mosaic-fields__toolbar">
+                <div>
+                  <strong>
+                    {selectedIndex === 0
+                      ? "Featured collection"
+                      : selectedIsCore
+                        ? `Core collection ${selectedIndex + 1}`
+                        : `Added collection ${selectedIndex - CORE_MOSAIC_CARD_COUNT + 1}`}
+                  </strong>
+                  <span>
+                    {selectedIssues.length
+                      ? `${selectedIssues.length} ${selectedIssues.length === 1 ? "item" : "items"} to complete`
+                      : "Ready to publish"}
+                  </span>
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    aria-label="Move collection up"
+                    title="Move up"
+                    disabled={selectedIndex === 0 || selectedIndex === CORE_MOSAIC_CARD_COUNT}
+                    onClick={() => moveCard(-1)}
+                  >
+                    <ChevronUp size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Move collection down"
+                    title="Move down"
+                    disabled={
+                      selectedIndex === cards.length - 1 ||
+                      selectedIndex === CORE_MOSAIC_CARD_COUNT - 1
+                    }
+                    onClick={() => moveCard(1)}
+                  >
+                    <ChevronDown size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Duplicate collection"
+                    title="Duplicate"
+                    onClick={duplicateCard}
+                  >
+                    <Copy size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Delete collection"
+                    title="Delete"
+                    disabled={selectedIsCore}
+                    onClick={deleteCard}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="studio-mosaic-form">
+                <div className="studio-mosaic-form__image">
+                  <div className="studio-mosaic-card-preview" aria-label="Collection tile preview">
+                    {selected.image ? (
+                      <img
+                        src={selected.image}
+                        alt=""
+                        style={{ objectPosition: selected.imagePosition }}
+                      />
+                    ) : (
+                      <div className="studio-mosaic-card-preview__empty">
+                        <ImageIcon size={22} />
+                      </div>
+                    )}
+                    <div className="studio-mosaic-card-preview__shade" />
+                    <div className="studio-mosaic-card-preview__copy">
+                      <small>{selected.eyebrow || "Explore"}</small>
+                      <strong>{selected.title || "Untitled collection"}</strong>
+                      <span>
+                        Explore <ChevronRight size={11} />
+                      </span>
+                    </div>
+                  </div>
+                  <label>Collection image</label>
+                  <HomepageImageInput
+                    value={selected.image}
+                    onChange={(image) => patchCard({ image })}
+                    inputLabel="Collection image URL"
+                  />
+                  <label>
+                    Image focus
+                    <select
+                      value={selected.imagePosition}
+                      onChange={(event) => patchCard({ imagePosition: event.target.value })}
+                    >
+                      <option value="center">Centre</option>
+                      <option value="center top">Top</option>
+                      <option value="center bottom">Bottom</option>
+                      <option value="left center">Left</option>
+                      <option value="right center">Right</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="studio-mosaic-form__copy">
+                  <label>
+                    Small text
+                    <input
+                      type="text"
+                      maxLength={60}
+                      value={selected.eyebrow}
+                      onChange={(event) => patchCard({ eyebrow: event.target.value })}
+                      placeholder="For the brothers"
+                    />
+                  </label>
+                  <label>
+                    Collection title
+                    <input
+                      type="text"
+                      maxLength={80}
+                      value={selected.title}
+                      onChange={(event) => patchCard({ title: event.target.value })}
+                      placeholder="Yemeni Shemaghs"
+                    />
+                  </label>
+                  <label>
+                    Shop destination
+                    <select
+                      value={
+                        selected.href === "/shop"
+                          ? "/shop"
+                          : categories.some(
+                                (category) =>
+                                  `/shop?collection=${encodeURIComponent(category.slug.toLowerCase())}` ===
+                                  selected.href,
+                              )
+                            ? selected.href
+                            : "custom"
+                      }
+                      onChange={(event) => {
+                        if (event.target.value !== "custom")
+                          patchCard({ href: event.target.value });
+                      }}
+                    >
+                      <option value="/shop">Shop all</option>
+                      {categories
+                        .filter((category) => category.type === "collection")
+                        .map((category) => (
+                          <option
+                            key={category.slug}
+                            value={`/shop?collection=${encodeURIComponent(category.slug.toLowerCase())}`}
+                          >
+                            {category.name}
+                          </option>
+                        ))}
+                      <option value="custom">Custom link</option>
+                    </select>
+                  </label>
+                  <label>
+                    Link
+                    <input
+                      type="text"
+                      maxLength={300}
+                      value={selected.href}
+                      onChange={(event) => patchCard({ href: event.target.value })}
+                      placeholder="/shop?collection=shemaghs"
+                    />
+                  </label>
+                  <div
+                    className={`studio-mosaic-status ${selectedIssues.length ? "has-errors" : ""}`}
+                  >
+                    {selectedIssues.length ? <Circle size={14} /> : <Check size={15} />}
+                    <span>
+                      {selectedIssues.length
+                        ? selectedIssues.join(". ")
+                        : "This collection tile is complete."}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <footer className="studio-mosaic-footer">
+          <span>
+            {dirty
+              ? "Unsaved collection changes"
+              : unpublished
+                ? "Draft saved and ready to publish"
+                : "Homepage is up to date"}
+          </span>
+          <div className="studio-mosaic-footer__actions">
+            <button type="button" className="is-secondary" onClick={onClose}>
+              Done
+            </button>
+            <button
+              type="button"
+              className="is-secondary"
+              disabled={saving || !dirty}
+              onClick={onSave}
+            >
+              {saving ? "Saving..." : "Save draft"}
+            </button>
+            <button
+              type="button"
+              disabled={publishing || hasConflict || publishBlocked || (!dirty && !unpublished)}
+              title={
+                publishBlocked ? "Complete every collection tile before publishing" : undefined
+              }
+              onClick={onPublish}
+            >
+              {publishing ? "Publishing..." : "Publish live"}
+            </button>
+          </div>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+export function HomepageVisualEditor({
+  categories,
+  onClose,
+  initialData,
+}: {
+  categories: AdminCategory[];
+  onClose?: () => void;
+  initialData?: HomepageData;
+}) {
+  const { products: catalogProducts } = useStoreProducts();
   const [data, setData] = useState<HomepageData | null>(null);
   const dataRef = useRef<HomepageData | null>(null);
-  const [revision, setRevision] = useState(0);
-  const revisionRef = useRef(0);
-  const [versions, setVersions] = useState<HomepageVersion[]>([]);
-  const [publishedVersion, setPublishedVersion] = useState(0);
-  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
-  const [publishedAt, setPublishedAt] = useState<string | null>(null);
-  const [dirty, setDirty] = useState(false);
-  const changeCounter = useRef(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [unpublished, setUnpublished] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const revisionRef = useRef(0);
+  const [publishedVersion, setPublishedVersion] = useState(0);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [versions, setVersions] = useState<HomepageVersion[]>([]);
+  const [conflict, setConflict] = useState<HomepageEditorState | null>(null);
+  const [editorError, setEditorError] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [editorKey, setEditorKey] = useState(0);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
+  const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
+  const [mosaicOpen, setMosaicOpen] = useState(false);
+  const [mosaicSelectedId, setMosaicSelectedId] = useState("");
+  const [leftTab, setLeftTab] = useState<"file" | "assets">("file");
+  const [viewport, setViewport] = useState<HomepageViewport>("desktop");
+  const [zoom, setZoom] = useState(50);
+  const [selectedBannerKey, setSelectedBannerKey] = useState("");
+  const [selectedLayerIds, setSelectedLayerIds] = useState<string[]>([]);
+  const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
+  const [cropLayerId, setCropLayerId] = useState<string | null>(null);
+  const [cropFillId, setCropFillId] = useState<string | null>(null);
+  const activeTool = "select" as const;
+  const [draggedBannerKey, setDraggedBannerKey] = useState<string | null>(null);
+  const [draggedLayerId, setDraggedLayerId] = useState<string | null>(null);
+  const cropSnapshotRef = useRef<CropSnapshot | null>(null);
+  const pastRef = useRef<HomepageData[]>([]);
+  const futureRef = useRef<HomepageData[]>([]);
+  const [historyState, setHistoryState] = useState({ past: 0, future: 0 });
+  const lastHistoryAt = useRef(0);
   const operation = useRef<Promise<unknown>>(Promise.resolve());
 
-  const applyData = useCallback((next: HomepageData, nextRevision: number) => {
-    const cloned = cloneData(next);
-    dataRef.current = cloned;
+  useEffect(() => {
+    if (window.innerWidth > HOMEPAGE_MOBILE_MAX_WIDTH) return;
+    setViewport("mobile");
+    setZoom(82);
+  }, []);
+
+  const banners = useMemo(() => (data ? listStudioBanners(data) : []), [data]);
+  const selectedRef =
+    banners.find((banner) => banner.key === selectedBannerKey) ?? banners[0] ?? null;
+  const heroBanners = banners.filter((banner) => banner.kind === "hero");
+  const customBanners = banners.filter((banner) => banner.kind !== "hero");
+  const selectedGroup = selectedRef?.kind === "hero" ? heroBanners : customBanners;
+  const selectedGroupIndex = selectedRef
+    ? selectedGroup.findIndex((banner) => banner.key === selectedRef.key)
+    : -1;
+  const scene = data ? getScene(data, selectedRef) : null;
+  const selectedLayers = scene
+    ? scene.layers.filter((layer) => selectedLayerIds.includes(layer.id))
+    : [];
+  const publishIssues = useMemo(
+    () => (data ? homepagePublishIssues(data, catalogProducts) : []),
+    [catalogProducts, data],
+  );
+
+  const applyLoadedData = useCallback((incoming: HomepageData, nextRevision: number) => {
+    const source = isHomepageEditorData(incoming) ? incoming : cloneDefaultHomepageData();
+    const next = ensureHomepageScenes(normalizeHomepageData(clone(source)));
+    dataRef.current = next;
+    setData(next);
     revisionRef.current = nextRevision;
-    setData(cloned);
     setRevision(nextRevision);
     setDirty(false);
-    setEditorKey((current) => current + 1);
+    setConflict(null);
+    setEditorError("");
+    pastRef.current = [];
+    futureRef.current = [];
+    setHistoryState({ past: 0, future: 0 });
   }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
+    if (initialData) {
+      applyLoadedData(initialData, 0);
+      setUnpublished(false);
+      setLoading(false);
+      return;
+    }
     try {
       const state = await getHomepageEditorState();
-      applyData(state.draft ?? cloneDefaultHomepageData(), state.draft_revision);
+      const source = isHomepageEditorData(state.draft) ? state.draft : cloneDefaultHomepageData();
+      let recovered: HomepageData | null = null;
+      try {
+        const backup = await readLocalBackup();
+        if (
+          isHomepageEditorData(state.draft) &&
+          backup?.data &&
+          backup.revision === state.draft_revision &&
+          isHomepageEditorData(backup.data)
+        )
+          recovered = backup.data;
+        else if (backup || !state.draft) await clearLocalBackups();
+      } catch {
+        await clearLocalBackups().catch(() => undefined);
+      }
+      applyLoadedData(recovered ?? source, state.draft_revision);
+      if (recovered) {
+        setDirty(true);
+        toast.info("Recovered local homepage changes");
+      }
       setVersions(state.versions);
       setPublishedVersion(state.published_version);
       setLastSavedAt(state.updated_at ?? null);
-      setPublishedAt(state.published_at ?? null);
+      setUnpublished(!(state.is_draft_published ?? !state.has_published));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not load the homepage editor.");
+      setEditorError(errorMessage(error, "Could not load the homepage editor."));
     } finally {
       setLoading(false);
     }
-  }, [applyData]);
+  }, [applyLoadedData, initialData]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!selectedBannerKey && banners[0]) setSelectedBannerKey(banners[0].key);
+    if (
+      selectedBannerKey &&
+      banners.length &&
+      !banners.some((item) => item.key === selectedBannerKey)
+    ) {
+      setSelectedBannerKey(banners[0]!.key);
+      setSelectedLayerIds([]);
+    }
+  }, [banners, selectedBannerKey]);
+
+  useEffect(() => {
+    if (!data || !dirty) return;
+    const timer = window.setTimeout(() => {
+      void writeLocalBackup({
+        revision: revisionRef.current,
+        savedAt: new Date().toISOString(),
+        data,
+      });
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [data, dirty]);
+
+  const setHistoryCounts = () =>
+    setHistoryState({ past: pastRef.current.length, future: futureRef.current.length });
+
+  const commit = useCallback((next: HomepageData, coalesce = false) => {
+    const current = dataRef.current;
+    if (!current || JSON.stringify(current) === JSON.stringify(next)) return;
+    const now = Date.now();
+    if (!coalesce || now - lastHistoryAt.current > 500) {
+      pastRef.current = [...pastRef.current.slice(-(HISTORY_LIMIT - 1)), clone(current)];
+    }
+    lastHistoryAt.current = now;
+    futureRef.current = [];
+    dataRef.current = next;
+    setData(next);
+    setDirty(true);
+    setUnpublished(true);
+    setHistoryCounts();
+  }, []);
+
+  const updateMosaicCards = useCallback(
+    (cards: HomepageMosaicCard[]) => {
+      const current = dataRef.current;
+      if (!current) return;
+      commit(
+        {
+          ...current,
+          root: {
+            ...current.root,
+            props: { ...current.root.props, mosaicCollections: cards },
+          },
+        },
+        true,
+      );
+    },
+    [commit],
+  );
+
+  const openMosaicEditor = useCallback((cardId?: string) => {
+    setMosaicSelectedId(cardId ?? "");
+    setMosaicOpen(true);
+  }, []);
+
+  const addMosaicCard = useCallback(() => {
+    const current = dataRef.current;
+    if (!current) return;
+    const cards = homepageMosaicCards(current);
+    if (cards.length >= MAX_MOSAIC_CARDS) {
+      toast.error(`The homepage can contain up to ${MAX_MOSAIC_CARDS} collection tiles.`);
+      return;
+    }
+    const card = createMosaicCollectionCard(cards, categories);
+    updateMosaicCards([...cards, card]);
+    setMosaicSelectedId(card.id);
+    setMosaicOpen(true);
+  }, [categories, updateMosaicCards]);
+
+  const undo = useCallback(() => {
+    const current = dataRef.current;
+    const previous = pastRef.current.pop();
+    if (!current || !previous) return;
+    futureRef.current.push(clone(current));
+    dataRef.current = previous;
+    setData(previous);
+    setDirty(true);
+    setUnpublished(true);
+    setEditingLayerId(null);
+    setHistoryCounts();
+  }, []);
+
+  const redo = useCallback(() => {
+    const current = dataRef.current;
+    const next = futureRef.current.pop();
+    if (!current || !next) return;
+    pastRef.current.push(clone(current));
+    dataRef.current = next;
+    setData(next);
+    setDirty(true);
+    setUnpublished(true);
+    setEditingLayerId(null);
+    setHistoryCounts();
+  }, []);
 
   const queueOperation = useCallback(<T,>(task: () => Promise<T>): Promise<T> => {
     const queued = operation.current.then(task, task);
@@ -89,19 +1076,29 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
   }, []);
 
   const saveDraft = useCallback(
-    async (nextData = dataRef.current, quiet = false) => {
-      if (!nextData) return;
-      const changeAtStart = changeCounter.current;
+    async (quiet = false) => {
+      const current = dataRef.current;
+      if (!current) return;
       setSaving(true);
       try {
-        const result = await queueOperation(() => saveHomepageDraft(nextData, revisionRef.current));
+        const result = await queueOperation(() => saveHomepageDraft(current, revisionRef.current));
         revisionRef.current = result.revision;
         setRevision(result.revision);
         setLastSavedAt(result.updated_at);
-        if (changeCounter.current === changeAtStart) setDirty(false);
-        if (!quiet) toast.success("Draft saved");
+        setDirty(false);
+        setConflict(null);
+        setEditorError("");
+        await writeLocalBackup(null);
+        if (!quiet) toast.success("Draft saved to Convex");
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Could not save the draft.");
+        if (isConflict(error)) {
+          const latest = await getHomepageEditorState();
+          setConflict(latest);
+        } else {
+          const message = errorMessage(error, "Could not save the draft.");
+          setEditorError(message);
+          if (!quiet) toast.error(message);
+        }
       } finally {
         setSaving(false);
       }
@@ -109,294 +1106,1513 @@ export function HomepageVisualEditor({ categories }: { categories: AdminCategory
     [queueOperation],
   );
 
-  useEffect(() => {
-    if (!dirty || !data) return;
-    const timer = window.setTimeout(() => void saveDraft(data, true), AUTOSAVE_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [data, dirty, saveDraft]);
-
-  useEffect(() => {
-    if (!data) return;
-    const timer = window.setTimeout(() => {
-      window.localStorage.setItem(
-        "fawzaan.homepage-editor-backup",
-        JSON.stringify({ data, savedAt: new Date().toISOString() }),
-      );
-    }, 800);
-    return () => window.clearTimeout(timer);
-  }, [data]);
-
-  const publish = async (nextData: HomepageData) => {
+  const publish = async () => {
+    const current = dataRef.current;
+    if (!current || conflict) return;
+    const issues = homepagePublishIssues(current, catalogProducts);
+    if (issues.length) {
+      const message = `Fix before publishing: ${issues[0]}`;
+      setEditorError(message);
+      toast.error(message);
+      return;
+    }
     setPublishing(true);
     try {
       await operation.current;
       const result = await queueOperation(() =>
-        publishHomepage(nextData, revisionRef.current, "Published from visual editor"),
+        publishHomepage(current, revisionRef.current, "Published from homepage editor"),
       );
-      dataRef.current = cloneData(nextData);
       revisionRef.current = result.revision;
-      setData(cloneData(nextData));
       setRevision(result.revision);
       setPublishedVersion(result.version);
-      setPublishedAt(result.published_at);
       setLastSavedAt(result.published_at);
       setDirty(false);
+      setUnpublished(false);
+      setConflict(null);
+      await writeLocalBackup(null);
       await refreshPublicCatalog();
       const state = await getHomepageEditorState();
       setVersions(state.versions);
       toast.success(`Homepage version ${result.version} is live`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not publish the homepage.");
+      if (isConflict(error)) {
+        setConflict(await getHomepageEditorState());
+      } else {
+        const message = errorMessage(error, "Could not publish the homepage.");
+        setEditorError(message);
+        toast.error(message);
+      }
     } finally {
       setPublishing(false);
     }
   };
 
-  const restore = async (version: HomepageVersion) => {
-    if (!confirm(`Restore version ${version.version}? It will become the live homepage.`)) return;
+  const restoreOriginalHomepage = async () => {
     setPublishing(true);
+    setEditorError("");
     try {
-      const result = await queueOperation(() => restoreHomepageVersion(version.id));
-      applyData(result.data as HomepageData, result.revision);
-      setPublishedVersion(result.version);
-      setPublishedAt(result.published_at);
-      setLastSavedAt(result.published_at);
-      setHistoryOpen(false);
-      await refreshPublicCatalog();
+      await operation.current;
+      const result = await queueOperation(resetHomepageToOriginal);
+      await clearLocalBackups();
+      applyLoadedData(result.data, result.revision);
       const state = await getHomepageEditorState();
       setVersions(state.versions);
-      toast.success(`Version ${version.version} restored`);
+      setPublishedVersion(result.version);
+      setLastSavedAt(result.published_at);
+      setUnpublished(false);
+      setSelectedLayerIds([]);
+      setEditingLayerId(null);
+      setRestoreConfirmOpen(false);
+      await refreshPublicCatalog();
+      toast.success("The current OG homepage is live");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not restore this version.");
+      const message = errorMessage(error, "Could not restore the OG homepage.");
+      setEditorError(message);
+      toast.error(message);
     } finally {
       setPublishing(false);
     }
   };
 
-  const resetOriginal = () => {
-    if (
-      !confirm(
-        "Load the original Fawzaan homepage into the editor? It will not go live until you publish.",
-      )
-    )
-      return;
-    const original = cloneDefaultHomepageData();
-    dataRef.current = original;
-    setData(original);
-    changeCounter.current += 1;
-    setDirty(true);
-    setEditorKey((current) => current + 1);
-    toast.success("Original design loaded as a draft");
+  const mutateScene = useCallback(
+    (updater: (current: BannerScene) => BannerScene, coalesce = false) => {
+      const current = dataRef.current;
+      if (!current || !selectedRef) return;
+      commit(updateScene(current, selectedRef, updater), coalesce);
+    },
+    [commit, selectedRef],
+  );
+
+  const patchLayer = useCallback(
+    (id: string, patch: Partial<BannerLayerStyle>) => {
+      mutateScene(
+        (current) => ({
+          ...current,
+          layers: current.layers.map((layer) =>
+            layer.id === id
+              ? current.coordinateMode === "original-hero"
+                ? constrainOriginalHeroLayerForViewport(
+                    patchLayerForViewport(layer, patch, viewport),
+                    layer,
+                    viewport,
+                  )
+                : patchLayerForViewport(layer, patch, viewport)
+              : layer,
+          ),
+        }),
+        true,
+      );
+    },
+    [mutateScene, viewport],
+  );
+
+  const patchFill = useCallback(
+    (id: string, patch: Partial<BannerFill>) => {
+      mutateScene(
+        (current) => ({
+          ...current,
+          fills: current.fills.map((fill) => (fill.id === id ? { ...fill, ...patch } : fill)),
+        }),
+        true,
+      );
+    },
+    [mutateScene],
+  );
+
+  const finishCrop = useCallback(() => {
+    cropSnapshotRef.current = null;
+    setCropLayerId(null);
+    setCropFillId(null);
+  }, []);
+
+  const beginLayerCrop = useCallback(
+    (id: string) => {
+      const layer = scene?.layers.find((item) => item.id === id);
+      if (!layer) return;
+      const current = dataRef.current;
+      if (!current) return;
+      cropSnapshotRef.current = {
+        kind: "layer",
+        id,
+        data: clone(current),
+        dirty,
+        unpublished,
+        past: clone(pastRef.current),
+        future: clone(futureRef.current),
+      };
+      setEditingLayerId(null);
+      setCropFillId(null);
+      setCropLayerId(id);
+      setSelectedLayerIds([id]);
+    },
+    [dirty, scene?.layers, unpublished],
+  );
+
+  const beginFillCrop = useCallback(
+    (id: string) => {
+      const fill = scene?.fills.find((item) => item.id === id && item.type === "image");
+      if (!fill) return;
+      const current = dataRef.current;
+      if (!current) return;
+      cropSnapshotRef.current = {
+        kind: "fill",
+        id,
+        data: clone(current),
+        dirty,
+        unpublished,
+        past: clone(pastRef.current),
+        future: clone(futureRef.current),
+      };
+      setEditingLayerId(null);
+      setCropLayerId(null);
+      setCropFillId(id);
+      setSelectedLayerIds([]);
+    },
+    [dirty, scene?.fills, unpublished],
+  );
+
+  const cancelCrop = useCallback(() => {
+    const snapshot = cropSnapshotRef.current;
+    if (snapshot) {
+      const restored = clone(snapshot.data);
+      dataRef.current = restored;
+      setData(restored);
+      pastRef.current = clone(snapshot.past);
+      futureRef.current = clone(snapshot.future);
+      setDirty(snapshot.dirty);
+      setUnpublished(snapshot.unpublished);
+      lastHistoryAt.current = 0;
+      setHistoryCounts();
+    }
+    finishCrop();
+  }, [finishCrop]);
+
+  const patchLayerContent = (id: string, patch: Partial<BannerLayer>) => {
+    const current = dataRef.current;
+    if (!current || !selectedRef) return;
+    const next = updateScene(current, selectedRef, (currentScene) => ({
+      ...currentScene,
+      layers: currentScene.layers.map((layer) =>
+        layer.id === id ? { ...layer, ...patch, id } : layer,
+      ),
+    }));
+    const item = next.content.find((entry) => entry.props.id === selectedRef.itemId);
+    if (selectedRef.kind === "hero" && item?.type === "Hero" && typeof patch.text === "string") {
+      const slide = item.props.slides[selectedRef.index ?? 0];
+      if (slide) {
+        if (id === "title") slide.title = patch.text;
+        if (id === "body") slide.body = patch.text;
+        if (id === "button") slide.buttonLabel = patch.text;
+      }
+    } else if (
+      (selectedRef.kind === "collection-feature" && item?.type === "CollectionFeature") ||
+      (selectedRef.kind === "standalone" && item?.type === "PromoBanner")
+    ) {
+      if (typeof patch.text === "string") {
+        if (id === "eyebrow") item.props.eyebrow = patch.text;
+        if (id === "title") item.props.title = patch.text;
+        if (id === "body") item.props.body = patch.text;
+        if (id === "button") item.props.buttonLabel = patch.text;
+      }
+    }
+    commit(next, true);
   };
 
-  const discard = async () => {
-    if (!confirm("Discard unpublished changes and return to the currently published homepage?"))
-      return;
-    try {
-      const result = await discardHomepageDraft();
-      if (!result) {
-        resetOriginal();
+  const deleteLayers = useCallback(
+    (ids = selectedLayerIds) => {
+      if (!ids.length) return;
+      mutateScene((current) => ({
+        ...current,
+        layers: current.layers.filter((layer) => !ids.includes(layer.id)),
+      }));
+      setSelectedLayerIds([]);
+      setEditingLayerId(null);
+    },
+    [mutateScene, selectedLayerIds],
+  );
+
+  const duplicateLayer = useCallback(
+    (id: string) => {
+      let nextId = "";
+      mutateScene((current) => {
+        const source = current.layers.find((layer) => layer.id === id);
+        if (!source) return current;
+        nextId = createStudioId(source.type);
+        const duplicate: BannerLayer = {
+          ...clone(source),
+          id: nextId,
+          name: `${source.name} copy`,
+          style: { ...source.style, x: source.style.x + 2, y: source.style.y + 2 },
+        };
+        const index = current.layers.findIndex((layer) => layer.id === id);
+        const layers = [...current.layers];
+        layers.splice(index + 1, 0, duplicate);
+        return { ...current, layers };
+      });
+      if (nextId) setSelectedLayerIds([nextId]);
+    },
+    [mutateScene],
+  );
+
+  const addLayer = useCallback(
+    (type: BannerLayer["type"]) => {
+      let nextId = "";
+      mutateScene((current) => {
+        const layer = createLayer(type, current.layers.length + 1);
+        nextId = layer.id;
+        return { ...current, layers: [...current.layers, layer] };
+      });
+      setSelectedLayerIds([nextId]);
+      setLeftTab("file");
+    },
+    [mutateScene],
+  );
+
+  const moveLayer = useCallback(
+    (id: string, direction: -1 | 1) => {
+      mutateScene((current) => {
+        const index = current.layers.findIndex((layer) => layer.id === id);
+        const target = index + direction;
+        if (index < 0 || target < 0 || target >= current.layers.length) return current;
+        const layers = [...current.layers];
+        [layers[index], layers[target]] = [layers[target]!, layers[index]!];
+        return { ...current, layers };
+      });
+    },
+    [mutateScene],
+  );
+
+  const reorderLayer = (sourceId: string, targetId: string) => {
+    mutateScene((current) => {
+      const source = current.layers.findIndex((layer) => layer.id === sourceId);
+      const target = current.layers.findIndex((layer) => layer.id === targetId);
+      if (source < 0 || target < 0 || source === target) return current;
+      const layers = [...current.layers];
+      const [layer] = layers.splice(source, 1);
+      if (!layer) return current;
+      layers.splice(target, 0, layer);
+      return { ...current, layers };
+    });
+  };
+
+  const alignSelected = (axis: "horizontal" | "vertical") => {
+    selectedLayerIds.forEach((id) => {
+      const layer = scene?.layers.find((item) => item.id === id);
+      if (!layer) return;
+      const style =
+        viewport === "mobile" ? { ...layer.style, ...(layer.mobileStyle ?? {}) } : layer.style;
+      patchLayer(
+        id,
+        axis === "horizontal" ? { x: 50 - style.width / 2 } : { y: 50 - style.height / 2 },
+      );
+    });
+  };
+
+  const addHero = () => {
+    const current = dataRef.current;
+    if (!current) return;
+    const next = clone(current);
+    const hero = next.content.find((item) => item.type === "Hero");
+    if (!hero || hero.type !== "Hero") return;
+    if (hero.props.slides.length >= 12)
+      return toast.error("A hero carousel can contain up to 12 slides.");
+    hero.props.slides.push(createHeroSlide(hero.props.slides.length));
+    hero.props.autoplay = "on";
+    commit(next);
+    window.setTimeout(() => {
+      const latest = listStudioBanners(next)
+        .filter((item) => item.kind === "hero")
+        .at(-1);
+      if (latest) setSelectedBannerKey(latest.key);
+    }, 0);
+  };
+
+  const reorderBanner = (sourceKey: string, targetKey: string) => {
+    const current = dataRef.current;
+    const sourceRef = banners.find((banner) => banner.key === sourceKey);
+    const targetRef = banners.find((banner) => banner.key === targetKey);
+    if (!current || !sourceRef || !targetRef) return;
+    if ((sourceRef.kind === "hero") !== (targetRef.kind === "hero")) return;
+    const next = clone(current);
+    if (sourceRef.kind === "hero" && targetRef.kind === "hero") {
+      const hero = next.content.find((entry) => entry.type === "Hero");
+      if (!hero || hero.type !== "Hero") return;
+      const source = sourceRef.index ?? 0;
+      const target = targetRef.index ?? 0;
+      const [slide] = hero.props.slides.splice(source, 1);
+      if (!slide) return;
+      hero.props.slides.splice(target, 0, slide);
+    } else if (sourceRef.kind !== "hero" && targetRef.kind !== "hero") {
+      const source = next.content.findIndex((entry) => entry.props.id === sourceRef.itemId);
+      const target = next.content.findIndex((entry) => entry.props.id === targetRef.itemId);
+      if (source < 1 || target < 1) return;
+      const [section] = next.content.splice(source, 1);
+      if (!section) return;
+      next.content.splice(target, 0, section);
+    }
+    commit(next);
+    setSelectedBannerKey(sourceKey);
+  };
+
+  const duplicateBanner = () => {
+    const current = dataRef.current;
+    if (!current || !selectedRef) return;
+    const next = clone(current);
+    const item = next.content.find((entry) => entry.props.id === selectedRef.itemId);
+    if (!item) return;
+    if (selectedRef.kind === "hero" && item.type === "Hero") {
+      const source = item.props.slides[selectedRef.index ?? 0];
+      if (!source || item.props.slides.length >= 12) return;
+      const copy = clone(source);
+      if (copy.scene) copy.scene = uniqueScene(copy.scene);
+      item.props.slides.splice((selectedRef.index ?? 0) + 1, 0, copy);
+    } else {
+      const index = next.content.indexOf(item);
+      const copy = clone(item);
+      copy.props.id = createStudioId("section");
+      if (copy.type === "CollectionFeature" || copy.type === "PromoBanner") {
+        if (copy.props.scene) copy.props.scene = uniqueScene(copy.props.scene);
+      }
+      next.content.splice(index + 1, 0, copy);
+    }
+    commit(next);
+  };
+
+  const deleteBanner = () => {
+    const current = dataRef.current;
+    if (!current || !selectedRef) return;
+    if (!confirm(`Remove “${selectedRef.label}”?`)) return;
+    const next = clone(current);
+    const item = next.content.find((entry) => entry.props.id === selectedRef.itemId);
+    if (!item) return;
+    if (selectedRef.kind === "hero" && item.type === "Hero") {
+      if (item.props.slides.length <= 1) return toast.error("Keep at least one hero slide.");
+      item.props.slides.splice(selectedRef.index ?? 0, 1);
+    } else {
+      next.content = next.content.filter((entry) => entry.props.id !== selectedRef.itemId);
+    }
+    commit(next);
+    setSelectedLayerIds([]);
+  };
+
+  const moveBanner = (direction: -1 | 1) => {
+    const current = dataRef.current;
+    if (!current || !selectedRef) return;
+    const next = clone(current);
+    const item = next.content.find((entry) => entry.props.id === selectedRef.itemId);
+    if (!item) return;
+    if (selectedRef.kind === "hero" && item.type === "Hero") {
+      const index = selectedRef.index ?? 0;
+      const target = index + direction;
+      if (target < 0 || target >= item.props.slides.length) return;
+      [item.props.slides[index], item.props.slides[target]] = [
+        item.props.slides[target]!,
+        item.props.slides[index]!,
+      ];
+    } else {
+      const index = next.content.indexOf(item);
+      const target = index + direction;
+      if (index < 1 || target < 1 || target >= next.content.length) return;
+      [next.content[index], next.content[target]] = [next.content[target]!, next.content[index]!];
+    }
+    commit(next);
+  };
+
+  const patchSection = (patch: Record<string, unknown>) => {
+    const current = dataRef.current;
+    if (!current || !selectedRef) return;
+    const next = clone(current);
+    const item = next.content.find((entry) => entry.props.id === selectedRef.itemId);
+    if (!item) return;
+    Object.assign(item.props, patch);
+    commit(next, true);
+  };
+
+  const patchSelectedTemplate = (patch: HomepageTemplatePatch) => {
+    const current = dataRef.current;
+    if (!current || !selectedRef) return;
+    const next = clone(current);
+    const item = next.content.find((entry) => entry.props.id === selectedRef.itemId);
+    if (!item) return;
+
+    if (selectedRef.kind === "hero" && item.type === "Hero") {
+      const index = selectedRef.index ?? 0;
+      const slide = item.props.slides[index];
+      if (!slide) return;
+      const previousScene = slide.scene;
+      const previousBackgroundImage = slide.backgroundImage;
+      Object.assign(slide, patch);
+      slide.layout = "original";
+      slide.textTone = "light";
+      slide.titleFont = "display";
+      slide.scene = refreshHeroScene(
+        slide,
+        index,
+        previousScene,
+        previousBackgroundImage === slide.backgroundImage,
+      );
+      if (patch.textAlign) {
+        slide.scene.layers = slide.scene.layers.map((layer) =>
+          layer.type === "text" || layer.type === "button"
+            ? patchLayerForViewport(layer, { textAlign: patch.textAlign }, viewport)
+            : layer,
+        );
+      }
+    } else if (selectedRef.kind === "collection-feature" && item.type === "CollectionFeature") {
+      const previousScene = item.props.scene;
+      const previousImage = item.props.image;
+      Object.assign(item.props, patch);
+      item.props.layout = "banner-top";
+      item.props.textTone = "light";
+      item.props.textColor = "#ffffff";
+      item.props.textAlign = "left";
+      item.props.titleFont = "sans";
+      item.props.titleSize = 62;
+      item.props.mobileTitleSize = 38;
+      item.props.scene = refreshCollectionScene(
+        item.props,
+        previousScene,
+        previousImage === item.props.image,
+      );
+    } else if (selectedRef.kind === "standalone" && item.type === "PromoBanner") {
+      const previousScene = item.props.scene;
+      const previousImage = item.props.backgroundImage;
+      Object.assign(item.props, patch);
+      item.props.textTone = "light";
+      item.props.textColor = "#ffffff";
+      item.props.textAlign = "left";
+      item.props.titleFont = "sans";
+      item.props.titleSize = 62;
+      item.props.mobileTitleSize = 38;
+      item.props.scene = refreshPromoScene(
+        item.props,
+        previousScene,
+        previousImage === item.props.backgroundImage,
+      );
+    }
+    commit(next, true);
+  };
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const typing =
+        target?.isContentEditable ||
+        ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName || "");
+      const command = event.ctrlKey || event.metaKey;
+      if (command && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        if (event.shiftKey) redo();
+        else undo();
         return;
       }
-      applyData(result.data as HomepageData, result.revision);
-      setLastSavedAt(result.updated_at);
-      toast.success("Unpublished changes discarded");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not discard the draft.");
-    }
-  };
+      if (command && event.key.toLowerCase() === "y") {
+        event.preventDefault();
+        redo();
+        return;
+      }
+      if (typing) return;
+      if (ADVANCED_LAYOUT_TOOLS && (event.key === "Delete" || event.key === "Backspace")) {
+        event.preventDefault();
+        deleteLayers();
+      } else if (event.key === "Escape") {
+        if (cropLayerId || cropFillId) {
+          cancelCrop();
+          return;
+        }
+        setEditingLayerId(null);
+        setSelectedLayerIds([]);
+      } else if (
+        ADVANCED_LAYOUT_TOOLS &&
+        command &&
+        event.key.toLowerCase() === "d" &&
+        selectedLayerIds.length === 1
+      ) {
+        event.preventDefault();
+        duplicateLayer(selectedLayerIds[0]!);
+      } else if (command && event.key === "[" && selectedLayerIds.length === 1) {
+        event.preventDefault();
+        moveLayer(selectedLayerIds[0]!, -1);
+      } else if (command && event.key === "]" && selectedLayerIds.length === 1) {
+        event.preventDefault();
+        moveLayer(selectedLayerIds[0]!, 1);
+      } else if (event.key === "Enter" && selectedLayerIds.length === 1) {
+        const layer = scene?.layers.find((entry) => entry.id === selectedLayerIds[0]);
+        if (layer?.type === "image") beginLayerCrop(layer.id);
+        if (layer?.type === "text" || layer?.type === "button") setEditingLayerId(layer.id);
+      } else if (ADVANCED_LAYOUT_TOOLS && event.key.toLowerCase() === "t") {
+        addLayer("text");
+      } else if (ADVANCED_LAYOUT_TOOLS && event.key.toLowerCase() === "r") {
+        addLayer("shape");
+      } else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+        const amount = event.shiftKey ? 1 : 0.1;
+        selectedLayerIds.forEach((id) => {
+          const layer = scene?.layers.find((entry) => entry.id === id);
+          if (!layer) return;
+          const style =
+            viewport === "mobile" ? { ...layer.style, ...(layer.mobileStyle ?? {}) } : layer.style;
+          if (event.key === "ArrowLeft") patchLayer(id, { x: style.x - amount });
+          if (event.key === "ArrowRight") patchLayer(id, { x: style.x + amount });
+          if (event.key === "ArrowUp") patchLayer(id, { y: style.y - amount });
+          if (event.key === "ArrowDown") patchLayer(id, { y: style.y + amount });
+        });
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [
+    addLayer,
+    beginLayerCrop,
+    cancelCrop,
+    cropFillId,
+    cropLayerId,
+    deleteLayers,
+    duplicateLayer,
+    moveLayer,
+    patchLayer,
+    redo,
+    scene?.layers,
+    selectedLayerIds,
+    undo,
+    viewport,
+  ]);
 
-  if (loading || !data) {
+  if (loading) {
     return (
-      <div className="grid min-h-[68vh] place-items-center rounded-lg border bg-white">
-        <div className="text-center">
-          <Loader2 className="mx-auto h-6 w-6 animate-spin" />
-          <p className="mt-3 text-sm text-black/55">Loading visual editor...</p>
+      <div className="studio-loading">
+        <Loader2 className="animate-spin" size={24} />
+        <p>Opening homepage editor...</p>
+      </div>
+    );
+  }
+
+  if (!data || !scene || !selectedRef) {
+    return (
+      <div className="studio-loading">
+        <Sparkles size={24} />
+        <h1>The banner editor could not open</h1>
+        <p>{editorError || "No editable hero or collection banners were found."}</p>
+        <div className="studio-loading__actions">
+          <button type="button" onClick={() => void load()}>
+            Retry
+          </button>
+          {onClose ? (
+            <button type="button" onClick={onClose}>
+              Back
+            </button>
+          ) : null}
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="homepage-visual-editor overflow-hidden rounded-lg border border-[#D1D5DB] bg-white shadow-sm">
-      <div className="flex flex-col gap-2 border-b bg-[#111827] px-4 py-2.5 text-white sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold">Homepage visual editor</p>
-          <p className="truncate text-[11px] text-white/55">
-            {dirty
-              ? "Unpublished changes"
-              : saving
-                ? "Saving draft..."
-                : `Saved ${timeLabel(lastSavedAt)}`}{" "}
-            | live version {publishedVersion || "original"}
-          </p>
+  const item = activeItem(data, selectedRef);
+  const sectionSettings =
+    item?.type === "CollectionFeature" ? (
+      <section className="studio-inspector-section">
+        <header>
+          <h3>Products</h3>
+        </header>
+        <div className="studio-inspector-section__body">
+          <label className="studio-field">
+            <span>Collection</span>
+            <select
+              value={item.props.collection}
+              onChange={(event) => patchSection({ collection: event.target.value })}
+            >
+              <option value="all">All products</option>
+              {categories
+                .filter((category) => category.is_active !== false)
+                .map((category) => (
+                  <option key={category.slug} value={category.slug}>
+                    {category.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label className="studio-field">
+            <span>Products</span>
+            <input
+              type="number"
+              min={1}
+              max={8}
+              value={item.props.productLimit}
+              onChange={(event) =>
+                patchSection({ productLimit: Math.min(8, Math.max(1, Number(event.target.value))) })
+              }
+            />
+          </label>
+          <label className="studio-field">
+            <span>Layout</span>
+            <select
+              value={item.props.layout}
+              onChange={(event) => patchSection({ layout: event.target.value })}
+            >
+              <option value="banner-top">Banner above products</option>
+              <option value="banner-left">Banner left, products right</option>
+              <option value="banner-right">Products left, banner right</option>
+            </select>
+          </label>
+          <label className="studio-field">
+            <span>Section fill</span>
+            <input
+              type="color"
+              value={item.props.backgroundColor}
+              onChange={(event) => patchSection({ backgroundColor: event.target.value })}
+            />
+          </label>
         </div>
-        <div className="flex flex-wrap gap-2">
+      </section>
+    ) : null;
+
+  const heroItem = item?.type === "Hero" ? item : null;
+  const prototypeSettings = heroItem ? (
+    <section className="studio-inspector-section">
+      <header>
+        <h3>Carousel</h3>
+      </header>
+      <div className="studio-inspector-section__body">
+        <label className="studio-field">
+          <span>Autoplay</span>
+          <select
+            value={heroItem.props.autoplay}
+            onChange={(event) => patchSection({ autoplay: event.target.value })}
+          >
+            <option value="on">On</option>
+            <option value="off">Off</option>
+          </select>
+        </label>
+        <label className="studio-field">
+          <span>Transition</span>
+          <select
+            value={heroItem.props.transition || "slide"}
+            onChange={(event) => patchSection({ transition: event.target.value })}
+          >
+            <option value="slide">Slide</option>
+            <option value="fade">Fade</option>
+          </select>
+        </label>
+        <label className="studio-field">
+          <span>Interval</span>
+          <input
+            type="number"
+            min={1500}
+            max={30000}
+            step={500}
+            value={heroItem.props.autoplayInterval || 5200}
+            onChange={(event) => patchSection({ autoplayInterval: Number(event.target.value) })}
+          />
+        </label>
+        <label className="studio-field">
+          <span>Duration</span>
+          <input
+            type="number"
+            min={100}
+            max={2000}
+            step={50}
+            value={heroItem.props.transitionDuration || 760}
+            onChange={(event) => patchSection({ transitionDuration: Number(event.target.value) })}
+          />
+        </label>
+        <label className="studio-field">
+          <span>Pause on hover</span>
+          <select
+            value={heroItem.props.pauseOnHover || "yes"}
+            onChange={(event) => patchSection({ pauseOnHover: event.target.value })}
+          >
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </label>
+        <label className="studio-field">
+          <span>Loop</span>
+          <select
+            value={heroItem.props.loop || "yes"}
+            onChange={(event) => patchSection({ loop: event.target.value })}
+          >
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </label>
+      </div>
+    </section>
+  ) : null;
+
+  return (
+    <div className="homepage-studio-v2">
+      <header className="studio-topbar">
+        <div className="studio-topbar__left">
+          <IconButton label="Back to dashboard" onClick={() => onClose?.()}>
+            <ChevronLeft size={18} />
+          </IconButton>
+          <div className="studio-file-name">
+            <strong>Homepage banners</strong>
+            <span>
+              {saving
+                ? "Saving to Convex..."
+                : dirty
+                  ? "Local changes"
+                  : unpublished
+                    ? `Draft saved ${timeLabel(lastSavedAt)}`
+                    : `Live version ${publishedVersion || "original"}`}
+            </span>
+          </div>
+        </div>
+        <div className="studio-topbar__center">
+          <IconButton label="Undo" disabled={!historyState.past} onClick={undo}>
+            <Undo2 size={17} />
+          </IconButton>
+          <IconButton label="Redo" disabled={!historyState.future} onClick={redo}>
+            <Redo2 size={17} />
+          </IconButton>
+          {ADVANCED_LAYOUT_TOOLS ? (
+            <>
+              <span className="studio-divider" />
+              <IconButton
+                label="Align horizontal centers"
+                disabled={!selectedLayerIds.length}
+                onClick={() => alignSelected("horizontal")}
+              >
+                <AlignCenterHorizontal size={17} />
+              </IconButton>
+              <IconButton
+                label="Align vertical centers"
+                disabled={!selectedLayerIds.length}
+                onClick={() => alignSelected("vertical")}
+              >
+                <AlignCenterVertical size={17} />
+              </IconButton>
+            </>
+          ) : null}
+        </div>
+        <div className="studio-topbar__right">
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded border border-white/20 px-3 text-xs hover:bg-white/10"
-            onClick={() => void saveDraft()}
-            disabled={saving}
+            className="studio-secondary-button"
+            onClick={() => openMosaicEditor()}
           >
-            <Save size={14} /> Save draft
+            <LayoutGrid size={15} />
+            <span>Collections</span>
           </button>
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded border border-white/20 px-3 text-xs hover:bg-white/10"
+            className="studio-secondary-button"
+            disabled={publishing}
+            onClick={() => setRestoreConfirmOpen(true)}
+          >
+            <RotateCcw size={15} />
+            <span>Restore OG</span>
+          </button>
+          <button
+            type="button"
+            className="studio-secondary-button"
             onClick={() => setHistoryOpen(true)}
           >
-            <History size={14} /> History
+            <History size={15} />
+            <span>History</span>
           </button>
-          <a
-            href="/"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex h-8 items-center gap-1.5 rounded border border-white/20 px-3 text-xs hover:bg-white/10"
+          <button
+            type="button"
+            className="studio-secondary-button"
+            onClick={() => setPreviewOpen(true)}
           >
-            <Eye size={14} /> View store
-          </a>
+            <Eye size={15} />
+            <span>Preview</span>
+          </button>
+          <button
+            type="button"
+            className="studio-secondary-button"
+            disabled={saving || !dirty}
+            onClick={() => void saveDraft()}
+          >
+            <Save size={15} />
+            <span>Save</span>
+          </button>
+          <button
+            type="button"
+            className="studio-publish-button"
+            disabled={publishing || Boolean(conflict) || (!dirty && !unpublished)}
+            onClick={() => {
+              if (publishIssues.length) {
+                const message = `Fix before publishing: ${publishIssues[0]}`;
+                setEditorError(message);
+                toast.error(message);
+                return;
+              }
+              setPublishConfirmOpen(true);
+            }}
+          >
+            {publishing ? <Loader2 className="animate-spin" size={15} /> : null} Publish
+          </button>
         </div>
-      </div>
-      <Puck
-        key={editorKey}
-        config={config}
-        data={data as Data}
-        height="calc(100dvh - 190px)"
-        viewports={[
-          { width: 390, height: "auto", label: "Mobile", icon: <span>M</span> },
-          { width: 768, height: "auto", label: "Tablet", icon: <span>T</span> },
-          { width: 1440, height: "auto", label: "Desktop", icon: <span>D</span> },
-        ]}
-        onChange={(next) => {
-          const homepage = next as HomepageData;
-          dataRef.current = homepage;
-          setData(homepage);
-          changeCounter.current += 1;
-          setDirty(true);
-        }}
-        onPublish={(next) => void publish(next as HomepageData)}
-        headerTitle="Fawzaan"
-        headerPath="Homepage"
-        renderHeaderActions={() => (
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              title="Discard unpublished changes"
-              className="inline-flex h-8 items-center gap-1 rounded border border-black/10 px-2.5 text-xs"
-              onClick={() => void discard()}
-            >
-              <X size={13} /> Discard
-            </button>
-            <button
-              type="button"
-              title="Load original design"
-              className="inline-flex h-8 items-center gap-1 rounded border border-black/10 px-2.5 text-xs"
-              onClick={resetOriginal}
-            >
-              <RotateCcw size={13} /> Original
-            </button>
-            <a
-              href="/"
-              target="_blank"
-              rel="noreferrer"
-              title="Open storefront"
-              className="grid h-8 w-8 place-items-center rounded border border-black/10"
-            >
-              <Store size={14} />
-            </a>
-          </div>
-        )}
-      />
+      </header>
 
-      {publishing ? (
-        <div className="fixed inset-0 z-[1200] grid place-items-center bg-black/55">
-          <div className="flex items-center gap-3 rounded-lg bg-white px-5 py-4 text-sm font-semibold shadow-xl">
-            <Loader2 className="h-5 w-5 animate-spin" /> Publishing safely...
+      {conflict ? (
+        <div className="studio-conflict">
+          <span>A newer draft exists in Convex. Choose which work to keep.</span>
+          <button
+            type="button"
+            onClick={() => {
+              applyLoadedData(
+                conflict.draft ?? cloneDefaultHomepageData(),
+                conflict.draft_revision,
+              );
+              setVersions(conflict.versions);
+              setConflict(null);
+              toast.success("Latest Convex draft loaded");
+            }}
+          >
+            Load latest
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              revisionRef.current = conflict.draft_revision;
+              setRevision(conflict.draft_revision);
+              setConflict(null);
+              void saveDraft();
+            }}
+          >
+            Keep local
+          </button>
+        </div>
+      ) : editorError ? (
+        <div className="studio-error">{editorError}</div>
+      ) : null}
+
+      <div className="studio-main is-left-collapsed">
+        {ADVANCED_LAYOUT_TOOLS ? (
+          <nav className="studio-bottom-toolbar" aria-label="Editor tools">
+            <>
+              <IconButton label="Select" active onClick={() => setEditingLayerId(null)}>
+                <MousePointer2 size={18} />
+              </IconButton>
+              <IconButton label="Text" onClick={() => addLayer("text")}>
+                <Type size={18} />
+              </IconButton>
+              <IconButton label="Image" onClick={() => addLayer("image")}>
+                <ImageIcon size={18} />
+              </IconButton>
+              <IconButton label="Button" onClick={() => addLayer("button")}>
+                <RectangleHorizontal size={18} />
+              </IconButton>
+              <IconButton label="Rectangle" onClick={() => addLayer("shape")}>
+                <RectangleHorizontal size={18} />
+              </IconButton>
+            </>
+          </nav>
+        ) : null}
+
+        {ADVANCED_LAYOUT_TOOLS ? (
+          <aside className="studio-left-panel">
+            <div className="studio-left-tabs">
+              <button
+                type="button"
+                className={leftTab === "file" ? "is-active" : ""}
+                onClick={() => setLeftTab("file")}
+              >
+                File
+              </button>
+              {ADVANCED_LAYOUT_TOOLS ? (
+                <button
+                  type="button"
+                  className={leftTab === "assets" ? "is-active" : ""}
+                  onClick={() => setLeftTab("assets")}
+                >
+                  Assets
+                </button>
+              ) : null}
+            </div>
+            {leftTab !== "assets" ? (
+              <div className="studio-left-scroll">
+                <>
+                  <div className="studio-pages-header">
+                    <span>Hero slides</span>
+                    <div>
+                      <IconButton label="Add hero banner" onClick={addHero}>
+                        <Plus size={14} />
+                      </IconButton>
+                      <IconButton label="Move banner up" onClick={() => moveBanner(-1)}>
+                        <ChevronUp size={14} />
+                      </IconButton>
+                      <IconButton label="Move banner down" onClick={() => moveBanner(1)}>
+                        <ChevronDown size={14} />
+                      </IconButton>
+                      <IconButton label="Duplicate banner" onClick={duplicateBanner}>
+                        <Copy size={14} />
+                      </IconButton>
+                      <IconButton label="Delete banner" onClick={deleteBanner}>
+                        <Trash2 size={14} />
+                      </IconButton>
+                    </div>
+                  </div>
+                  <div className="studio-banner-list">
+                    {banners
+                      .filter((banner) => banner.kind === "hero")
+                      .map((banner) => (
+                        <button
+                          type="button"
+                          key={banner.key}
+                          draggable
+                          className={banner.key === selectedRef.key ? "is-active" : ""}
+                          onDragStart={() => setDraggedBannerKey(banner.key)}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={() => {
+                            if (draggedBannerKey) reorderBanner(draggedBannerKey, banner.key);
+                            setDraggedBannerKey(null);
+                          }}
+                          onClick={() => {
+                            setSelectedBannerKey(banner.key);
+                            setSelectedLayerIds([]);
+                            setEditingLayerId(null);
+                            setCropLayerId(null);
+                            setCropFillId(null);
+                          }}
+                        >
+                          <GripVertical size={13} />
+                          <span>
+                            <strong>{banner.label}</strong>
+                            <small>{banner.group}</small>
+                          </span>
+                        </button>
+                      ))}
+                  </div>
+                  <div className="studio-locked-range">
+                    <Lock size={13} />
+                    <span>
+                      <strong>Original storefront</strong>
+                      <small>Hero, Shop All, and the Mosaic are locked</small>
+                    </span>
+                  </div>
+                  <div className="studio-pages-header">
+                    <span>Collection Mosaic</span>
+                    <IconButton label="Add collection tile" onClick={addMosaicCard}>
+                      <Plus size={14} />
+                    </IconButton>
+                  </div>
+                  <div className="studio-banner-list">
+                    {banners
+                      .filter((banner) => banner.kind !== "hero")
+                      .map((banner) => (
+                        <button
+                          type="button"
+                          key={banner.key}
+                          draggable
+                          className={banner.key === selectedRef.key ? "is-active" : ""}
+                          onDragStart={() => setDraggedBannerKey(banner.key)}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={() => {
+                            if (draggedBannerKey) reorderBanner(draggedBannerKey, banner.key);
+                            setDraggedBannerKey(null);
+                          }}
+                          onClick={() => {
+                            setSelectedBannerKey(banner.key);
+                            setSelectedLayerIds([]);
+                            setEditingLayerId(null);
+                            setCropLayerId(null);
+                            setCropFillId(null);
+                          }}
+                        >
+                          <GripVertical size={13} />
+                          <span>
+                            <strong>{banner.label}</strong>
+                            <small>{banner.group}</small>
+                          </span>
+                        </button>
+                      ))}
+                    {!banners.some((banner) => banner.kind !== "hero") ? (
+                      <button
+                        type="button"
+                        className="studio-empty-section"
+                        onClick={addMosaicCard}
+                      >
+                        <Plus size={15} /> Add collection tile
+                      </button>
+                    ) : null}
+                  </div>
+                </>
+                {ADVANCED_LAYOUT_TOOLS ? (
+                  <>
+                    <div className="studio-layer-header">
+                      <span>{selectedRef.label} layers</span>
+                      <small>{scene.layers.length}</small>
+                    </div>
+                    <div className="studio-layer-list">
+                      {[...scene.layers].reverse().map((layer) => {
+                        const style =
+                          viewport === "mobile"
+                            ? { ...layer.style, ...(layer.mobileStyle ?? {}) }
+                            : layer.style;
+                        return (
+                          <div
+                            key={layer.id}
+                            draggable
+                            className={`studio-layer-row ${selectedLayerIds.includes(layer.id) ? "is-active" : ""}`}
+                            onDragStart={() => setDraggedLayerId(layer.id)}
+                            onDragOver={(event) => event.preventDefault()}
+                            onDrop={() => {
+                              if (draggedLayerId) reorderLayer(draggedLayerId, layer.id);
+                              setDraggedLayerId(null);
+                            }}
+                          >
+                            <button
+                              type="button"
+                              className="studio-layer-select"
+                              onClick={(event) => {
+                                setCropLayerId(null);
+                                setCropFillId(null);
+                                setEditingLayerId(null);
+                                setSelectedLayerIds(
+                                  event.shiftKey
+                                    ? [...new Set([...selectedLayerIds, layer.id])]
+                                    : [layer.id],
+                                );
+                              }}
+                            >
+                              {layer.type === "text" ? (
+                                <Type size={14} />
+                              ) : layer.type === "image" ? (
+                                <ImageIcon size={14} />
+                              ) : layer.type === "button" ? (
+                                <RectangleHorizontal size={14} />
+                              ) : (
+                                <Circle size={14} />
+                              )}
+                              <span>{layer.name}</span>
+                            </button>
+                            <span className="studio-layer-actions">
+                              <button
+                                type="button"
+                                aria-label={`${style.visible ? "Hide" : "Show"} ${layer.name}`}
+                                onClick={() => patchLayer(layer.id, { visible: !style.visible })}
+                              >
+                                {style.visible ? <Eye size={12} /> : <Minus size={12} />}
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={`${style.locked ? "Unlock" : "Lock"} ${layer.name}`}
+                                onClick={() => patchLayer(layer.id, { locked: !style.locked })}
+                              >
+                                {style.locked ? <Lock size={12} /> : <Unlock size={12} />}
+                              </button>
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            ) : (
+              <div className="studio-assets-panel">
+                <button type="button" onClick={() => addLayer("text")}>
+                  <Type size={20} />
+                  <span>
+                    <strong>Text</strong>
+                    <small>Heading or paragraph</small>
+                  </span>
+                </button>
+                <button type="button" onClick={() => addLayer("button")}>
+                  <RectangleHorizontal size={20} />
+                  <span>
+                    <strong>Button</strong>
+                    <small>Linked call to action</small>
+                  </span>
+                </button>
+                <button type="button" onClick={() => addLayer("image")}>
+                  <ImageIcon size={20} />
+                  <span>
+                    <strong>Image</strong>
+                    <small>Upload, crop and resize</small>
+                  </span>
+                </button>
+                <button type="button" onClick={() => addLayer("shape")}>
+                  <Circle size={20} />
+                  <span>
+                    <strong>Shape</strong>
+                    <small>Colour block or overlay</small>
+                  </span>
+                </button>
+              </div>
+            )}
+          </aside>
+        ) : null}
+
+        <main className="studio-workspace">
+          <div className="studio-contextbar">
+            <div className="studio-breadcrumb">
+              <span>Homepage</span>
+              <ChevronRight size={13} />
+              <strong>{selectedRef.label}</strong>
+              {ADVANCED_LAYOUT_TOOLS && selectedLayerIds.length ? (
+                <>
+                  <ChevronRight size={13} />
+                  <span>{selectedLayers.map((layer) => layer.name).join(", ")}</span>
+                </>
+              ) : ADVANCED_LAYOUT_TOOLS ? (
+                <>
+                  <ChevronRight size={13} />
+                  <span>Background</span>
+                </>
+              ) : null}
+            </div>
+            {cropLayerId || cropFillId ? (
+              <div className="studio-modebar" aria-label="Crop controls">
+                <button type="button" onClick={cancelCrop}>
+                  <X size={14} /> Cancel
+                </button>
+                <span>
+                  <Crop size={14} /> {cropLayerId ? "Crop image" : "Crop background"}
+                </span>
+                <button type="button" className="is-primary" onClick={finishCrop}>
+                  <Check size={14} /> Done
+                </button>
+              </div>
+            ) : null}
+            <div className="studio-viewport-control">
+              <IconButton
+                label="Mobile viewport"
+                active={viewport === "mobile"}
+                onClick={() => {
+                  finishCrop();
+                  setViewport("mobile");
+                  setZoom(82);
+                }}
+              >
+                <Smartphone size={15} />
+              </IconButton>
+              <IconButton
+                label="Desktop viewport"
+                active={viewport === "desktop"}
+                onClick={() => {
+                  finishCrop();
+                  setViewport("desktop");
+                  setZoom(50);
+                }}
+              >
+                <Monitor size={16} />
+              </IconButton>
+            </div>
+          </div>
+          <StudioCanvas
+            data={data}
+            selectedRef={selectedRef}
+            scene={scene}
+            viewport={viewport}
+            zoom={zoom}
+            selectedLayerIds={selectedLayerIds}
+            editingLayerId={editingLayerId}
+            cropLayerId={cropLayerId}
+            cropFillId={cropFillId}
+            activeTool={activeTool}
+            onSelectBanner={(key) => {
+              setSelectedBannerKey(key);
+              setSelectedLayerIds([]);
+            }}
+            onSelectLayers={setSelectedLayerIds}
+            onEditLayer={setEditingLayerId}
+            onCropLayer={(id) => (id ? beginLayerCrop(id) : finishCrop())}
+            onCropFill={(id) => (id ? beginFillCrop(id) : finishCrop())}
+            onTextChange={(id, text) => patchLayerContent(id, { text })}
+            onPatchLayer={patchLayer}
+            onCropChange={(id, patch) => patchLayer(id, patch)}
+            onBackgroundCropChange={(id, patch) =>
+              mutateScene(
+                (current) => ({
+                  ...current,
+                  fills: current.fills.map((fill) =>
+                    fill.id === id ? { ...fill, ...patch } : fill,
+                  ),
+                }),
+                true,
+              )
+            }
+            onEditMosaic={openMosaicEditor}
+            onAddMosaicCard={addMosaicCard}
+            structuredMode={!ADVANCED_LAYOUT_TOOLS}
+          />
+          <div className="studio-zoom-control">
+            <IconButton
+              label="Zoom out"
+              onClick={() => setZoom((value) => Math.max(20, value - 10))}
+            >
+              <ZoomOut size={15} />
+            </IconButton>
+            <button type="button" onClick={() => setZoom(viewport === "mobile" ? 82 : 50)}>
+              {zoom}%
+            </button>
+            <IconButton
+              label="Zoom in"
+              onClick={() => setZoom((value) => Math.min(160, value + 10))}
+            >
+              <ZoomIn size={15} />
+            </IconButton>
+          </div>
+        </main>
+
+        {ADVANCED_LAYOUT_TOOLS ? (
+          <StudioInspector
+            scene={scene}
+            selectedLayers={selectedLayers}
+            viewport={viewport}
+            cropLayerId={cropLayerId}
+            cropFillId={cropFillId}
+            onUpdateScene={(next) => mutateScene(() => next, true)}
+            onPatchLayer={patchLayer}
+            onPatchLayerContent={patchLayerContent}
+            onDeleteLayer={(id) => deleteLayers([id])}
+            onDuplicateLayer={duplicateLayer}
+            onMoveLayer={moveLayer}
+            onCropLayer={(id) => (id ? beginLayerCrop(id) : finishCrop())}
+            onCropFill={(id) => (id ? beginFillCrop(id) : finishCrop())}
+            sectionSettings={sectionSettings}
+            prototypeSettings={prototypeSettings}
+          />
+        ) : (
+          <StudioTemplateInspector
+            data={data}
+            selectedRef={selectedRef}
+            categories={categories}
+            products={catalogProducts}
+            viewport={viewport}
+            selectedLayer={selectedLayers.length === 1 ? selectedLayers[0]! : null}
+            cropLayerId={cropLayerId}
+            cropFillId={cropFillId}
+            heroPosition={
+              selectedRef.kind === "hero"
+                ? { index: selectedGroupIndex, total: heroBanners.length }
+                : null
+            }
+            onSelectHero={(index) => {
+              const banner = heroBanners[index];
+              if (!banner) return;
+              setSelectedBannerKey(banner.key);
+              setSelectedLayerIds([]);
+              setEditingLayerId(null);
+            }}
+            onAddHero={addHero}
+            canMoveUp={selectedGroupIndex > 0}
+            canMoveDown={selectedGroupIndex >= 0 && selectedGroupIndex < selectedGroup.length - 1}
+            onMoveUp={() => moveBanner(-1)}
+            onMoveDown={() => moveBanner(1)}
+            onPatch={patchSelectedTemplate}
+            onPatchLayer={patchLayer}
+            onPatchFill={patchFill}
+            onCropLayer={(id) => (id ? beginLayerCrop(id) : finishCrop())}
+            onCropFill={(id) => (id ? beginFillCrop(id) : finishCrop())}
+            onDuplicate={duplicateBanner}
+            onDelete={deleteBanner}
+          />
+        )}
+      </div>
+
+      {mosaicOpen ? (
+        <MosaicEditorDialog
+          cards={homepageMosaicCards(data)}
+          categories={categories}
+          saving={saving}
+          publishing={publishing}
+          dirty={dirty}
+          unpublished={unpublished}
+          hasConflict={Boolean(conflict)}
+          publishBlocked={publishIssues.length > 0}
+          initialSelectedId={mosaicSelectedId}
+          onChange={updateMosaicCards}
+          onClose={() => setMosaicOpen(false)}
+          onSave={() => void saveDraft()}
+          onPublish={() => {
+            if (publishIssues.length) {
+              const message = `Fix before publishing: ${publishIssues[0]}`;
+              setEditorError(message);
+              toast.error(message);
+              return;
+            }
+            setMosaicOpen(false);
+            setPublishConfirmOpen(true);
+          }}
+        />
+      ) : null}
+
+      {previewOpen ? (
+        <div
+          className="studio-preview"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Draft homepage preview"
+        >
+          <div className="studio-preview__bar">
+            <strong>Draft preview</strong>
+            <span>Nothing here is live until Publish.</span>
+            <button type="button" onClick={() => setPreviewOpen(false)}>
+              <X size={17} /> Close
+            </button>
+          </div>
+          <div className="studio-preview__page">
+            <StorefrontFramePreview data={data} />
+          </div>
+        </div>
+      ) : null}
+
+      {publishConfirmOpen ? (
+        <div
+          className="studio-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm homepage publish"
+          onMouseDown={() => setPublishConfirmOpen(false)}
+        >
+          <div className="studio-publish-confirm" onMouseDown={(event) => event.stopPropagation()}>
+            <h2>Publish homepage?</h2>
+            <p>This replaces the public hero and adds your custom sections after the Mosaic.</p>
+            <div>
+              <button type="button" onClick={() => setPublishConfirmOpen(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="is-primary"
+                onClick={() => {
+                  setPublishConfirmOpen(false);
+                  void publish();
+                }}
+              >
+                Publish live
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
 
       {historyOpen ? (
         <div
-          className="fixed inset-0 z-[1100] bg-black/55"
+          className="studio-modal-backdrop"
           role="dialog"
           aria-modal="true"
-          aria-label="Homepage version history"
-          onClick={() => setHistoryOpen(false)}
+          aria-label="Version history"
+          onMouseDown={() => setHistoryOpen(false)}
         >
-          <aside
-            className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-white shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b px-5 py-4">
+          <aside className="studio-history" onMouseDown={(event) => event.stopPropagation()}>
+            <header>
               <div>
-                <h2 className="font-semibold">Version history</h2>
-                <p className="mt-1 text-xs text-black/50">
-                  The latest 30 published versions are retained.
-                </p>
+                <h2>Version history</h2>
+                <p>Published versions stored in Convex.</p>
               </div>
-              <button
-                type="button"
-                title="Close"
-                aria-label="Close history"
-                className="grid h-9 w-9 place-items-center"
-                onClick={() => setHistoryOpen(false)}
-              >
-                <X size={18} />
+              <button type="button" onClick={() => setHistoryOpen(false)}>
+                <X size={17} />
               </button>
-            </div>
-            <div className="flex-1 space-y-2 overflow-y-auto p-4">
+            </header>
+            <div className="studio-history__list">
               {versions.length ? (
                 versions.map((version) => (
-                  <article key={version.id} className="rounded-md border border-black/10 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold">
-                          Version {version.version}
-                          {version.version === publishedVersion ? (
-                            <span className="ml-2 rounded bg-emerald-100 px-2 py-0.5 text-[9px] uppercase text-emerald-800">
-                              Live
-                            </span>
-                          ) : null}
-                        </p>
-                        <p className="mt-1 text-xs text-black/50">
-                          {timeLabel(version.created_at)}
-                        </p>
-                      </div>
-                      {version.version !== publishedVersion ? (
-                        <button
-                          type="button"
-                          className="h-8 rounded bg-black px-3 text-xs font-semibold text-white"
-                          onClick={() => void restore(version)}
-                        >
-                          Restore
-                        </button>
-                      ) : null}
-                    </div>
-                    {version.summary ? (
-                      <p className="mt-3 text-xs leading-5 text-black/65">{version.summary}</p>
-                    ) : null}
-                    {version.created_by ? (
-                      <p className="mt-2 truncate text-[10px] text-black/40">
-                        {version.created_by}
-                      </p>
-                    ) : null}
-                  </article>
+                  <div
+                    key={version.id}
+                    className={version.version === publishedVersion ? "is-live" : ""}
+                  >
+                    <span>
+                      <strong>Version {version.version}</strong>
+                      <small>{version.summary || "Homepage publish"}</small>
+                      <small>{timeLabel(version.created_at)}</small>
+                    </span>
+                    <button
+                      type="button"
+                      disabled={publishing}
+                      onClick={async () => {
+                        if (!confirm(`Restore version ${version.version} as the live homepage?`))
+                          return;
+                        setPublishing(true);
+                        try {
+                          const result = await restoreHomepageVersion(version.id);
+                          applyLoadedData(result.data as HomepageData, result.revision);
+                          setPublishedVersion(result.version);
+                          setLastSavedAt(result.published_at);
+                          setUnpublished(false);
+                          setHistoryOpen(false);
+                          await refreshPublicCatalog();
+                          setVersions((await getHomepageEditorState()).versions);
+                          toast.success(`Version ${version.version} restored`);
+                        } catch (error) {
+                          toast.error(errorMessage(error, "Could not restore this version."));
+                        } finally {
+                          setPublishing(false);
+                        }
+                      }}
+                    >
+                      Restore
+                    </button>
+                  </div>
                 ))
               ) : (
-                <div className="p-8 text-center text-sm text-black/50">
-                  No published versions yet. Your first publish will appear here.
-                </div>
+                <p className="studio-muted">No published editor versions exist yet.</p>
               )}
             </div>
-            <div className="border-t bg-[#F9FAFB] p-4 text-xs leading-5 text-black/55">
-              Published {timeLabel(publishedAt)}. Restoring creates a new version, so history is
-              never overwritten.
-            </div>
+            <footer>
+              <button
+                type="button"
+                onClick={() => {
+                  setHistoryOpen(false);
+                  setRestoreConfirmOpen(true);
+                }}
+              >
+                <RotateCcw size={15} /> Restore OG site
+              </button>
+              <button
+                type="button"
+                disabled={!unpublished}
+                onClick={async () => {
+                  if (!confirm("Discard all unpublished changes?")) return;
+                  const result = await discardHomepageDraft();
+                  if (result) applyLoadedData(result.data as HomepageData, result.revision);
+                  else applyLoadedData(cloneDefaultHomepageData(), revisionRef.current);
+                  setUnpublished(false);
+                  setHistoryOpen(false);
+                  await writeLocalBackup(null);
+                }}
+              >
+                <Trash2 size={15} /> Discard draft
+              </button>
+            </footer>
           </aside>
         </div>
       ) : null}
-      <span className="sr-only">Revision {revision}</span>
+
+      {restoreConfirmOpen ? (
+        <div
+          className="studio-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Restore OG homepage"
+          onMouseDown={() => setRestoreConfirmOpen(false)}
+        >
+          <div className="studio-publish-confirm" onMouseDown={(event) => event.stopPropagation()}>
+            <h2>Restore the current OG homepage?</h2>
+            <p>
+              This replaces the current draft and live homepage with the approved OG snapshot. It
+              creates a new version in history, so your existing versions and banners are not
+              deleted.
+            </p>
+            <div>
+              <button type="button" onClick={() => setRestoreConfirmOpen(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="is-primary"
+                disabled={publishing}
+                onClick={() => void restoreOriginalHomepage()}
+              >
+                Restore OG live
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {publishing ? (
+        <div className="studio-busy">
+          <Loader2 className="animate-spin" size={25} />
+          <span>Publishing homepage...</span>
+        </div>
+      ) : null}
     </div>
   );
 }

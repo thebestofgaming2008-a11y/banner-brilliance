@@ -1,39 +1,85 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { Check, Heart, Minus, Plus, Star } from "lucide-react";
+import { Check, CircleCheck, Heart, Minus, Plus, ShoppingBag, Star } from "lucide-react";
 import { useQuery } from "convex/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { api } from "../../convex/_generated/api";
 import { StoreProductCard } from "@/components/store/product-card";
+import { ProductGiftCue } from "@/components/store/product-gift-cue";
 import { StorePage } from "@/components/store/store-chrome";
-import { toStoreProduct, useStoreProducts } from "@/data/store";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
+import type { CarouselApi } from "@/components/ui/carousel";
+import { isPreOrderProduct, toStoreProduct } from "@/data/store";
 import { useCurrency } from "@/hooks/use-currency";
 import { convex } from "@/lib/backend";
 import { useCart } from "@/lib/cart";
 import { useWishlist } from "@/lib/wishlist";
 import type { Product } from "@/lib/products";
-import { getProductBySlug } from "@/services/productService";
+import {
+  getProductBySlug,
+  listActiveProducts,
+  listPublishedProductReviews,
+  type PublishedProductReview,
+} from "@/services/productService";
 import { absoluteUrl, BRAND_NAME, seo } from "@/lib/seo";
+
+function productSeoDescription(product: Product) {
+  const category = product.collectionLabel || product.collection;
+  const details = [product.short, product.description, product.features?.[0]]
+    .map((value) => String(value ?? "").trim())
+    .filter((value, index, values) => value && values.indexOf(value) === index);
+  const text = `Shop ${product.name} in ${category} at Fawzaan Store. ${details.join(" ")} View current price, options and availability.`;
+  return text.length <= 160 ? text : `${text.slice(0, 157).trimEnd()}...`;
+}
 
 export const Route = createFileRoute("/products/$slug")({
   loader: async ({ params }) => {
-    const product = await getProductBySlug(params.slug);
+    const [fullProduct, products] = await Promise.all([
+      getProductBySlug(params.slug),
+      listActiveProducts(),
+    ]);
+    // Catalog cards intentionally omit the gallery payload. Product pages must
+    // prefer the full record so every published image reaches the gallery.
+    const product = fullProduct ?? products.find((item) => item.slug === params.slug);
     if (!product) throw notFound();
-    return { product };
+    const reviews =
+      product.id && product.reviews > 0 ? await listPublishedProductReviews(product.id) : [];
+    return { product, products, reviews };
   },
   head: ({ loaderData }) => {
     const product = loaderData?.product as Product | undefined;
     if (!product) return seo({ title: "Product | Fawzaan Store", noIndex: true });
+    const publishedReviews = (loaderData?.reviews ?? []) as PublishedProductReview[];
     const path = `/products/${encodeURIComponent(product.slug)}`;
-    const description = product.short || product.description || `${product.name} from Fawzaan.`;
+    const description = productSeoDescription(product);
     const productUrl = absoluteUrl(path);
+    const aggregateRating =
+      product.reviews > 0 && product.rating > 0
+        ? {
+            "@type": "AggregateRating",
+            ratingValue: product.rating,
+            reviewCount: product.reviews,
+          }
+        : undefined;
+    const additionalProperty = (product.features ?? []).map((feature) => ({
+      "@type": "PropertyValue",
+      name: "Feature",
+      value: feature,
+    }));
     return {
       ...seo({
         title: `${product.name} | Fawzaan Store`,
         description,
         path,
         image: product.images[0] || "/og-image-v2.jpg",
+        imageAlt: product.name,
         type: "product",
       }),
       scripts: [
@@ -43,12 +89,34 @@ export const Route = createFileRoute("/products/$slug")({
             "@context": "https://schema.org",
             "@type": "Product",
             "@id": `${productUrl}#product`,
+            url: productUrl,
+            mainEntityOfPage: productUrl,
             name: product.name,
             description,
             image: product.images.map(absoluteUrl),
             sku: product.id || product.slug,
             category: product.collectionLabel || product.collection,
             brand: { "@type": "Brand", name: BRAND_NAME },
+            aggregateRating,
+            review: publishedReviews.length
+              ? publishedReviews.map((review) => ({
+                  "@type": "Review",
+                  author: {
+                    "@type": "Person",
+                    name: review.customer_name || "Verified customer",
+                  },
+                  datePublished: review.created_at || undefined,
+                  name: review.title || undefined,
+                  reviewBody: review.body || undefined,
+                  reviewRating: {
+                    "@type": "Rating",
+                    ratingValue: review.rating,
+                    bestRating: 5,
+                    worstRating: 1,
+                  },
+                }))
+              : undefined,
+            additionalProperty: additionalProperty.length ? additionalProperty : undefined,
             offers: {
               "@type": "Offer",
               url: productUrl,
@@ -58,24 +126,29 @@ export const Route = createFileRoute("/products/$slug")({
               availability:
                 product.inStock === false
                   ? "https://schema.org/OutOfStock"
-                  : "https://schema.org/InStock",
+                  : isPreOrderProduct(toStoreProduct(product))
+                    ? "https://schema.org/PreOrder"
+                    : "https://schema.org/InStock",
               seller: { "@id": `${absoluteUrl("/")}#store` },
               shippingDetails: {
                 "@type": "OfferShippingDetails",
                 shippingRate: { "@type": "MonetaryAmount", value: 0, currency: "INR" },
                 shippingDestination: { "@type": "DefinedRegion", addressCountry: "IN" },
-                handlingTime: {
-                  "@type": "QuantitativeValue",
-                  minValue: 1,
-                  maxValue: 2,
-                  unitCode: "DAY",
+                deliveryTime: {
+                  "@type": "ShippingDeliveryTime",
+                  handlingTime: {
+                    "@type": "QuantitativeValue",
+                    minValue: 1,
+                    maxValue: 2,
+                    unitCode: "DAY",
+                  },
                 },
               },
               hasMerchantReturnPolicy: {
                 "@type": "MerchantReturnPolicy",
                 applicableCountry: "IN",
                 returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
-                merchantReturnDays: 30,
+                merchantReturnDays: 5,
                 returnPolicyUrl: absoluteUrl("/pages/returns"),
               },
             },
@@ -100,9 +173,12 @@ export const Route = createFileRoute("/products/$slug")({
 });
 
 function ProductPage() {
-  const { product: catalogProduct } = Route.useLoaderData() as { product: Product };
+  const { product: catalogProduct, products: catalogProducts } = Route.useLoaderData() as {
+    product: Product;
+    products: Product[];
+  };
   const product = toStoreProduct(catalogProduct);
-  const { products } = useStoreProducts();
+  const products = useMemo(() => catalogProducts.map(toStoreProduct), [catalogProducts]);
   const { add, isReady: isCartReady } = useCart();
   const wishlist = useWishlist();
   const { formatPrice } = useCurrency();
@@ -112,26 +188,24 @@ function ProductPage() {
   );
   const [added, setAdded] = useState(false);
   const wished = wishlist.has(product.slug);
-
+  const preOrder = isPreOrderProduct(product);
   const related = useMemo(() => {
     const currentTags = new Set(product.filterTags ?? []);
-    const candidates = products.filter(
-      (item) => item.slug !== product.slug && (!product.id || item.id !== product.id),
-    );
-    const ranked = candidates
+    return products
+      .filter((item) => item.slug !== product.slug && (!product.id || item.id !== product.id))
       .map((item) => {
-        const sharedTags = (item.filterTags ?? []).filter((tag) => currentTags.has(tag)).length;
         const sameCollection = item.collectionSlug
           ? item.collectionSlug === product.collectionSlug
           : item.collection === product.collection;
+        const sharedTags = (item.filterTags ?? []).filter((tag) => currentTags.has(tag)).length;
         return {
           item,
           score: (sameCollection ? 100 : 0) + sharedTags * 12 + (item.inStock === false ? -50 : 0),
         };
       })
-      .sort((a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name));
-
-    return ranked.slice(0, 4).map(({ item }) => item);
+      .sort((a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name))
+      .slice(0, 4)
+      .map(({ item }) => item);
   }, [
     product.collection,
     product.collectionSlug,
@@ -165,7 +239,9 @@ function ProductPage() {
       qty: quantity,
     });
     setAdded(true);
-    toast.success(`${product.name} added to cart`);
+    toast.success(
+      preOrder ? `${product.name} added to your pre-order` : `${product.name} added to cart`,
+    );
     window.setTimeout(() => setAdded(false), 1800);
   };
 
@@ -174,42 +250,39 @@ function ProductPage() {
       <div className="sticky top-[65px] z-40 border-y border-black/10 bg-white/95 px-4 py-2 backdrop-blur-md">
         <div className="mx-auto flex max-w-[1180px] items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate text-[11px] font-bold uppercase">{product.name}</p>
+            <p className="product-name truncate text-[15px] uppercase">{product.name}</p>
             <p className="text-[11px] text-black/50">{formatPrice(product.price)}</p>
           </div>
           <button
             type="button"
             onClick={addToCart}
             disabled={!isCartReady || product.inStock === false}
-            className="h-10 shrink-0 bg-[#f4b400] px-5 text-[10px] font-bold uppercase disabled:cursor-not-allowed disabled:bg-black/10 md:px-8"
+            className={`brand-mango-bg flex h-10 shrink-0 items-center gap-2 px-5 text-[10px] font-bold uppercase transition-transform active:scale-[0.97] disabled:cursor-not-allowed disabled:bg-black/10 disabled:bg-none md:px-8 ${added ? "product-add-success" : "conversion-nudge"}`}
           >
-            {product.inStock === false ? "Out of stock" : added ? "Added" : "Add to cart"}
+            {added ? (
+              <Check size={14} aria-hidden="true" />
+            ) : (
+              <ShoppingBag size={14} aria-hidden="true" />
+            )}
+            {product.inStock === false
+              ? "Out of stock"
+              : added
+                ? "Added"
+                : preOrder
+                  ? "Pre order"
+                  : "Add"}
           </button>
         </div>
       </div>
 
       <section className="mx-auto grid max-w-[1280px] gap-8 px-[18px] py-7 md:grid-cols-[1.12fr_0.88fr] md:gap-12 md:px-8 md:py-12">
-        <div className="no-scrollbar -mx-[18px] flex snap-x snap-mandatory gap-2 overflow-x-auto px-[18px] md:mx-0 md:grid md:grid-cols-2 md:overflow-visible md:px-0">
-          {product.images.map((image, index) => (
-            <figure
-              key={`${image}-${index}`}
-              className="w-[88vw] shrink-0 snap-center overflow-hidden bg-white md:w-auto"
-            >
-              <div className="aspect-[3/4] overflow-hidden">
-                <img
-                  src={image}
-                  alt={`${product.name}, view ${index + 1}`}
-                  loading={index === 0 ? "eager" : "lazy"}
-                  className={`h-full w-full ${product.mediaFit === "contain" ? "object-contain" : "object-cover"} ${product.imageClassName ?? ""}`}
-                />
-              </div>
-            </figure>
-          ))}
-        </div>
+        <ProductGallery product={product} />
 
-        <div className="md:sticky md:top-[132px] md:self-start">
-          <p className="section-kicker text-black/45">{product.collection}</p>
-          <h1 className="section-heading mt-3 text-[38px] md:text-[52px]">{product.name}</h1>
+        <div className="md:sticky md:top-[132px] md:self-start" data-store-reveal>
+          <p className="section-kicker text-black/60">{product.collection}</p>
+          <h1 className="product-name mt-3 text-[44px] uppercase leading-[0.88] md:text-[60px]">
+            {product.name}
+          </h1>
           {product.reviews > 0 ? (
             <div className="mt-4 flex items-center gap-2 text-[12px]">
               <Star size={14} fill="currentColor" />
@@ -222,35 +295,55 @@ function ProductPage() {
           <div className="mt-5 flex items-center gap-3">
             <span className="text-[20px] font-bold">{formatPrice(product.price)}</span>
             {product.compareAt ? (
-              <span className="text-[15px] text-black/35 line-through">
+              <span className="text-[15px] text-black/60 line-through">
                 {formatPrice(product.compareAt)}
               </span>
             ) : null}
           </div>
           <p className="mt-6 text-[14px] leading-6 text-black/65">{product.description}</p>
+          <ProductGiftCue product={product} variant="detail" />
 
-          {(product.optionGroups ?? []).map((group) => (
-            <fieldset className="mt-7" key={group.name}>
-              <legend className="text-[11px] font-bold uppercase">
-                Select {group.name.toLowerCase()}
-              </legend>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {group.values.map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setSelected((current) => ({ ...current, [group.name]: value }))}
-                    className={`min-h-10 border px-4 text-[11px] font-semibold ${selected[group.name] === value ? "border-black bg-black text-white" : "border-black/20"}`}
-                  >
-                    {value}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-          ))}
+          {(product.optionGroups ?? []).map((group) => {
+            const fixedFreeSize =
+              group.name.toLowerCase() === "size" &&
+              group.values.length === 1 &&
+              group.values[0].toLowerCase() === "free size";
+
+            if (fixedFreeSize) {
+              return (
+                <div className="mt-7" key={group.name}>
+                  <p className="text-[11px] font-bold uppercase">Size</p>
+                  <p className="mt-2 text-[14px] font-medium">Free Size</p>
+                </div>
+              );
+            }
+
+            return (
+              <fieldset className="mt-7" key={group.name}>
+                <legend className="text-[11px] font-bold uppercase">
+                  Select {group.name.toLowerCase()}
+                </legend>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {group.values.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() =>
+                        setSelected((current) => ({ ...current, [group.name]: value }))
+                      }
+                      aria-pressed={selected[group.name] === value}
+                      className={`min-h-10 rounded-md border px-4 text-[11px] font-semibold transition-colors ${selected[group.name] === value ? "border-black bg-black text-white" : "border-black/20 bg-white hover:border-[#E2713F]"}`}
+                    >
+                      {value}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            );
+          })}
 
           <div className="mt-7 grid grid-cols-[108px_1fr] gap-3">
-            <div className="flex h-12 items-center border border-black/20">
+            <div className="flex h-12 items-center overflow-hidden rounded-md border border-black/20">
               <button
                 type="button"
                 aria-label="Decrease quantity"
@@ -273,9 +366,20 @@ function ProductPage() {
               type="button"
               onClick={addToCart}
               disabled={!isCartReady || product.inStock === false}
-              className="h-12 bg-[#f4b400] text-[11px] font-bold uppercase disabled:bg-black/10"
+              className={`brand-mango-bg flex h-12 items-center justify-center gap-2 rounded-md text-[11px] font-bold uppercase transition-transform active:scale-[0.97] disabled:bg-black/10 disabled:bg-none ${added ? "product-add-success" : "conversion-nudge"}`}
             >
-              {product.inStock === false ? "Out of stock" : added ? "Added to cart" : "Add to cart"}
+              {added ? (
+                <Check size={15} aria-hidden="true" />
+              ) : (
+                <ShoppingBag size={15} aria-hidden="true" />
+              )}
+              {product.inStock === false
+                ? "Out of stock"
+                : added
+                  ? "Added"
+                  : preOrder
+                    ? "Pre order"
+                    : "Add"}
             </button>
           </div>
           <button
@@ -291,7 +395,7 @@ function ProductPage() {
                 );
               }
             }}
-            className="mt-3 flex h-11 w-full items-center justify-center gap-2 border border-black/20 text-[11px] font-bold uppercase"
+            className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-md border border-black/20 text-[11px] font-bold uppercase transition-colors hover:border-[#E2713F] hover:text-[#C85F22]"
           >
             <Heart size={15} fill={wished ? "currentColor" : "none"} />
             {wished ? "Saved to wishlist" : "Save to wishlist"}
@@ -299,9 +403,9 @@ function ProductPage() {
           {product.details?.length ? (
             <div className="mt-8 divide-y divide-black/10 border-y border-black/10">
               {product.details.map((detail) => (
-                <div key={detail} className="flex items-center gap-3 py-3 text-[12px]">
-                  <Check size={15} className="text-[#d79f00]" />
-                  {detail}
+                <div key={detail} className="flex items-center gap-3 py-3.5">
+                  <CircleCheck size={18} strokeWidth={1.5} className="shrink-0 text-[#E09A2F]" />
+                  <span className="product-feature-copy">{detail}</span>
                 </div>
               ))}
             </div>
@@ -313,12 +417,16 @@ function ProductPage() {
 
       {related.length ? (
         <section
-          className="bg-[#f4b400] px-[22px] py-14 md:px-8 md:py-20"
+          className="border-t border-black/10 bg-white px-[18px] py-12 md:px-8 md:py-16"
           data-testid="related-products-section"
+          data-store-reveal
         >
           <div className="mx-auto max-w-[1180px]">
-            <h2 className="section-heading text-[34px]">YOU MAY ALSO LIKE</h2>
-            <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <p className="section-kicker text-black/60">Continue shopping</p>
+            <h2 className="product-editorial-heading mt-2 text-[36px] md:text-[42px]">
+              More products
+            </h2>
+            <div className="mt-7 grid grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-4 md:gap-5">
               {related.map((item) => (
                 <StoreProductCard key={item.slug} product={item} />
               ))}
@@ -330,14 +438,109 @@ function ProductPage() {
   );
 }
 
+function ProductGallery({ product }: { product: ReturnType<typeof toStoreProduct> }) {
+  const [api, setApi] = useState<CarouselApi>();
+  const [current, setCurrent] = useState(0);
+
+  useEffect(() => {
+    if (!api) return;
+    const updateCurrent = () => setCurrent(api.selectedScrollSnap());
+    updateCurrent();
+    api.on("select", updateCurrent);
+    api.on("reInit", updateCurrent);
+    return () => {
+      api.off("select", updateCurrent);
+      api.off("reInit", updateCurrent);
+    };
+  }, [api]);
+
+  const imageClass = `h-full w-full ${product.mediaFit === "contain" ? "object-contain p-4 md:p-7" : "object-cover"} ${product.imageClassName ?? ""}`;
+
+  return (
+    <div className="min-w-0">
+      <Carousel
+        setApi={setApi}
+        opts={{ align: "start", loop: product.images.length > 1 }}
+        className="-mx-[18px] md:hidden"
+        aria-label={`${product.name} product images`}
+        data-testid="mobile-product-gallery"
+      >
+        <CarouselContent className="ml-0">
+          {product.images.map((image, index) => (
+            <CarouselItem key={`${image}-${index}`} className="pl-0">
+              <figure className="mx-[18px] overflow-hidden bg-[#F7F7F5]">
+                <div className="aspect-[3/4] overflow-hidden">
+                  <img
+                    src={image}
+                    alt={`${product.name}, view ${index + 1}`}
+                    loading={index === 0 ? "eager" : "lazy"}
+                    style={{ objectPosition: product.mediaPosition ?? "center" }}
+                    className={imageClass}
+                  />
+                </div>
+              </figure>
+            </CarouselItem>
+          ))}
+        </CarouselContent>
+
+        {product.images.length > 1 ? (
+          <>
+            <CarouselPrevious className="left-7 top-1/2 z-10 border-0 bg-white/90 shadow-sm hover:bg-white" />
+            <CarouselNext className="right-7 top-1/2 z-10 border-0 bg-white/90 shadow-sm hover:bg-white" />
+            <div
+              className="mt-3 flex items-center justify-center gap-2"
+              aria-label={`Image ${current + 1} of ${product.images.length}`}
+            >
+              {product.images.map((image, index) => (
+                <button
+                  key={`${image}-dot-${index}`}
+                  type="button"
+                  aria-label={`View image ${index + 1}`}
+                  aria-current={current === index ? "true" : undefined}
+                  onClick={() => api?.scrollTo(index)}
+                  className={`h-1.5 transition-[width,background-color] ${current === index ? "w-7 bg-black" : "w-1.5 bg-black/25"}`}
+                />
+              ))}
+            </div>
+          </>
+        ) : null}
+      </Carousel>
+
+      <div className="hidden grid-cols-2 gap-2 md:grid">
+        {product.images.map((image, index) => (
+          <figure
+            key={`${image}-${index}`}
+            className={`overflow-hidden bg-[#F7F7F5] ${index === 0 ? "col-span-2" : ""}`}
+            data-store-reveal
+          >
+            <div className="aspect-[3/4] overflow-hidden">
+              <img
+                src={image}
+                alt={`${product.name}, view ${index + 1}`}
+                loading={index === 0 ? "eager" : "lazy"}
+                style={{ objectPosition: product.mediaPosition ?? "center" }}
+                className={imageClass}
+              />
+            </div>
+          </figure>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ProductReviews({ productId }: { productId: string }) {
   const reviews = useQuery(api.reviews.listPublishedForProduct, { productId });
 
   return (
-    <section id="reviews" className="border-t border-black/10 px-[22px] py-16 md:px-8">
+    <section
+      id="reviews"
+      className="border-t border-black/10 px-[22px] py-16 md:px-8"
+      data-store-reveal
+    >
       <div className="mx-auto max-w-[1180px]">
-        <p className="section-kicker text-black/45">Verified customer feedback</p>
-        <h2 className="section-heading mt-2 text-[34px]">REVIEWS</h2>
+        <p className="section-kicker text-black/60">Verified customer feedback</p>
+        <h2 className="product-editorial-heading mt-2 text-[40px]">Reviews</h2>
         {reviews === undefined ? (
           <p className="mt-8 text-[13px] text-black/50">Loading reviews...</p>
         ) : reviews.length ? (

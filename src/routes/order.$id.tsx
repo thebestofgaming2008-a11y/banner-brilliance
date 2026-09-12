@@ -8,6 +8,7 @@ import { api } from "../../convex/_generated/api";
 import { StorePage } from "@/components/store/store-chrome";
 import { useCurrency } from "@/hooks/use-currency";
 import { convex } from "@/lib/backend";
+import { orderStatusLabel } from "@/lib/order-status";
 import { seo } from "@/lib/seo";
 
 type OrderSearch = { email?: string };
@@ -40,6 +41,8 @@ type TrackedOrder = {
   payment_status?: string;
   total_inr?: number;
   total?: number;
+  discount?: number;
+  promotion_code?: string;
   shipping_address?: TrackedAddress;
   items?: TrackedItem[];
   tracking_number?: string;
@@ -96,7 +99,7 @@ function OrderLookup({ orderNumber, email }: { orderNumber: string; email: strin
               className="h-12 w-full border border-black/15 px-3 text-sm outline-none focus:border-black"
               placeholder="Email address"
             />
-            <button className="mt-3 h-12 w-full bg-[#f4b400] text-[11px] font-bold uppercase">
+            <button className="brand-mango-bg mt-3 h-12 w-full text-[11px] font-bold uppercase">
               View order
             </button>
           </form>
@@ -132,8 +135,8 @@ function OrderLookup({ orderNumber, email }: { orderNumber: string; email: strin
             <h1 className="section-heading text-[42px] md:text-[58px]">
               ORDER {trackedOrder.order_number}
             </h1>
-            <span className="bg-[#f4b400] px-3 py-2 text-[10px] font-bold uppercase">
-              {trackedOrder.status ?? "Processing"}
+            <span className="brand-mango-bg px-3 py-2 text-[10px] font-bold uppercase">
+              {orderStatusLabel(trackedOrder.status)}
             </span>
           </div>
           <p className="mt-2 text-sm text-black/50">
@@ -160,7 +163,7 @@ function OrderLookup({ orderNumber, email }: { orderNumber: string; email: strin
                     <div className="aspect-[3/4] bg-black/5" />
                   )}
                   <div>
-                    <p className="text-sm font-semibold">{item.product_name}</p>
+                    <p className="product-name text-[16px]">{item.product_name}</p>
                     <p className="mt-1 text-[11px] text-black/50">
                       {[item.selected_color, item.selected_size].filter(Boolean).join(" / ") ||
                         "Standard"}{" "}
@@ -186,6 +189,11 @@ function OrderLookup({ orderNumber, email }: { orderNumber: string; email: strin
               <p className="mt-1 text-lg font-bold">
                 {formatPrice(Number(trackedOrder.total_inr ?? trackedOrder.total ?? 0))}
               </p>
+              {trackedOrder.promotion_code && Number(trackedOrder.discount ?? 0) > 0 ? (
+                <p className="mt-2 text-xs font-medium text-emerald-700">
+                  {trackedOrder.promotion_code} saved {formatPrice(Number(trackedOrder.discount))}
+                </p>
+              ) : null}
             </div>
             <div className="border border-black/10 p-5">
               <div className="flex items-center gap-2">
@@ -257,7 +265,7 @@ function ReviewOrderItems({ order, email }: { order: TrackedOrder; email: string
               }
               className="flex w-full items-center justify-between gap-3 text-left text-sm font-semibold"
             >
-              <span>{item.product_name}</span>
+              <span className="product-name text-[16px]">{item.product_name}</span>
               <span className="text-[10px] uppercase underline">Write review</span>
             </button>
             {openProduct === item.product_id ? (
@@ -331,7 +339,7 @@ function StateMessage({ title, copy }: { title: string; copy: string }) {
       <p className="mt-3 text-sm text-black/55">{copy}</p>
       <a
         href="/shop"
-        className="mt-7 inline-flex bg-[#f4b400] px-6 py-3 text-[11px] font-bold uppercase"
+        className="brand-mango-bg mt-7 inline-flex px-6 py-3 text-[11px] font-bold uppercase"
       >
         Back to shop
       </a>

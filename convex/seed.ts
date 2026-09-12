@@ -37,8 +37,8 @@ const starterProducts = [
     category: "Shemaghs",
     category_id: "shemaghs",
     tags: ["men", "bestseller"],
-    color_options: ["Red / White", "Black / White", "Ivory"],
-    size_options: ["Standard 130 x 130 cm"],
+    color_options: ["Brown", "Purple", "Blue", "Red"],
+    size_options: ["60 x 60 cm"],
     badge: "Bestseller",
     rating: 0,
     reviews_count: 0,
@@ -47,15 +47,15 @@ const starterProducts = [
   {
     slug: "khadija-niqab",
     name: "Khadija Niqab",
-    short_description: "Two-layer chiffon niqab with long draping veil.",
-    description:
-      "Featherlight two-layer chiffon niqab with an extended draping veil. Breathable, opaque, and cut generously to layer over any abaya.",
+    short_description: "Daily comfort wear.",
+    description: "Daily comfort wear.",
     price_inr: 650,
     category: "Niqabs",
     category_id: "niqabs",
     tags: ["women", "bestseller"],
-    color_options: ["Onyx Black"],
-    size_options: ["One Size"],
+    highlights: ["Premium chiffon fabric"],
+    color_options: ["Black"],
+    size_options: ["One Size - Layers: 54 / 34 in; Veil: 22.5 x 13.5 in; Gear: 82 in"],
     badge: "Bestseller",
     rating: 0,
     reviews_count: 0,
@@ -87,8 +87,8 @@ const starterProducts = [
     category: "Kufis",
     category_id: "kufis",
     tags: ["men"],
-    color_options: ["Ivory White"],
-    size_options: ["S", "M", "L"],
+    color_options: ["White"],
+    size_options: ["Free Size"],
     rating: 0,
     reviews_count: 0,
     stock_quantity: 50,
@@ -112,9 +112,9 @@ const starterProducts = [
   {
     slug: "kashmir-acacia-honey",
     name: "Kashmir Acacia Honey 500g",
-    short_description: "Light, floral Kashmiri acacia. Slow to crystallise.",
+    short_description: "Light, floral Kashmiri acacia. Unheated.",
     description:
-      "Delicate acacia honey from Kashmir, light golden in colour, gentle on the palate, and slow to crystallise.",
+      "Delicate acacia honey from Kashmir, light golden in colour, gentle on the palate, and kept unheated.",
     price_inr: 900,
     category: "Honey",
     category_id: "honey",
@@ -321,6 +321,196 @@ export const ensureCatalogFilters = mutation({
     }
 
     return { inserted, updated };
+  },
+});
+
+export const ensureYemeniShemaghRedOption = mutation({
+  args: { token: v.optional(v.string()) },
+  returns: v.object({
+    updated: v.boolean(),
+    color_options: v.array(v.string()),
+    size_options: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const setupToken = process.env.ADMIN_UPLOAD_TOKEN;
+    if (!setupToken || args.token !== setupToken) await requireAdmin(ctx);
+
+    const product = await ctx.db
+      .query("products")
+      .withIndex("by_slug", (q) => q.eq("slug", "yemeni-shemagh"))
+      .first();
+    if (!product) throw new Error("Yemeni Shemagh product was not found.");
+
+    const colorOptions = Array.from(
+      new Set([...(Array.isArray(product.color_options) ? product.color_options : []), "Red"]),
+    );
+    const sizeOptions = Array.isArray(product.size_options) ? product.size_options : [];
+    const optionTypes = [
+      { name: "Colour", values: colorOptions },
+      ...(sizeOptions.length ? [{ name: "Size", values: sizeOptions }] : []),
+    ];
+
+    const changed =
+      JSON.stringify(product.color_options ?? []) !== JSON.stringify(colorOptions) ||
+      JSON.stringify(product.option_types ?? []) !== JSON.stringify(optionTypes);
+
+    if (changed) {
+      await ctx.db.patch(product._id, {
+        color_options: colorOptions,
+        option_types: optionTypes,
+        updated_at: nowIso(),
+      });
+    }
+
+    return { updated: changed, color_options: colorOptions, size_options: sizeOptions };
+  },
+});
+
+export const ensureWhiteKufiFreeSize = mutation({
+  args: { token: v.optional(v.string()) },
+  returns: v.object({
+    updated: v.boolean(),
+    color_options: v.array(v.string()),
+    size_options: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const setupToken = process.env.ADMIN_UPLOAD_TOKEN;
+    if (!setupToken || args.token !== setupToken) await requireAdmin(ctx);
+
+    const product = await ctx.db
+      .query("products")
+      .withIndex("by_slug", (q) => q.eq("slug", "white-kufi"))
+      .first();
+    if (!product) throw new Error("White Woven Kufi product was not found.");
+
+    const colorOptions = ["White"];
+    const sizeOptions = ["Free Size"];
+    const optionTypes = [
+      { name: "Colour", values: colorOptions },
+      { name: "Size", values: sizeOptions },
+    ];
+    const changed =
+      JSON.stringify(product.color_options ?? []) !== JSON.stringify(colorOptions) ||
+      JSON.stringify(product.size_options ?? []) !== JSON.stringify(sizeOptions) ||
+      JSON.stringify(product.option_types ?? []) !== JSON.stringify(optionTypes);
+
+    if (changed) {
+      await ctx.db.patch(product._id, {
+        color_options: colorOptions,
+        size_options: sizeOptions,
+        option_types: optionTypes,
+        updated_at: nowIso(),
+      });
+    }
+
+    return { updated: changed, color_options: colorOptions, size_options: sizeOptions };
+  },
+});
+
+export const ensureKhadijaNiqabDetails = mutation({
+  args: { token: v.optional(v.string()) },
+  returns: v.object({
+    updated: v.boolean(),
+    description: v.string(),
+    highlights: v.array(v.string()),
+    color_options: v.array(v.string()),
+    size_options: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const setupToken = process.env.ADMIN_UPLOAD_TOKEN;
+    if (!setupToken || args.token !== setupToken) await requireAdmin(ctx);
+
+    const product = await ctx.db
+      .query("products")
+      .withIndex("by_slug", (q) => q.eq("slug", "khadija-niqab"))
+      .first();
+    if (!product) throw new Error("Khadija Niqab product was not found.");
+
+    const description = "Daily comfort wear.";
+    const highlights = ["Premium chiffon fabric"];
+    const colorOptions = ["Black"];
+    const sizeOptions = ["One Size - Layers: 54 / 34 in; Veil: 22.5 x 13.5 in; Gear: 82 in"];
+    const optionTypes = [
+      { name: "Colour", values: colorOptions },
+      { name: "Size", values: sizeOptions },
+    ];
+    const changed =
+      product.short_description !== description ||
+      product.description !== description ||
+      JSON.stringify(product.highlights ?? []) !== JSON.stringify(highlights) ||
+      JSON.stringify(product.color_options ?? []) !== JSON.stringify(colorOptions) ||
+      JSON.stringify(product.size_options ?? []) !== JSON.stringify(sizeOptions) ||
+      JSON.stringify(product.option_types ?? []) !== JSON.stringify(optionTypes);
+
+    if (changed) {
+      await ctx.db.patch(product._id, {
+        short_description: description,
+        description,
+        highlights,
+        color_options: colorOptions,
+        size_options: sizeOptions,
+        option_types: optionTypes,
+        updated_at: nowIso(),
+      });
+    }
+
+    return {
+      updated: changed,
+      description,
+      highlights,
+      color_options: colorOptions,
+      size_options: sizeOptions,
+    };
+  },
+});
+
+export const ensureAcaciaHoneyDetails = mutation({
+  args: { token: v.optional(v.string()) },
+  returns: v.object({
+    updated: v.boolean(),
+    short_description: v.string(),
+    description: v.string(),
+    highlights: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const setupToken = process.env.ADMIN_UPLOAD_TOKEN;
+    if (!setupToken || args.token !== setupToken) await requireAdmin(ctx);
+
+    const product = await ctx.db
+      .query("products")
+      .withIndex("by_slug", (q) => q.eq("slug", "kashmir-acacia-honey"))
+      .first();
+    if (!product) throw new Error("Kashmir Acacia Honey product was not found.");
+
+    const shortDescription = "Light, floral Kashmiri acacia. Unheated.";
+    const description =
+      "Delicate acacia honey from Kashmir, light golden in colour, gentle on the palate, and kept unheated.";
+    const highlights = [
+      "Kashmir acacia origin",
+      "100% pure — no adulteration",
+      "Unheated",
+      "500g glass jar",
+    ];
+    const changed =
+      product.short_description !== shortDescription ||
+      product.description !== description ||
+      JSON.stringify(product.highlights ?? []) !== JSON.stringify(highlights);
+
+    if (changed) {
+      await ctx.db.patch(product._id, {
+        short_description: shortDescription,
+        description,
+        highlights,
+        updated_at: nowIso(),
+      });
+    }
+
+    return {
+      updated: changed,
+      short_description: shortDescription,
+      description,
+      highlights,
+    };
   },
 });
 

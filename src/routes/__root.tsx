@@ -27,6 +27,11 @@ import {
   seo,
   SITE_URL,
 } from "@/lib/seo";
+import {
+  STORE_INSTAGRAM_URL,
+  STORE_SUPPORT_EMAIL,
+  STORE_WHATSAPP_DISPLAY,
+} from "@/lib/store-config";
 
 function NotFoundComponent() {
   return (
@@ -91,24 +96,33 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => {
     const defaultSeo = seo({ title: DEFAULT_TITLE, description: DEFAULT_DESCRIPTION, path: "/" });
+    const googleVerification = import.meta.env.VITE_GOOGLE_SITE_VERIFICATION?.trim();
+    const bingVerification = import.meta.env.VITE_BING_SITE_VERIFICATION?.trim();
     return {
       meta: [
         { charSet: "utf-8" },
         { name: "viewport", content: "width=device-width, initial-scale=1" },
         { name: "theme-color", content: "#0a0a0a" },
+        { name: "application-name", content: BRAND_NAME },
+        { name: "apple-mobile-web-app-title", content: BRAND_NAME },
         ...defaultSeo.meta,
+        ...(googleVerification
+          ? [{ name: "google-site-verification", content: googleVerification }]
+          : []),
+        ...(bingVerification ? [{ name: "msvalidate.01", content: bingVerification }] : []),
       ],
       links: [
         { rel: "stylesheet", href: appCss },
-        ...defaultSeo.links,
-        { rel: "icon", href: "/fawzaan-logo.png", type: "image/png", sizes: "280x132" },
-        { rel: "apple-touch-icon", href: "/fawzaan-logo.png" },
-        { rel: "manifest", href: "/site.webmanifest" },
+        { rel: "icon", href: "/favicon-32.png", type: "image/png", sizes: "32x32" },
+        { rel: "icon", href: "/favicon-48.png", type: "image/png", sizes: "48x48" },
+        { rel: "shortcut icon", href: "/favicon.ico" },
+        { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
+        { rel: "manifest", href: "/site-v2.webmanifest" },
         { rel: "preconnect", href: "https://fonts.googleapis.com" },
         { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
         {
           rel: "stylesheet",
-          href: "https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Schibsted+Grotesk:wght@400;500;600&display=swap",
+          href: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;700&family=Instrument+Serif:ital@0;1&family=Poppins:wght@400;500;700&family=Schibsted+Grotesk:wght@400;500;600&display=swap",
         },
       ],
       scripts: [
@@ -120,14 +134,34 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             "@id": `${SITE_URL}/#store`,
             name: BRAND_NAME,
             alternateName: BRAND_ALTERNATE_NAMES,
-            url: SITE_URL,
+            description: DEFAULT_DESCRIPTION,
+            url: absoluteUrl("/"),
             logo: absoluteUrl("/fawzaan-logo.png"),
             image: absoluteUrl("/og-image-v2.jpg"),
+            email: STORE_SUPPORT_EMAIL,
+            telephone: STORE_WHATSAPP_DISPLAY,
+            sameAs: [STORE_INSTAGRAM_URL],
+            currenciesAccepted: "INR",
+            address: {
+              "@type": "PostalAddress",
+              streetAddress: "Kurla West",
+              addressLocality: "Mumbai",
+              addressRegion: "Maharashtra",
+              postalCode: "400070",
+              addressCountry: "IN",
+            },
+            contactPoint: {
+              "@type": "ContactPoint",
+              contactType: "customer service",
+              telephone: STORE_WHATSAPP_DISPLAY,
+              email: STORE_SUPPORT_EMAIL,
+              areaServed: "IN",
+            },
             hasMerchantReturnPolicy: {
               "@type": "MerchantReturnPolicy",
               applicableCountry: "IN",
               returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
-              merchantReturnDays: 30,
+              merchantReturnDays: 5,
               returnPolicyUrl: absoluteUrl("/pages/returns"),
             },
           }),
@@ -140,7 +174,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             "@id": `${SITE_URL}/#website`,
             name: BRAND_NAME,
             alternateName: BRAND_ALTERNATE_NAMES,
-            url: SITE_URL,
+            url: absoluteUrl("/"),
             publisher: { "@id": `${SITE_URL}/#store` },
             potentialAction: {
               "@type": "SearchAction",
@@ -160,7 +194,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en-IN">
       <head>
         <HeadContent />
       </head>
