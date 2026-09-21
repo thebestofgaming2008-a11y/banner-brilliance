@@ -11,6 +11,9 @@ for (const path of ["/", "/shop"]) {
     const catalog = (await catalogResponse.json()) as Array<{
       slug: string;
       price: number;
+      price_inr?: number;
+      sale_price?: number | null;
+      sale_price_inr?: number | null;
       stock_quantity?: number;
       in_stock?: boolean;
     }>;
@@ -61,7 +64,12 @@ for (const path of ["/", "/shop"]) {
     });
     for (const order of ["price-low", "price-high"]) {
       await sort.selectOption(order);
-      const prices = (await slugs()).map((slug) => bySlug.get(slug)!.price);
+      const prices = (await slugs()).map((slug) => {
+        const product = bySlug.get(slug)!;
+        const regular = Number(product.price_inr ?? product.price);
+        const sale = Number(product.sale_price_inr ?? product.sale_price ?? 0);
+        return sale > 0 && sale < regular ? sale : regular;
+      });
       expect(prices).toEqual([...prices].sort((a, b) => (order === "price-low" ? a - b : b - a)));
     }
     await sort.selectOption("featured");
