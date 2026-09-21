@@ -40,6 +40,7 @@ import { canonicalStorefrontHref, DEFAULT_DESCRIPTION, DEFAULT_TITLE, seo } from
 import { PromotionPopover } from "@/components/store/promotion-popover";
 import { ProductQuickAdd } from "@/components/store/product-quick-add";
 import { productCountLabel } from "@/lib/catalog-copy";
+import { stockFirstProducts } from "@/lib/stock-first-products";
 import { listActiveProducts } from "@/services/productService";
 
 import heroNiqabFull from "@/assets/hero-products/hero-niqab-full.webp";
@@ -782,7 +783,7 @@ function ShopAllProducts() {
       if (sort === "price-high") return b.price - a.price;
       return 0;
     });
-    return sort === "featured" ? merchandiseProducts(sorted) : sorted;
+    return sort === "featured" ? stockFirstProducts(merchandiseProducts(sorted)) : sorted;
   }, [activeCollection, activeTag, catalog, query, sort]);
   const selectedEmptyCollection =
     visibleProducts.length === 0 && activeCollection !== "all" && !activeTag && !query.trim();

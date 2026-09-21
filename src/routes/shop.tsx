@@ -13,6 +13,7 @@ import {
 import { listActiveProducts } from "@/services/productService";
 import { absoluteUrl, seo } from "@/lib/seo";
 import { productCountLabel } from "@/lib/catalog-copy";
+import { stockFirstProducts } from "@/lib/stock-first-products";
 
 type ShopSearch = { collection?: string; filter?: string; q?: string };
 
@@ -261,7 +262,8 @@ function ShopPage() {
     });
   }, [activeFilter, collection, knownCollectionSlugs, query, sort, storeProducts]);
 
-  const displayedProducts = sort === "featured" ? merchandiseProducts(products) : products;
+  const displayedProducts =
+    sort === "featured" ? stockFirstProducts(merchandiseProducts(products)) : products;
   const selectedCollection = collectionRows.find((row) => row.slug === collection);
   const promoBanners = presentation.banners.filter((banner) => banner.placement === "shop_promo");
   const scrollTabs = (direction: number) =>

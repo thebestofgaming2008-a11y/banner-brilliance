@@ -2,10 +2,11 @@ import { expect, test } from "@playwright/test";
 
 const original = "https://34d54582.fawzaanstore.pages.dev";
 
-test("unchanged storefront pages match the previous production HTML", async ({ page, request }) => {
+test("unchanged product and checkout pages match the previous production HTML", async ({
+  page,
+  request,
+}) => {
   for (const path of [
-    "/",
-    "/shop",
     "/products/yemeni-shemagh",
     "/products/makkah-gloves",
     "/cart",
