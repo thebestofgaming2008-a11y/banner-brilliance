@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Instagram, Mail, MapPin, MessageCircle } from "lucide-react";
+import { Facebook, Instagram, Mail, MapPin, MessageCircle } from "lucide-react";
 
 import { StorePage } from "@/components/store/store-chrome";
 import { InformationHeader, SupportNavigation } from "@/components/store/support-navigation";
 import {
+  STORE_FACEBOOK_URL,
   STORE_INSTAGRAM_HANDLE,
   STORE_INSTAGRAM_URL,
   STORE_LOCATION,
@@ -65,6 +66,20 @@ function ContactPage() {
                     className="mt-1 block text-[13px] text-black/55 underline underline-offset-4"
                   >
                     {STORE_INSTAGRAM_HANDLE}
+                  </a>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <Facebook size={19} />
+                <div>
+                  <p className="text-[12px] font-semibold">Facebook</p>
+                  <a
+                    href={STORE_FACEBOOK_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 block text-[13px] text-black/55 underline underline-offset-4"
+                  >
+                    Fawzaan Store
                   </a>
                 </div>
               </div>

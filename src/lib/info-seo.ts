@@ -31,6 +31,7 @@ export function infoSeo({
               inLanguage: "en",
               isPartOf: { "@id": absoluteUrl("/#website") },
               about: { "@id": absoluteUrl("/#store") },
+              ...(type === "AboutPage" ? { mainEntity: { "@id": absoluteUrl("/#store") } } : {}),
               breadcrumb: { "@id": `${url}#breadcrumb` },
             },
             {

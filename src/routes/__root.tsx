@@ -28,6 +28,7 @@ import {
   SITE_URL,
 } from "@/lib/seo";
 import {
+  STORE_FACEBOOK_URL,
   STORE_INSTAGRAM_URL,
   STORE_SUPPORT_EMAIL,
   STORE_WHATSAPP_DISPLAY,
@@ -140,7 +141,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             image: absoluteUrl("/og-image-v2.jpg"),
             email: STORE_SUPPORT_EMAIL,
             telephone: STORE_WHATSAPP_DISPLAY,
-            sameAs: [STORE_INSTAGRAM_URL],
+            sameAs: [STORE_INSTAGRAM_URL, STORE_FACEBOOK_URL],
             currenciesAccepted: "INR",
             address: {
               "@type": "PostalAddress",

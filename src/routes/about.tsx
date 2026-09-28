@@ -4,7 +4,8 @@ import hero from "@/assets/hero-shemagh.jpg";
 import { StorePage } from "@/components/store/store-chrome";
 import { infoSeo } from "@/lib/info-seo";
 import { InformationHeader, SupportNavigation } from "@/components/store/support-navigation";
-import { STORE_LOCATION } from "@/lib/store-config";
+import { STORE_FACEBOOK_URL, STORE_INSTAGRAM_URL, STORE_LOCATION } from "@/lib/store-config";
+import { SITE_URL } from "@/lib/seo";
 
 export const Route = createFileRoute("/about")({
   head: () =>
@@ -81,6 +82,40 @@ function AboutPage() {
               Explore the store
             </a>
           </div>
+        </div>
+      </section>
+      <section
+        aria-labelledby="official-store-heading"
+        className="mx-auto max-w-[1080px] px-[22px] pb-12 md:px-8"
+      >
+        <h2 id="official-store-heading" className="text-[26px] font-semibold leading-tight">
+          Find the official Fawzaan Store
+        </h2>
+        <div className="mt-5 max-w-2xl space-y-4 text-[14px] leading-6 text-black/70">
+          <p>
+            Our name is Fawzaan Store, with two a&apos;s. If you searched for &ldquo;Fawzan
+            Store&rdquo; to find our Mumbai store, you are in the right place. Our official website
+            is{" "}
+            <a href={`${SITE_URL}/`} className="underline underline-offset-4">
+              officialfawzaanstore.com
+            </a>
+            .
+          </p>
+          <p>
+            You can also find us on{" "}
+            <a href={STORE_INSTAGRAM_URL} className="underline underline-offset-4">
+              Instagram as @fawzaan.store
+            </a>{" "}
+            and{" "}
+            <a href={STORE_FACEBOOK_URL} className="underline underline-offset-4">
+              Facebook as Fawzaan Store
+            </a>
+            . For help identifying a product or checking an order, use our{" "}
+            <a href="/pages/contact" className="underline underline-offset-4">
+              official contact page
+            </a>
+            .
+          </p>
         </div>
       </section>
       <div className="mx-auto max-w-[1080px] px-[22px] pb-14 md:px-8">
