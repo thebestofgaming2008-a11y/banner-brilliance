@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, type ReactNode } from "r
 
 import { api } from "../../convex/_generated/api";
 import { convex } from "@/lib/backend";
+import { orderStatusLabel } from "@/lib/order-status";
 
 export type Address = {
   id: string;
@@ -103,7 +104,7 @@ function mapOrder(value: unknown): Order {
     id: String(row.order_number ?? row.id),
     backendId: String(row.id),
     date: String(row.created_at ?? new Date().toISOString()),
-    status: String(row.status ?? "Processing"),
+    status: orderStatusLabel(typeof row.status === "string" ? row.status : undefined),
     paymentStatus: typeof row.payment_status === "string" ? row.payment_status : undefined,
     trackingNumber: typeof row.tracking_number === "string" ? row.tracking_number : undefined,
     trackingUrl: typeof row.tracking_url === "string" ? row.tracking_url : undefined,

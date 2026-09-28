@@ -1,11 +1,57 @@
-/* eslint-disable react-refresh/only-export-components -- Puck custom fields own their renderers. */
-import type { Field } from "@puckeditor/core";
 import { Crop, Image as ImageIcon, Trash2, Upload, X } from "lucide-react";
 import { useState } from "react";
 import Cropper, { type Area } from "react-easy-crop";
 import "react-easy-crop/react-easy-crop.css";
 
 import { uploadProductImage } from "@/services/adminService";
+
+const MAX_HOMEPAGE_IMAGE_BYTES = 25 * 1024 * 1024;
+const MAX_HOMEPAGE_IMAGE_EDGE = 2560;
+const TARGET_HOMEPAGE_IMAGE_BYTES = 4 * 1024 * 1024;
+
+function canvasBlob(canvas: HTMLCanvasElement, quality: number) {
+  return new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("Could not optimize this image."))),
+      "image/webp",
+      quality,
+    ),
+  );
+}
+
+async function optimizeHomepageImage(file: File) {
+  if (!file.type.startsWith("image/")) return file;
+  if (file.size > MAX_HOMEPAGE_IMAGE_BYTES) {
+    throw new Error("Homepage images must be 25 MB or smaller.");
+  }
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_HOMEPAGE_IMAGE_EDGE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d", { alpha: true });
+    if (!context) throw new Error("Image optimization is unavailable in this browser.");
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    let blob = await canvasBlob(canvas, 0.86);
+    if (blob.size > TARGET_HOMEPAGE_IMAGE_BYTES) blob = await canvasBlob(canvas, 0.74);
+    if (blob.size > TARGET_HOMEPAGE_IMAGE_BYTES) blob = await canvasBlob(canvas, 0.64);
+    if (blob.size >= file.size && file.size <= TARGET_HOMEPAGE_IMAGE_BYTES && scale === 1) {
+      return file;
+    }
+    const stem = file.name.replace(/\.[^.]+$/, "") || "homepage-banner";
+    return new File([blob], `${stem}.webp`, {
+      type: "image/webp",
+      lastModified: file.lastModified,
+    });
+  } catch (error) {
+    if (file.size <= TARGET_HOMEPAGE_IMAGE_BYTES) return file;
+    throw error instanceof Error
+      ? error
+      : new Error("This image could not be optimized. Export it as JPG or WebP and try again.");
+  }
+}
 
 async function loadImage(src: string) {
   return await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -46,14 +92,20 @@ async function createCropFile(src: string, crop: Area) {
   return new File([blob], `homepage-crop-${Date.now()}.webp`, { type: "image/webp" });
 }
 
-function HomepageImageInput({
+export function HomepageImageInput({
   value,
   onChange,
   readOnly,
+  compact = false,
+  allowDestructiveCrop = true,
+  inputLabel = "Image URL",
 }: {
   value: string;
   onChange: (value: string) => void;
   readOnly?: boolean;
+  compact?: boolean;
+  allowDestructiveCrop?: boolean;
+  inputLabel?: string;
 }) {
   const [uploading, setUploading] = useState(false);
   const [cropOpen, setCropOpen] = useState(false);
@@ -67,7 +119,8 @@ function HomepageImageInput({
     setUploading(true);
     setError("");
     try {
-      const url = await uploadProductImage(file);
+      const optimized = await optimizeHomepageImage(file);
+      const url = await uploadProductImage(optimized);
       if (!url) throw new Error("Upload did not return a public image URL.");
       onChange(url);
     } catch (uploadError) {
@@ -95,7 +148,7 @@ function HomepageImageInput({
   };
 
   return (
-    <div className="space-y-2">
+    <div className={`homepage-image-input space-y-2 ${compact ? "is-compact" : ""}`}>
       {value ? (
         <div className="relative aspect-video overflow-hidden rounded border border-black/10 bg-[#f4f1eb]">
           <img src={value} alt="Selected" className="h-full w-full object-cover" />
@@ -108,6 +161,7 @@ function HomepageImageInput({
       <input
         type="url"
         value={value ?? ""}
+        aria-label={inputLabel}
         readOnly={readOnly}
         onChange={(event) => onChange(event.target.value)}
         placeholder="Paste an image URL"
@@ -131,13 +185,15 @@ function HomepageImageInput({
           </label>
           {value ? (
             <>
-              <button
-                type="button"
-                className="inline-flex h-9 items-center gap-1.5 rounded border border-black/15 px-3 text-xs font-semibold"
-                onClick={() => setCropOpen(true)}
-              >
-                <Crop size={14} /> Crop
-              </button>
+              {allowDestructiveCrop ? (
+                <button
+                  type="button"
+                  className="inline-flex h-9 items-center gap-1.5 rounded border border-black/15 px-3 text-xs font-semibold"
+                  onClick={() => setCropOpen(true)}
+                >
+                  <Crop size={14} /> Crop
+                </button>
+              ) : null}
               <button
                 type="button"
                 title="Remove image"
@@ -230,40 +286,4 @@ function HomepageImageInput({
       ) : null}
     </div>
   );
-}
-
-export function homepageImageField(label: string): Field<string> {
-  return {
-    type: "custom",
-    label,
-    render: ({ value, onChange, readOnly }) => (
-      <HomepageImageInput value={value ?? ""} onChange={onChange} readOnly={readOnly} />
-    ),
-  };
-}
-
-export function homepageColorField(label: string): Field<string> {
-  return {
-    type: "custom",
-    label,
-    render: ({ value, onChange, readOnly }) => (
-      <div className="grid grid-cols-[42px_1fr] gap-2">
-        <input
-          type="color"
-          aria-label={label}
-          value={/^#[0-9a-f]{6}$/i.test(value ?? "") ? value : "#ffffff"}
-          disabled={readOnly}
-          onChange={(event) => onChange(event.target.value)}
-          className="h-9 w-[42px] cursor-pointer rounded border border-black/15 bg-white p-1"
-        />
-        <input
-          value={value ?? ""}
-          readOnly={readOnly}
-          maxLength={7}
-          onChange={(event) => onChange(event.target.value)}
-          className="h-9 min-w-0 rounded border border-black/15 bg-white px-2.5 font-mono text-xs uppercase outline-none focus:border-black"
-        />
-      </div>
-    ),
-  };
 }

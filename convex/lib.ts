@@ -101,6 +101,7 @@ export function publicProductCard(doc: Record<string, any>): Record<string, any>
     category: product.category ?? null,
     category_id: product.category_id ?? null,
     tags,
+    highlights: Array.isArray(product.highlights) ? product.highlights.slice(0, 12) : [],
     cover_image_url: product.cover_image_url ?? null,
     hidden_image_urls: Array.isArray(product.hidden_image_urls)
       ? product.hidden_image_urls.slice(0, 48)
@@ -108,6 +109,8 @@ export function publicProductCard(doc: Record<string, any>): Record<string, any>
     color_options: Array.isArray(product.color_options) ? product.color_options.slice(0, 30) : [],
     size_options: Array.isArray(product.size_options) ? product.size_options.slice(0, 30) : [],
     option_types: Array.isArray(product.option_types) ? product.option_types.slice(0, 3) : [],
+    media_fit: product.media_fit ?? null,
+    media_position: product.media_position ?? null,
     badge: product.badge ?? null,
     is_active: product.is_active ?? true,
     is_featured: product.is_featured ?? false,
@@ -138,6 +141,15 @@ export const BOOK_SUBJECT_KEYS = [
 ] as const;
 
 const BOOK_SUBJECTS = new Set<string>(BOOK_SUBJECT_KEYS);
+const STORE_COLLECTION_LABELS: Record<string, string> = {
+  shemaghs: "Shemaghs",
+  niqabs: "Niqabs",
+  kufis: "Kufis",
+  gloves: "Gloves",
+  honey: "Honey",
+  watches: "Watches",
+  other: "Other",
+};
 const NON_BOOK_TOP_LEVEL_CATEGORIES = new Set(["clothing", "children", "essentials", "sets"]);
 export const BOOK_SUBJECT_LABELS: Record<string, string> = {
   aqeedah: "Aqeedah",
@@ -158,6 +170,10 @@ export const BOOK_SUBJECT_LABELS: Record<string, string> = {
 function normalizeBookCategory(product: Record<string, any>) {
   const category = String(product.category ?? "").toLowerCase();
   const categoryId = String(product.category_id ?? "").toLowerCase();
+  const storeCollection = STORE_COLLECTION_LABELS[categoryId];
+  if (storeCollection) {
+    return { ...product, category: storeCollection, category_id: categoryId };
+  }
   if (NON_BOOK_TOP_LEVEL_CATEGORIES.has(categoryId)) {
     return {
       ...product,

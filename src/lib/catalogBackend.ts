@@ -1,4 +1,5 @@
 import { catalog, type Collection, type Gender, type Product } from "@/lib/products";
+import { storefrontImageUrl } from "@/lib/storefront-image";
 
 export type BackendProduct = {
   id?: string;
@@ -22,8 +23,11 @@ export type BackendProduct = {
   category?: string | null;
   category_id?: string | null;
   tags?: string[] | null;
+  highlights?: string[] | null;
   cover_image_url?: string | null;
   images?: string[] | null;
+  media_fit?: "cover" | "contain" | null;
+  media_position?: string | null;
   hidden_image_urls?: string[] | null;
   linked_product_ids?: string[] | null;
   variant_label?: string | null;
@@ -77,6 +81,7 @@ export function localProductToBackend(product: Product): BackendProduct {
     category: collectionLabels[product.collection],
     category_id: product.collection,
     tags: [product.gender, ...tagForProduct(product)],
+    highlights: product.features,
     cover_image_url: product.images[0] ?? null,
     images: product.images,
     color_options: product.colors?.map((color) => color.name) ?? [],
@@ -125,10 +130,29 @@ function genderFromBackend(
   return fallback?.gender ?? "unisex";
 }
 
+function isGeneratedBuildAsset(src: string) {
+  try {
+    const pathname = new URL(src, "https://fawzaan.local").pathname;
+    return (
+      pathname.startsWith("/src/assets/") ||
+      /^\/assets\/.+-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/.test(pathname)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function backendProductToProduct(product: BackendProduct): Product {
   const fallbackSlug = product.slug === "yemeni-shemagh" ? "yemeni-shemagh-red" : product.slug;
   const fallback = catalog.find((item) => item.slug === fallbackSlug);
   const collection = collectionFromBackend(product, fallback);
+  const categoryId = String(product.category_id ?? "")
+    .trim()
+    .toLowerCase();
+  const hasCanonicalCollectionId = Object.prototype.hasOwnProperty.call(
+    collectionLabels,
+    categoryId,
+  );
   const gender = genderFromBackend(product, collection, fallback);
   const regular = Number(product.price_inr ?? product.price ?? fallback?.price ?? 0);
   const sale = Number(product.sale_price_inr ?? product.sale_price ?? 0);
@@ -139,7 +163,12 @@ export function backendProductToProduct(product: BackendProduct): Product {
   const images = [
     product.cover_image_url,
     ...(Array.isArray(product.images) ? product.images : []),
-  ].filter((src): src is string => Boolean(src) && !hiddenImages.has(String(src).split("#")[0]));
+  ].filter(
+    (src): src is string =>
+      Boolean(src) &&
+      !hiddenImages.has(String(src).split("#")[0]) &&
+      !isGeneratedBuildAsset(String(src)),
+  );
   const fallbackImages = (fallback?.images ?? []).filter(
     (src) => !hiddenImages.has(String(src).split("#")[0]),
   );
@@ -149,8 +178,10 @@ export function backendProductToProduct(product: BackendProduct): Product {
     slug: product.slug || fallback?.slug || product.id || "",
     name: product.name || fallback?.name || "Product",
     collection,
-    collectionSlug: String(product.category_id || collection).toLowerCase(),
-    collectionLabel: product.category || collectionLabels[collection],
+    collectionSlug: hasCanonicalCollectionId ? collection : categoryId || collection,
+    collectionLabel: hasCanonicalCollectionId
+      ? collectionLabels[collection]
+      : product.category || collectionLabels[collection],
     filterTags: Array.isArray(product.tags)
       ? product.tags.map((tag) => String(tag).trim().toLowerCase()).filter(Boolean)
       : [],
@@ -159,7 +190,7 @@ export function backendProductToProduct(product: BackendProduct): Product {
     compareAt: hasSale ? regular : fallback?.compareAt,
     rating: Number(product.rating ?? (product.id ? 0 : fallback?.rating) ?? 0),
     reviews: Number(product.reviews_count ?? (product.id ? 0 : fallback?.reviews) ?? 0),
-    images: images.length ? Array.from(new Set(images)) : fallbackImages,
+    images: (images.length ? Array.from(new Set(images)) : fallbackImages).map(storefrontImageUrl),
     colors:
       product.color_options?.map((name) => ({
         name,
@@ -169,13 +200,14 @@ export function backendProductToProduct(product: BackendProduct): Product {
     sizes: product.size_options?.length ? product.size_options : fallback?.sizes,
     short: product.short_description || fallback?.short || "",
     description: product.description || fallback?.description || product.short_description || "",
-    features: fallback?.features ?? [],
+    features: Array.isArray(product.highlights) ? product.highlights : (fallback?.features ?? []),
     materials: fallback?.materials ?? "",
     care: fallback?.care ?? "",
-    // Public merchandising labels are omitted until they can be backed by real sales or dates.
-    tag: undefined,
+    tag: product.badge?.trim() || undefined,
     inStock: product.in_stock !== false && Number(product.stock_quantity ?? 1) > 0,
     stockQuantity: Number(product.stock_quantity ?? 0),
+    mediaFit: product.media_fit === "contain" ? "contain" : "cover",
+    mediaPosition: product.media_position || "center",
   };
 }
 

@@ -1,0 +1,94 @@
+import type { HomepageData, HomepageMosaicCard } from "./types";
+
+export const MAX_MOSAIC_CARDS = 20;
+
+export const DEFAULT_MOSAIC_COLLECTIONS: HomepageMosaicCard[] = [
+  {
+    id: "mosaic-honey",
+    title: "KASHMIR HONEY",
+    eyebrow: "The harvest",
+    image: "/homepage/mosaic-honey.webp",
+    imagePosition: "center",
+    href: "/shop?collection=honey",
+  },
+  {
+    id: "mosaic-gloves",
+    title: "MAKKAH GLOVES",
+    eyebrow: "Coming next",
+    image: "/homepage/makkah-gloves.jpg",
+    imagePosition: "center",
+    href: "/shop?collection=gloves",
+  },
+  {
+    id: "mosaic-shemaghs",
+    title: "YEMENI SHEMAGHS",
+    eyebrow: "For the brothers",
+    image: "/homepage/mosaic-shemaghs.webp",
+    imagePosition: "62% center",
+    href: "/shop?collection=shemaghs",
+  },
+  {
+    id: "mosaic-niqabs",
+    title: "KHADIJA NIQABS",
+    eyebrow: "For the sisters",
+    image: "/homepage/mosaic-niqabs.webp",
+    imagePosition: "50% 30%",
+    href: "/shop?collection=niqabs",
+  },
+  {
+    id: "mosaic-kufis",
+    title: "WOVEN KUFIS",
+    eyebrow: "Daily prayerwear",
+    image: "/homepage/mosaic-kufis.webp",
+    imagePosition: "center 28%",
+    href: "/shop?collection=kufis",
+  },
+  {
+    id: "mosaic-watches",
+    title: "SABR WATCHES",
+    eyebrow: "Arabic dial watches",
+    image: "/homepage/sabr-watch-black.jpg",
+    imagePosition: "center",
+    href: "/shop?collection=watches",
+  },
+  {
+    id: "mosaic-shop-all",
+    title: "SHOP ALL",
+    eyebrow: "The complete edit",
+    image: "/homepage/mosaic-shop-all.webp",
+    imagePosition: "center 28%",
+    href: "/shop",
+  },
+];
+
+export const CORE_MOSAIC_CARD_COUNT = DEFAULT_MOSAIC_COLLECTIONS.length;
+
+function cloneDefaults() {
+  return DEFAULT_MOSAIC_COLLECTIONS.map((card) => ({ ...card }));
+}
+
+export function homepageMosaicCards(homepage?: HomepageData | null) {
+  const cards = homepage?.root.props.mosaicCollections;
+  if (!Array.isArray(cards) || cards.length === 0) return cloneDefaults();
+  return cards.slice(0, MAX_MOSAIC_CARDS).map((card, index) => ({
+    id: String(card.id || `mosaic-${index + 1}`),
+    title: String(card.title || "Collection"),
+    eyebrow: String(card.eyebrow || "Explore"),
+    image: String(card.image || ""),
+    imagePosition: String(card.imagePosition || "center"),
+    href: String(card.href || "/shop"),
+  }));
+}
+
+export function ensureHomepageMosaic(homepage: HomepageData): HomepageData {
+  return {
+    ...homepage,
+    root: {
+      ...homepage.root,
+      props: {
+        ...homepage.root.props,
+        mosaicCollections: homepageMosaicCards(homepage),
+      },
+    },
+  };
+}

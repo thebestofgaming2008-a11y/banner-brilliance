@@ -1,21 +1,22 @@
-import honeyAcacia from "@/assets/product-photos/honey-kashmir-acacia.jpg";
-import honeyBlack from "@/assets/product-photos/honey-kashmir-black.jpg";
-import honeyMulti from "@/assets/product-photos/honey-kashmir-multiflora.jpg";
-import kufiFront from "@/assets/product-photos/kufi-front.jpg";
-import kufiSide from "@/assets/product-photos/kufi-side.jpg";
-import niqabKhadijaBack from "@/assets/product-photos/niqab-khadija-back.jpg";
-import niqabKhadijaClose from "@/assets/product-photos/niqab-khadija-close.jpg";
-import niqabKhadijaFull from "@/assets/product-photos/niqab-khadija-full.jpg";
-import niqabKhadijaSide from "@/assets/product-photos/niqab-khadija-side.jpg";
-import niqabRedAngle from "@/assets/product-photos/niqab-red-angle.jpg";
-import niqabRedFront from "@/assets/product-photos/niqab-red-front.jpg";
-import shemaghBackCover from "@/assets/product-photos/shemagh-back-cover.jpg";
-import shemaghIvorySideFront from "@/assets/product-photos/shemagh-ivory-side-front.jpg";
-import shemaghManBack from "@/assets/product-photos/shemagh-man-back.jpg";
-import shemaghProfile from "@/assets/product-photos/shemagh-profile.jpg";
-import shemaghRearSide from "@/assets/product-photos/shemagh-rear-side.jpg";
-import shemaghRedFront from "@/assets/product-photos/shemagh-red-front.jpg";
-import shemaghRedFull from "@/assets/product-photos/shemagh-red-full.jpg";
+import honeyAcacia from "@/assets/product-photos/honey-kashmir-acacia.webp";
+import honeyBlack from "@/assets/product-photos/honey-kashmir-black.webp";
+import honeyMulti from "@/assets/product-photos/honey-kashmir-multiflora.webp";
+import kufiFront from "@/assets/product-photos/kufi-front.webp";
+import kufiSide from "@/assets/product-photos/kufi-side.webp";
+import niqabKhadijaBack from "@/assets/product-photos/niqab-khadija-back.webp";
+import niqabKhadijaClose from "@/assets/product-photos/niqab-khadija-close.webp";
+import niqabKhadijaFull from "@/assets/product-photos/niqab-khadija-full.webp";
+import niqabKhadijaSide from "@/assets/product-photos/niqab-khadija-side.webp";
+import niqabRedAngle from "@/assets/product-photos/niqab-red-angle.webp";
+import niqabRedFront from "@/assets/product-photos/niqab-red-front.webp";
+import shemaghBackCover from "@/assets/product-photos/shemagh-back-cover.webp";
+import shemaghIvorySideFront from "@/assets/product-photos/shemagh-ivory-side-front.webp";
+import shemaghManBack from "@/assets/product-photos/shemagh-man-back.webp";
+import shemaghProfile from "@/assets/product-photos/shemagh-profile.webp";
+import shemaghRearSide from "@/assets/product-photos/shemagh-rear-side.webp";
+import shemaghRedFront from "@/assets/product-photos/shemagh-red-front.webp";
+import shemaghRedFull from "@/assets/product-photos/shemagh-red-full.webp";
+import { createContext, createElement, useContext, type ReactNode } from "react";
 import type { Product } from "@/lib/products";
 import { useCatalogProduct, useCatalogProducts } from "@/services/productService";
 
@@ -40,8 +41,14 @@ export type StoreProduct = {
   badge?: string;
   imageClassName?: string;
   mediaFit?: "cover" | "contain";
+  mediaPosition?: string;
   inStock?: boolean;
+  stockQuantity?: number;
 };
+
+export function isPreOrderProduct(product: Pick<StoreProduct, "badge">) {
+  return /^pre[\s-]?order$/i.test(product.badge?.trim() ?? "");
+}
 
 export const storeProducts: StoreProduct[] = [
   {
@@ -61,7 +68,11 @@ export const storeProducts: StoreProduct[] = [
       "Finished edges",
       "Suitable for daily and occasion wear",
     ],
-    options: ["Standard", "Large"],
+    optionGroups: [
+      { name: "Colour", values: ["Brown", "Purple", "Blue", "Red"] },
+      { name: "Size", values: ["60 x 60 cm"] },
+    ],
+    options: ["Brown", "Purple", "Blue", "Red"],
     badge: "Bestseller",
     imageClassName: "origin-bottom scale-[1.12] translate-y-[2%]",
   },
@@ -93,15 +104,16 @@ export const storeProducts: StoreProduct[] = [
     rating: 0,
     reviews: 0,
     images: [niqabKhadijaFull, niqabKhadijaClose, niqabKhadijaSide, niqabKhadijaBack],
-    description:
-      "A two-layer chiffon niqab designed for clean coverage, comfortable wear, and an elegant long drape.",
-    details: [
-      "Soft breathable chiffon",
-      "Two-layer construction",
-      "Comfortable tie-back fit",
-      "Opaque front panel",
-    ],
+    description: "Daily comfort wear.",
+    details: ["Premium chiffon fabric"],
     options: ["Black"],
+    optionGroups: [
+      { name: "Colour", values: ["Black"] },
+      {
+        name: "Size",
+        values: ["One Size - Layers: 54 / 34 in; Veil: 22.5 x 13.5 in; Gear: 82 in"],
+      },
+    ],
     badge: "Bestseller",
     imageClassName: "origin-bottom scale-[1.14] translate-y-[3%]",
   },
@@ -136,7 +148,11 @@ export const storeProducts: StoreProduct[] = [
       "Lightweight feel",
       "Easy-care white finish",
     ],
-    options: ["56 cm", "58 cm", "60 cm"],
+    options: ["White"],
+    optionGroups: [
+      { name: "Colour", values: ["White"] },
+      { name: "Size", values: ["Free Size"] },
+    ],
     imageClassName: "origin-bottom scale-[1.16] translate-y-[4%]",
   },
   {
@@ -165,14 +181,8 @@ export const storeProducts: StoreProduct[] = [
     rating: 0,
     reviews: 0,
     images: [honeyAcacia],
-    description:
-      "Light and delicately floral acacia honey with a clean finish and slow crystallisation.",
-    details: [
-      "Acacia blossom harvest",
-      "Raw and unblended",
-      "500 g glass jar",
-      "Light floral profile",
-    ],
+    description: "Light and delicately floral acacia honey, kept unheated for a clean finish.",
+    details: ["Acacia blossom harvest", "Raw and unblended", "500 g glass jar", "Unheated"],
     badge: "New",
   },
   {
@@ -268,18 +278,37 @@ export function toStoreProduct(product: Product): StoreProduct {
     options: optionGroups[0]?.values,
     optionGroups,
     badge: product.tag,
-    imageClassName: visualFallback?.imageClassName,
-    mediaFit: product.collection === "watches" ? "contain" : visualFallback?.mediaFit,
-    inStock: product.inStock !== false,
+    imageClassName: visualFallback?.images.includes(product.images[0])
+      ? visualFallback.imageClassName
+      : undefined,
+    mediaFit: product.mediaFit ?? visualFallback?.mediaFit ?? "cover",
+    mediaPosition: product.mediaPosition ?? "center",
+    inStock:
+      product.inStock !== false &&
+      (product.stockQuantity === undefined || product.stockQuantity > 0),
+    stockQuantity: product.stockQuantity,
   };
 }
 
 export function useStoreProducts() {
-  const catalog = useCatalogProducts();
+  const providedProducts = useContext(StoreProductsContext);
+  const catalog = useCatalogProducts(providedProducts ?? undefined);
   return {
     products: catalog.products.map(toStoreProduct),
     loading: catalog.loading,
   };
+}
+
+const StoreProductsContext = createContext<Product[] | null>(null);
+
+export function StoreProductsProvider({
+  products,
+  children,
+}: {
+  products: Product[];
+  children: ReactNode;
+}) {
+  return createElement(StoreProductsContext.Provider, { value: products }, children);
 }
 
 export function useStoreProduct(slug: string) {

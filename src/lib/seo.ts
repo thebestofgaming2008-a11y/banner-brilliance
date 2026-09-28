@@ -1,12 +1,12 @@
 export const SITE_URL = (
-  import.meta.env.VITE_PUBLIC_SITE_URL || "https://fawzaanstore.pages.dev"
+  import.meta.env.VITE_PUBLIC_SITE_URL || "https://officialfawzaanstore.com"
 ).replace(/\/+$/, "");
 
-export const BRAND_NAME = import.meta.env.VITE_STORE_NAME || "Fawzaan";
+export const BRAND_NAME = import.meta.env.VITE_STORE_NAME || "Fawzaan Store";
 export const BRAND_SEARCH_NAME = BRAND_NAME;
-export const BRAND_ALTERNATE_NAMES = [`${BRAND_NAME} Store`];
+export const BRAND_ALTERNATE_NAMES = ["Official Fawzaan Store", "officialfawzaanstore.com"];
 
-export const DEFAULT_TITLE = `${BRAND_SEARCH_NAME} Store | Shemaghs, Niqabs, Kufis & More`;
+export const DEFAULT_TITLE = `${BRAND_SEARCH_NAME} | Shemaghs, Niqabs, Kufis & More`;
 
 export const DEFAULT_DESCRIPTION =
   "Shop Fawzaan shemaghs, niqabs, kufis, watches, gloves and Kashmir honey with live stock, secure India checkout and international WhatsApp ordering.";
@@ -16,6 +16,17 @@ export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image-v2.jpg`;
 export function absoluteUrl(path = "/") {
   if (/^https?:\/\//i.test(path)) return path;
   return `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+export function canonicalStorefrontHref(path: string) {
+  const value = String(path ?? "").trim();
+  if (!value.startsWith("/") || value.startsWith("//")) return value;
+  const url = new URL(value, SITE_URL);
+  if (url.pathname === "/shop" && url.searchParams.has("collection")) {
+    const collection = url.searchParams.get("collection")?.trim().toLowerCase();
+    if (collection) url.searchParams.set("collection", collection);
+  }
+  return `${url.pathname}${url.search}${url.hash}`;
 }
 
 export function titleFromSlug(slug: string) {
@@ -31,6 +42,7 @@ export function seo({
   description = DEFAULT_DESCRIPTION,
   path = "/",
   image = DEFAULT_OG_IMAGE,
+  imageAlt = `${BRAND_NAME} online store`,
   type = "website",
   noIndex = false,
 }: {
@@ -38,6 +50,7 @@ export function seo({
   description?: string;
   path?: string;
   image?: string;
+  imageAlt?: string;
   type?: "website" | "product" | "article";
   noIndex?: boolean;
 } = {}) {
@@ -74,12 +87,12 @@ export function seo({
       { property: "og:image", content: imageUrl },
       { property: "og:image:secure_url", content: imageUrl },
       { property: "og:image:type", content: imageType },
-      { property: "og:image:alt", content: `${BRAND_NAME} online store` },
+      { property: "og:image:alt", content: imageAlt },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: title },
       { name: "twitter:description", content: description },
       { name: "twitter:image", content: imageUrl },
-      { name: "twitter:image:alt", content: `${BRAND_NAME} online store` },
+      { name: "twitter:image:alt", content: imageAlt },
     ],
     links: [{ rel: "canonical", href: url }],
   };

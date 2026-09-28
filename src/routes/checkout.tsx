@@ -2,12 +2,15 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CircleAlert,
+  Check,
   Clock,
   ExternalLink,
   Lock,
   MapPin,
   MessageCircle,
   ShieldCheck,
+  Tag,
+  X,
 } from "lucide-react";
 import { SiteHeader } from "@/components/brand/SiteHeader";
 import { useCart } from "@/lib/cart";
@@ -15,11 +18,15 @@ import { useAccount, type Address } from "@/lib/account";
 import { useCurrency } from "@/lib/currency";
 import { COUNTRY_NAME_BY_CODE, countryUsesPostalCode } from "@/lib/countries";
 import { CountrySelector } from "@/components/store/country-selector";
+import { GiftLines } from "@/components/store/gift-lines";
 import {
+  attachPaidOrderToAccount,
   createBackendWhatsAppOrder,
   createRazorpayOrder,
   getRazorpayCheckoutStatus,
+  quoteCheckoutPromotion,
   verifyRazorpayPayment,
+  type CheckoutPromotionQuote,
 } from "@/services/orderService";
 import { toast } from "sonner";
 import { seo } from "@/lib/seo";
@@ -40,10 +47,36 @@ const PENDING_PAYMENT_KEY = "fawzaan.pendingRazorpayPayment";
 type PendingPayment = {
   orderId: string;
   email: string;
+  createdAt: number;
 };
 
 function wait(milliseconds: number) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+function readPendingPayment(): PendingPayment | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const value = JSON.parse(window.localStorage.getItem(PENDING_PAYMENT_KEY) ?? "null");
+    if (
+      !value ||
+      typeof value.orderId !== "string" ||
+      !value.orderId ||
+      typeof value.email !== "string" ||
+      !value.email
+    ) {
+      window.localStorage.removeItem(PENDING_PAYMENT_KEY);
+      return null;
+    }
+    return {
+      orderId: value.orderId,
+      email: value.email,
+      createdAt: Number.isFinite(value.createdAt) ? value.createdAt : Date.now(),
+    };
+  } catch {
+    window.localStorage.removeItem(PENDING_PAYMENT_KEY);
+    return null;
+  }
 }
 
 declare global {
@@ -123,16 +156,14 @@ function CheckoutPage() {
   const [phone, setPhone] = useState(defaultAddress?.phone ?? "");
   const [processing, setProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [pendingPayment, setPendingPayment] = useState<PendingPayment | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      return JSON.parse(window.localStorage.getItem(PENDING_PAYMENT_KEY) ?? "null");
-    } catch {
-      window.localStorage.removeItem(PENDING_PAYMENT_KEY);
-      return null;
-    }
-  });
+  const [promotionInput, setPromotionInput] = useState("");
+  const [promotionQuote, setPromotionQuote] = useState<CheckoutPromotionQuote | null>(null);
+  const [promotionError, setPromotionError] = useState<string | null>(null);
+  const [promotionLoading, setPromotionLoading] = useState(false);
+  const [pendingPayment, setPendingPayment] = useState<PendingPayment | null>(readPendingPayment);
   const [checkingPayment, setCheckingPayment] = useState(false);
+  const recoverPendingOnLoad = useRef(Boolean(pendingPayment));
+  const paymentSubmitted = useRef(false);
   const internationalRequestId = useRef(
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
@@ -157,7 +188,17 @@ function CheckoutPage() {
   const indiaCheckout = isIndia(country);
   const postalRequired = countryUsesPostalCode(country);
   const shippingLabel = indiaCheckout ? "Included" : "Confirmed on WhatsApp";
-  const total = subtotal;
+  const discount = promotionQuote?.discount ?? 0;
+  const total = promotionQuote?.total ?? subtotal;
+  const appliedPromotionCode = promotionQuote?.promotion?.code;
+  const cartSignature = useMemo(
+    () =>
+      items
+        .map((item) => `${item.id}:${item.qty}:${item.price}`)
+        .sort()
+        .join("|"),
+    [items],
+  );
   const canPlaceOrder =
     email.includes("@") &&
     first.trim() &&
@@ -186,6 +227,39 @@ function CheckoutPage() {
     void loadRazorpayScript().catch(() => undefined);
   }, [indiaCheckout, items.length]);
 
+  useEffect(() => {
+    setPromotionQuote(null);
+    setPromotionError(null);
+  }, [cartSignature]);
+
+  const applyPromotion = async () => {
+    const code = promotionInput.trim();
+    if (!code) {
+      setPromotionError("Enter a promotion code.");
+      return;
+    }
+    setPromotionLoading(true);
+    setPromotionError(null);
+    try {
+      const quote = await quoteCheckoutPromotion(items, code);
+      if (!quote.promotion) throw new Error("Promotion code not found.");
+      setPromotionInput(quote.promotion.code);
+      setPromotionQuote(quote);
+      toast.success(`${quote.promotion.code} applied. You save ${format(quote.discount)}.`);
+    } catch (error) {
+      setPromotionQuote(null);
+      setPromotionError(error instanceof Error ? error.message : "This promotion is unavailable.");
+    } finally {
+      setPromotionLoading(false);
+    }
+  };
+
+  const removePromotion = () => {
+    setPromotionQuote(null);
+    setPromotionError(null);
+    setPromotionInput("");
+  };
+
   const rememberAddress = async () => {
     if (!account) return;
     const alreadySaved = account.addresses.some(
@@ -209,12 +283,31 @@ function CheckoutPage() {
     await addAddress(address);
   };
 
-  const finishConfirmedOrder = (orderNumber: string, customerEmail: string) => {
+  const accountMatchesCheckout =
+    isAuthenticated &&
+    Boolean(account?.email) &&
+    account?.email.trim().toLowerCase() === customer.email.toLowerCase();
+
+  const linkPaidOrderToAccount = async (orderId: unknown) => {
+    if (!accountMatchesCheckout || typeof orderId !== "string" || !orderId) return false;
+    try {
+      return await attachPaidOrderToAccount(orderId);
+    } catch {
+      toast.message("Your payment is confirmed. This order remains available through tracking.");
+      return false;
+    }
+  };
+
+  const finishConfirmedOrder = (
+    orderNumber: string,
+    customerEmail: string,
+    linkedToAccount = false,
+  ) => {
     window.localStorage.removeItem(PENDING_PAYMENT_KEY);
     setPendingPayment(null);
     clear();
     toast.success("Payment captured. Your order is confirmed.");
-    window.location.href = isAuthenticated
+    window.location.href = linkedToAccount
       ? "/account"
       : `/order/${encodeURIComponent(orderNumber)}?email=${encodeURIComponent(customerEmail)}`;
   };
@@ -226,13 +319,18 @@ function CheckoutPage() {
         if (attempt > 0) await wait(2000);
         const status = await getRazorpayCheckoutStatus(pending.orderId, pending.email);
         if (status?.status === "completed" && status.order_number) {
-          finishConfirmedOrder(status.order_number, pending.email);
+          const linkedToAccount = await linkPaidOrderToAccount(status.order_id);
+          finishConfirmedOrder(status.order_number, pending.email, linkedToAccount);
           return true;
         }
-        if (status?.status === "failed") {
+        if (status?.status === "failed" || status?.status === "released") {
           window.localStorage.removeItem(PENDING_PAYMENT_KEY);
           setPendingPayment(null);
-          toast.error("The payment failed. You can try again safely.");
+          toast.message(
+            status.status === "released"
+              ? "Your previous payment session expired. You can check out again safely."
+              : "The payment failed. You can try again safely.",
+          );
           return false;
         }
       }
@@ -242,6 +340,14 @@ function CheckoutPage() {
     }
   };
 
+  useEffect(() => {
+    if (!pendingPayment || !recoverPendingOnLoad.current) return;
+    recoverPendingOnLoad.current = false;
+    void checkPendingPayment(pendingPayment).catch(() => undefined);
+    // This recovery check intentionally runs once for the payment restored from local storage.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPayment]);
+
   const placeInternationalOrder = async () => {
     const whatsappWindow = window.open("about:blank", "_blank");
     if (whatsappWindow) whatsappWindow.opener = null;
@@ -250,6 +356,7 @@ function CheckoutPage() {
       customer,
       total,
       requestId: internationalRequestId.current,
+      promotionCode: appliedPromotionCode,
     });
     await rememberAddress().catch(() => undefined);
     clear();
@@ -268,7 +375,14 @@ function CheckoutPage() {
       subtotal,
       shipping: 0,
       total,
+      promotionCode: appliedPromotionCode,
     });
+    const checkoutPending: PendingPayment = {
+      orderId: order.order_id,
+      email: customer.email,
+      createdAt: Date.now(),
+    };
+    paymentSubmitted.current = false;
     const razorpay = new window.Razorpay({
       key: order.key_id,
       amount: order.amount,
@@ -288,12 +402,20 @@ function CheckoutPage() {
       theme: { color: "#111111" },
       modal: {
         ondismiss: () => {
+          if (!paymentSubmitted.current) {
+            window.localStorage.removeItem(PENDING_PAYMENT_KEY);
+            setPendingPayment(null);
+          }
           setProcessing(false);
-          toast.message("Payment cancelled.");
+          if (!paymentSubmitted.current) toast.message("Payment cancelled.");
         },
       },
       handler: async (response: RazorpaySuccess) => {
-        const pending = { orderId: response.razorpay_order_id, email: customer.email };
+        paymentSubmitted.current = true;
+        const pending = {
+          ...checkoutPending,
+          orderId: response.razorpay_order_id,
+        };
         window.localStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify(pending));
         setPendingPayment(pending);
         try {
@@ -307,7 +429,8 @@ function CheckoutPage() {
           const orderNumber = String(
             savedOrder?.order_number ?? savedOrder?.id ?? response.razorpay_order_id,
           );
-          finishConfirmedOrder(orderNumber, customer.email);
+          const linkedToAccount = await linkPaidOrderToAccount(savedOrder?.id);
+          finishConfirmedOrder(orderNumber, customer.email, linkedToAccount);
         } catch (error) {
           setProcessing(false);
           const confirmed = await checkPendingPayment(pending, 5).catch(() => false);
@@ -318,6 +441,7 @@ function CheckoutPage() {
       },
     });
     razorpay.on("payment.failed", (response) => {
+      paymentSubmitted.current = false;
       window.localStorage.removeItem(PENDING_PAYMENT_KEY);
       setPendingPayment(null);
       setProcessing(false);
@@ -327,7 +451,15 @@ function CheckoutPage() {
           "Payment failed. No order was created.",
       );
     });
-    razorpay.open();
+    window.localStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify(checkoutPending));
+    setPendingPayment(checkoutPending);
+    try {
+      razorpay.open();
+    } catch (error) {
+      window.localStorage.removeItem(PENDING_PAYMENT_KEY);
+      setPendingPayment(null);
+      throw error;
+    }
   };
 
   const placeOrder = async () => {
@@ -565,7 +697,7 @@ function CheckoutPage() {
               type="button"
               onClick={placeOrder}
               disabled={processing || Boolean(pendingPayment)}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 bg-ink px-6 py-4 text-xs font-semibold uppercase tracking-[0.22em] text-ivory transition hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-60"
+              className="brand-mango-bg mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md px-6 py-4 text-xs font-semibold uppercase text-black transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {processing ? (
                 "Processing..."
@@ -581,7 +713,7 @@ function CheckoutPage() {
             </button>
           </section>
 
-          <aside className="h-fit bg-cream p-6 lg:sticky lg:top-24">
+          <aside className="min-w-0 h-fit bg-cream p-6 lg:sticky lg:top-24">
             <h2 className="font-display text-xl">Order summary</h2>
             <ul className="mt-4 max-h-72 space-y-3 overflow-y-auto pr-1">
               {items.map((item) => (
@@ -593,7 +725,7 @@ function CheckoutPage() {
                     </span>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate">{item.name}</p>
+                    <p className="product-name truncate text-[16px]">{item.name}</p>
                     {item.variant ? (
                       <p className="text-[11px] uppercase tracking-widest text-ink/55">
                         {item.variant}
@@ -604,11 +736,82 @@ function CheckoutPage() {
                 </li>
               ))}
             </ul>
+            <GiftLines variant="checkout" hasDiscount={Boolean(appliedPromotionCode)} />
+            <div className="mt-5 border-t border-ink/15 pt-4">
+              <label
+                htmlFor="promotion-code"
+                className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-ink/70"
+              >
+                <Tag className="h-3.5 w-3.5" />
+                Promotion code
+              </label>
+              {promotionQuote?.promotion ? (
+                <div className="mt-2 flex items-center gap-3 border border-emerald-700/25 bg-emerald-50 px-3 py-2.5 text-emerald-950">
+                  <Check className="h-4 w-4 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">
+                      {promotionQuote.promotion.code}
+                    </p>
+                    <p className="text-xs text-emerald-900/70">
+                      You save {format(promotionQuote.discount)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={removePromotion}
+                    aria-label="Remove promotion code"
+                    className="grid h-8 w-8 shrink-0 place-items-center text-emerald-950/60 transition hover:bg-emerald-100 hover:text-emerald-950"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-2 flex gap-2">
+                  <input
+                    id="promotion-code"
+                    value={promotionInput}
+                    onChange={(event) => {
+                      setPromotionInput(event.target.value.toUpperCase());
+                      setPromotionError(null);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void applyPromotion();
+                      }
+                    }}
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder="Enter code"
+                    className="h-11 min-w-0 flex-1 border border-ink/20 bg-ivory px-3 text-sm uppercase outline-none transition placeholder:normal-case placeholder:text-ink/35 focus:border-ink"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void applyPromotion()}
+                    disabled={promotionLoading || !promotionInput.trim()}
+                    className="h-11 bg-ink px-4 text-xs font-semibold uppercase tracking-[0.14em] text-ivory transition hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {promotionLoading ? "Checking..." : "Apply"}
+                  </button>
+                </div>
+              )}
+              {promotionError ? (
+                <p className="mt-2 text-xs leading-5 text-rose-700" role="alert">
+                  {promotionError}
+                </p>
+              ) : null}
+            </div>
             <dl className="mt-5 space-y-2 border-t border-ink/15 pt-4 text-sm">
               <div className="flex justify-between">
                 <dt className="text-ink/70">Product subtotal</dt>
                 <dd>{format(subtotal)}</dd>
               </div>
+              {discount > 0 ? (
+                <div className="flex justify-between text-emerald-800">
+                  <dt>Promotion</dt>
+                  <dd>-{format(discount)}</dd>
+                </div>
+              ) : null}
               <div className="flex justify-between">
                 <dt className="text-ink/70">Shipping</dt>
                 <dd>{shippingLabel}</dd>

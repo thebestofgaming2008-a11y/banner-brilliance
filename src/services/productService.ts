@@ -9,12 +9,36 @@ import {
 import { catalog, type Product as StorefrontProduct } from "@/lib/products";
 
 export type Product = BackendProduct & { id: string };
+export type PublishedProductReview = {
+  id: string;
+  customer_name?: string | null;
+  rating: number;
+  title?: string | null;
+  body?: string | null;
+  created_at?: string | null;
+};
 
 let cachedProducts: StorefrontProduct[] | null = null;
 let cachedProductsAt = 0;
 let cachedCatalogVersion = "";
 let productsRequest: Promise<StorefrontProduct[]> | null = null;
+let serverProductsSnapshot: StorefrontProduct[] | null = null;
 const CATALOG_MEMORY_TTL_MS = 5 * 60 * 1000;
+
+async function queryActiveProductsWithRetry(attempts = 3) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return (await convexHttp!.query(api.products.listActiveProducts, {})) as BackendProduct[];
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("The live catalog is unavailable.");
+}
 
 function catalogVersion() {
   return typeof window === "undefined"
@@ -36,9 +60,17 @@ async function fetchCatalogProducts(): Promise<StorefrontProduct[]> {
   }
 
   if (convexHttp) {
-    const rows = (await convexHttp.query(api.products.listActiveProducts, {})) as BackendProduct[];
-    const products = rows.map(backendProductToProduct).filter((product) => product.slug);
-    return products.length ? products : localBackendProducts.map(backendProductToProduct);
+    try {
+      const rows = await queryActiveProductsWithRetry();
+      const products = rows.map(backendProductToProduct).filter((product) => product.slug);
+      if (products.length) serverProductsSnapshot = products;
+      return products.length
+        ? products
+        : (serverProductsSnapshot ?? localBackendProducts.map(backendProductToProduct));
+    } catch (error) {
+      console.warn("Using the last available server catalog snapshot", error);
+      return serverProductsSnapshot ?? localBackendProducts.map(backendProductToProduct);
+    }
   }
 
   return localBackendProducts.map(backendProductToProduct);
@@ -110,10 +142,24 @@ export async function getProductBySlug(slug: string): Promise<StorefrontProduct 
   return catalog.find((product) => product.slug === slug) ?? null;
 }
 
-export function useCatalogProducts() {
+export async function listPublishedProductReviews(
+  productId: string,
+): Promise<PublishedProductReview[]> {
+  if (!convexHttp || !productId) return [];
+  try {
+    return (await convexHttp.query(api.reviews.listPublishedForProduct, {
+      productId,
+    })) as PublishedProductReview[];
+  } catch (error) {
+    console.warn("Published product reviews are temporarily unavailable", error);
+    return [];
+  }
+}
+
+export function useCatalogProducts(initialProducts: StorefrontProduct[] = catalog) {
   // SSR workers are reused across requests. Always start from the same snapshot
   // in the browser and on the server, then replace it with the live catalog.
-  const [products, setProducts] = useState<StorefrontProduct[]>(catalog);
+  const [products, setProducts] = useState<StorefrontProduct[]>(initialProducts);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
