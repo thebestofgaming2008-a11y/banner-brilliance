@@ -93,9 +93,9 @@ function AboutPage() {
         </h2>
         <div className="mt-5 max-w-2xl space-y-4 text-[14px] leading-6 text-black/70">
           <p>
-            Our name is Fawzaan Store, with two a&apos;s. If you searched for &ldquo;Fawzan
-            Store&rdquo; to find our Mumbai store, you are in the right place. Our official website
-            is{" "}
+            Our name is Fawzaan Store, with a double &ldquo;a&rdquo; after the &ldquo;z&rdquo;. If
+            you searched for &ldquo;Fawzan Store&rdquo; to find our Mumbai store, you are in the
+            right place. Our official website is{" "}
             <a href={`${SITE_URL}/`} className="underline underline-offset-4">
               officialfawzaanstore.com
             </a>

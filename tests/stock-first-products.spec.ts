@@ -64,16 +64,20 @@ for (const path of ["/", "/shop"]) {
     });
     for (const order of ["price-low", "price-high"]) {
       await sort.selectOption(order);
-      const prices = (await slugs()).map((slug) => {
+      const priceFor = (slug: string) => {
         const product = bySlug.get(slug)!;
         const regular = Number(product.price_inr ?? product.price);
         const sale = Number(product.sale_price_inr ?? product.sale_price ?? 0);
         return sale > 0 && sale < regular ? sale : regular;
-      });
-      expect(prices).toEqual([...prices].sort((a, b) => (order === "price-low" ? a - b : b - a)));
+      };
+      const expected = catalog
+        .map((product) => priceFor(product.slug))
+        .sort((a, b) => (order === "price-low" ? a - b : b - a));
+      // React can commit the reordered cards after the select event completes.
+      await expect.poll(async () => (await slugs()).map(priceFor)).toEqual(expected);
     }
     await sort.selectOption("featured");
-    assertFeatured(await slugs());
+    await expect(async () => assertFeatured(await slugs())).toPass();
     await page.getByRole("tab", { name: /^shemaghs$/i }).click();
     await expect(cards).toHaveCount(2);
     expect(await slugs()).toEqual(["saudi-red-shemagh", "yemeni-shemagh"]);
