@@ -1,7 +1,7 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Cropper, { type Area as CropArea } from "react-easy-crop";
 import "react-easy-crop/react-easy-crop.css";
 import {
@@ -63,8 +63,11 @@ import {
   ZoomIn,
   ZoomOut,
   Copy,
+  Eye,
   Monitor,
   Smartphone,
+  BadgePercent,
+  Gift,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { api } from "../../convex/_generated/api";
@@ -85,12 +88,7 @@ import {
   deleteReview,
   upsertCategory,
   removeCategory,
-  listStorefrontBanners,
-  upsertStorefrontBanner,
-  archiveStorefrontBanner,
-  deleteStorefrontBanner,
-  reorderStorefrontBanners,
-  restoreDefaultHomepageHero,
+  seedDefaultCategories,
   listPaymentRecoveries,
   retryPaymentRecovery,
   listMarketingCampaigns,
@@ -99,6 +97,12 @@ import {
   deleteMarketingDraft,
   sendMarketingTest,
   sendMarketingCampaign,
+  listPromotions,
+  savePromotion,
+  deletePromotion,
+  listGiftCampaigns,
+  saveGiftCampaign,
+  archiveGiftCampaign,
   type ProductInput,
   type AdminOrder,
   type AdminCustomer,
@@ -110,27 +114,24 @@ import {
   type MarketingCampaign,
   type MarketingCampaignInput,
   type MarketingConfiguration,
+  type Promotion,
+  type PromotionInput,
+  type GiftCampaign,
+  type GiftCampaignInput,
 } from "@/services/adminService";
 import type { Product } from "@/services/productService";
 import { catalog as storefrontCatalog } from "@/lib/products";
+import { normalizeOrderStatus, ORDER_STATUS_OPTIONS, orderStatusLabel } from "@/lib/order-status";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   HomepageContentPreview,
   type HomepagePreviewProduct,
 } from "@/components/admin/homepage-content-preview";
-
-function ServerHomepageEditorPlaceholder() {
-  return null;
-}
-
-const HomepageVisualEditor = import.meta.env.SSR
-  ? ServerHomepageEditorPlaceholder
-  : lazy(() =>
-      import("@/features/homepage/homepage-visual-editor").then((module) => ({
-        default: module.HomepageVisualEditor,
-      })),
-    );
+import { HomepageEditorPortal } from "@/components/admin/homepage-editor-portal";
+import { PromotionsPanel } from "@/components/admin/promotions-panel";
+import { GiftCampaignsPanel } from "@/components/admin/gift-campaigns-panel";
+import { OrderDetailsSheet } from "@/components/admin/order-details-sheet";
 
 const CATEGORIES = [
   {
@@ -206,6 +207,8 @@ const NAV = [
   { key: "orders", label: "Orders", Icon: ShoppingBag },
   { key: "products", label: "Products", Icon: Package },
   { key: "inventory", label: "Inventory", Icon: Boxes },
+  { key: "promotions", label: "Promotions", Icon: BadgePercent },
+  { key: "gifts", label: "Free gifts", Icon: Gift },
   { key: "homepage", label: "Homepage", Icon: ImageIcon },
   { key: "reviews", label: "Reviews", Icon: MessageSquare },
   { key: "customers", label: "Customers", Icon: Users },
@@ -213,9 +216,11 @@ const NAV = [
 
 const PAGE_DESCRIPTIONS: Record<TabKey, string> = {
   dash: "See what needs attention today.",
-  orders: "Confirm, pack, ship, and track customer orders.",
+  orders: "Confirm, pack, dispatch, and track customer orders.",
   products: "Add products and manage their details, images, and visibility.",
   inventory: "Keep stock accurate and find low-stock products.",
+  promotions: "Create checkout codes and choose which offer appears on the storefront.",
+  gifts: "Reward qualifying carts with automatic free products.",
   homepage: "Change hero slides, offers, and collection sections.",
   reviews: "Approve or hide customer reviews.",
   customers: "View customer accounts and order activity.",
@@ -223,27 +228,16 @@ const PAGE_DESCRIPTIONS: Record<TabKey, string> = {
 
 type TabKey = (typeof NAV)[number]["key"];
 
-const STATUS_OPTIONS = ["processing", "shipped", "delivered", "cancelled", "returned"] as const;
-
 const ORDER_FILTERS = [
   { key: "all", label: "All orders" },
+  { key: "awaiting_dispatch", label: "Awaiting dispatch" },
   { key: "processing", label: "Processing" },
-  { key: "shipped_no_tracking", label: "Shipped missing tracking" },
-  { key: "shipped_tracked", label: "Shipped tracked" },
+  { key: "booked", label: "Booked" },
+  { key: "shipped_no_tracking", label: "Dispatch missing tracking" },
+  { key: "shipped_tracked", label: "Dispatch tracked" },
   { key: "delivered", label: "Delivered" },
   { key: "returns", label: "Returns / cancellations" },
 ] as const;
-
-function normalizeOrderStatus(status: string | null | undefined) {
-  if (
-    status === "shipped" ||
-    status === "delivered" ||
-    status === "cancelled" ||
-    status === "returned"
-  )
-    return status;
-  return "processing";
-}
 
 function normalizeTaxonomySlug(value: string | null | undefined) {
   return String(value ?? "")
@@ -339,8 +333,9 @@ const Admin = () => {
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [reviews, setReviews] = useState<AdminReview[]>([]);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
-  const [storefrontBanners, setStorefrontBanners] = useState<StorefrontBanner[]>([]);
   const [paymentRecoveries, setPaymentRecoveries] = useState<PaymentRecovery[]>([]);
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [giftCampaigns, setGiftCampaigns] = useState<GiftCampaign[]>([]);
   const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([]);
   const [marketingConfig, setMarketingConfig] = useState<MarketingConfiguration | null>(null);
   const [loading, setLoading] = useState(true);
@@ -350,8 +345,19 @@ const Admin = () => {
   const [orderFilter, setOrderFilter] = useState<string>("all");
   const [productQuery, setProductQuery] = useState("");
   const [productFilter, setProductFilter] = useState<string>("all");
+  const [showShopOrganization, setShowShopOrganization] = useState(false);
   const [adminLoadError, setAdminLoadError] = useState<string | null>(null);
   const adminEmail = String(currentUser?.email ?? "");
+
+  useEffect(() => {
+    const syncTabFromUrl = () => {
+      const requested = new URLSearchParams(window.location.search).get("tab");
+      if (NAV.some((item) => item.key === requested)) setTab(requested as TabKey);
+    };
+    syncTabFromUrl();
+    window.addEventListener("popstate", syncTabFromUrl);
+    return () => window.removeEventListener("popstate", syncTabFromUrl);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -369,18 +375,20 @@ const Admin = () => {
       listAllCustomers(200),
       listAllReviews(200),
       listCategories(),
-      listStorefrontBanners(),
       listPaymentRecoveries(),
+      listPromotions(),
+      listGiftCampaigns(),
     ])
-      .then(([p, o, c, r, cats, banners, recoveries]) => {
+      .then(([p, o, c, r, cats, recoveries, promotionRows, giftRows]) => {
         if (cancelled) return;
         setProducts(p);
         setOrders(o);
         setCustomers(c);
         setReviews(r);
         setCategories(cats);
-        setStorefrontBanners(banners);
         setPaymentRecoveries(recoveries);
+        setPromotions(promotionRows);
+        setGiftCampaigns(giftRows);
         setLoading(false);
       })
       .catch((error) => {
@@ -400,8 +408,9 @@ const Admin = () => {
   const refreshProducts = async () => setProducts(await listAllProducts());
   const refreshOrders = async () => setOrders(await listAllOrders(200));
   const refreshReviews = async () => setReviews(await listAllReviews(200));
-  const refreshStorefrontBanners = async () => setStorefrontBanners(await listStorefrontBanners());
   const refreshPaymentRecoveries = async () => setPaymentRecoveries(await listPaymentRecoveries());
+  const refreshPromotions = async () => setPromotions(await listPromotions());
+  const refreshGiftCampaigns = async () => setGiftCampaigns(await listGiftCampaigns());
   const refreshCampaigns = async () => setCampaigns(await listMarketingCampaigns());
 
   const setProductArchived = async (product: Product, archived: boolean) => {
@@ -436,7 +445,9 @@ const Admin = () => {
     await refreshPublicCatalog(product);
     notify({
       title: "Product permanently deleted",
-      description: "The product and its saved customer references were removed.",
+      description: result.pausedGiftCampaigns
+        ? `${result.pausedGiftCampaigns} dependent gift campaign${result.pausedGiftCampaigns === 1 ? " was" : "s were"} paused automatically.`
+        : "The product and its saved customer references were removed.",
     });
     await refreshProducts();
   };
@@ -496,7 +507,7 @@ const Admin = () => {
     const lines = [
       `Assalamu alaikum ${order.customer_name ?? ""},`.trim(),
       "",
-      `Your order ${orderNumber} has shipped.`,
+      `Your order ${orderNumber} has been dispatched.`,
       payload.carrier.trim() ? `Carrier: ${payload.carrier.trim()}` : "",
       `Tracking number: ${payload.trackingNumber.trim()}`,
       payload.trackingUrl.trim() ? `Track here: ${payload.trackingUrl.trim()}` : "",
@@ -518,7 +529,10 @@ const Admin = () => {
     return orders.filter((o) => {
       const status = normalizeOrderStatus(o.status);
       const hasTracking = Boolean(o.tracking_number);
+      if (orderFilter === "awaiting_dispatch" && status !== "processing" && status !== "booked")
+        return false;
       if (orderFilter === "processing" && status !== "processing") return false;
+      if (orderFilter === "booked" && status !== "booked") return false;
       if (orderFilter === "shipped_no_tracking" && !(status === "shipped" && !hasTracking))
         return false;
       if (orderFilter === "shipped_tracked" && !(status === "shipped" && hasTracking)) return false;
@@ -557,6 +571,10 @@ const Admin = () => {
 
   const processingOrders = useMemo(
     () => orders.filter((o) => normalizeOrderStatus(o.status) === "processing"),
+    [orders],
+  );
+  const bookedOrders = useMemo(
+    () => orders.filter((o) => normalizeOrderStatus(o.status) === "booked"),
     [orders],
   );
   const shippedMissingTracking = useMemo(
@@ -648,7 +666,8 @@ const Admin = () => {
   const inTransitOrders = orders.filter(
     (o) => normalizeOrderStatus(o.status) === "shipped" && Boolean(o.tracking_number),
   ).length;
-  const toActionOrders = processingOrders.length + shippedMissingTracking.length;
+  const toActionOrders =
+    processingOrders.length + bookedOrders.length + shippedMissingTracking.length;
   const initials =
     (adminEmail || "HE")
       .split("@")[0]
@@ -663,7 +682,7 @@ const Admin = () => {
     {
       label: "Commerce",
       items: NAV.filter((item) =>
-        ["orders", "products", "inventory", "homepage"].includes(item.key),
+        ["orders", "products", "inventory", "promotions", "gifts", "homepage"].includes(item.key),
       ),
     },
     {
@@ -672,7 +691,11 @@ const Admin = () => {
     },
   ];
   const navBadges: Partial<Record<TabKey, number>> = {
-    orders: processingOrders.length + shippedMissingTracking.length + paymentRecoveries.length,
+    orders:
+      processingOrders.length +
+      bookedOrders.length +
+      shippedMissingTracking.length +
+      paymentRecoveries.length,
     inventory: opsStats.lowStock + opsStats.outOfStock,
     reviews: pendingReviews,
   };
@@ -873,7 +896,13 @@ const Admin = () => {
         )}
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          <div key={tab} className="admin-tab-content mx-auto max-w-[1400px] space-y-6">
+          <div
+            key={tab}
+            className={cn(
+              "admin-tab-content mx-auto max-w-[1400px] space-y-6",
+              tab === "homepage" && "admin-tab-content--editor",
+            )}
+          >
             {loading && (
               <div className="rounded-xl border border-border bg-background p-8 text-center text-foreground/55 text-sm">
                 Loading…
@@ -926,16 +955,16 @@ const Admin = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
                     <AttentionCard
-                      title="Awaiting shipment"
-                      count={processingOrders.length}
-                      description="Orders not yet sent"
+                      title="Awaiting dispatch"
+                      count={processingOrders.length + bookedOrders.length}
+                      description="Processing or booked"
                       Icon={PackageOpen}
                       accent="warning"
                     />
                     <AttentionCard
                       title="Missing tracking"
                       count={shippedMissingTracking.length}
-                      description="Shipped without tracker"
+                      description="Dispatched without tracker"
                       Icon={CircleAlert}
                       accent="info"
                     />
@@ -948,7 +977,7 @@ const Admin = () => {
                     <AttentionCard
                       title="To action"
                       count={toActionOrders}
-                      description="Unshipped + missing tracking"
+                      description="Awaiting dispatch + tracking"
                       Icon={Clock}
                     />
                   </div>
@@ -1002,10 +1031,10 @@ const Admin = () => {
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
                   {[
                     {
-                      label: "Not shipped",
-                      count: processingOrders.length,
-                      detail: "Awaiting fulfillment",
-                      filter: "processing",
+                      label: "Awaiting dispatch",
+                      count: processingOrders.length + bookedOrders.length,
+                      detail: "Processing or booked",
+                      filter: "awaiting_dispatch",
                       Icon: PackageOpen,
                     },
                     {
@@ -1139,9 +1168,9 @@ const Admin = () => {
                         <div className="flex gap-2">
                           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                           <div>
-                            <p className="font-semibold">Shipped orders missing tracking</p>
+                            <p className="font-semibold">Dispatched orders missing tracking</p>
                             <p className="text-amber-800/80">
-                              {shippedMissingTracking.length} shipped order
+                              {shippedMissingTracking.length} dispatched order
                               {shippedMissingTracking.length === 1 ? "" : "s"} need a tracking
                               number before customers can be updated.
                             </p>
@@ -1159,6 +1188,7 @@ const Admin = () => {
                   )}
                   <OrdersTable
                     rows={filteredOrders}
+                    allRows={orders}
                     onSendWhatsApp={handleSendWhatsApp}
                     onStatusChange={async (id, s) => {
                       if (await updateOrderStatus(id, s)) {
@@ -1172,53 +1202,105 @@ const Admin = () => {
             )}
 
             {!loading && !adminLoadError && tab === "products" && (
-              <Section
-                title="Products"
-                subtitle={`${filteredProducts.length} of ${products.length} total`}
-                action={
-                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:flex-wrap">
-                    <div className="relative w-full sm:w-auto">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#9CA3AF]" />
-                      <input
-                        type="search"
-                        value={productQuery}
-                        onChange={(e) => setProductQuery(e.target.value)}
-                        placeholder="Search product, SKU…"
-                        data-testid="admin-products-search-input"
-                        className="h-10 w-full rounded-md border border-[#D1D5DB] bg-white pl-8 pr-3 text-sm outline-none transition-colors focus:border-[#111827] sm:h-9 sm:w-[240px]"
-                      />
+              <>
+                {showShopOrganization ? (
+                  <CategoriesAdminPanel
+                    categories={categories}
+                    products={products}
+                    onSeed={async () => {
+                      if (
+                        !confirm(
+                          "Restore the original shop collections? Custom groups will be hidden.",
+                        )
+                      )
+                        return;
+                      await seedDefaultCategories();
+                      setCategories(await listCategories());
+                      await refreshPublicCatalog();
+                      notify({ title: "Original shop organization restored" });
+                    }}
+                    onSave={async (input) => {
+                      const saved = await upsertCategory(input);
+                      if (!saved) throw new Error("Could not save this shop group.");
+                      setCategories((current) => [
+                        ...current.filter((category) => category.id !== saved.id),
+                        saved,
+                      ]);
+                      await refreshPublicCatalog();
+                      notify({ title: `${saved.name} saved` });
+                    }}
+                    onRemove={async (category) => {
+                      const result = await removeCategory(category.id);
+                      if (!result.removed) throw new Error(`Could not remove ${category.name}.`);
+                      setCategories((current) => current.filter((item) => item.id !== category.id));
+                      await Promise.all([refreshProducts(), refreshPublicCatalog()]);
+                      notify({
+                        title: `${category.name} removed`,
+                        description:
+                          result.updatedProducts > 0
+                            ? `${result.updatedProducts} product${result.updatedProducts === 1 ? " was" : "s were"} moved safely.`
+                            : "It has been removed from the storefront.",
+                      });
+                    }}
+                  />
+                ) : null}
+                <Section
+                  title="Products"
+                  subtitle={`${filteredProducts.length} of ${products.length} total`}
+                  action={
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:flex-wrap">
+                      <div className="relative w-full sm:w-auto">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#9CA3AF]" />
+                        <input
+                          type="search"
+                          value={productQuery}
+                          onChange={(e) => setProductQuery(e.target.value)}
+                          placeholder="Search product, SKU…"
+                          data-testid="admin-products-search-input"
+                          className="h-10 w-full rounded-md border border-[#D1D5DB] bg-white pl-8 pr-3 text-sm outline-none transition-colors focus:border-[#111827] sm:h-9 sm:w-[240px]"
+                        />
+                      </div>
+                      <select
+                        value={productFilter}
+                        onChange={(e) => setProductFilter(e.target.value)}
+                        data-testid="admin-products-filter-select"
+                        className="h-10 w-full rounded-md border border-[#D1D5DB] bg-white px-3 text-sm outline-none transition-colors focus:border-[#111827] sm:h-9 sm:w-auto"
+                      >
+                        <option value="all">All products</option>
+                        <option value="active">Active</option>
+                        <option value="low">Low stock</option>
+                        <option value="out">Out of stock</option>
+                        <option value="archived">Archived</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setShowShopOrganization((current) => !current)}
+                        aria-expanded={showShopOrganization}
+                        className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md border border-[#D1D5DB] bg-white px-3.5 text-sm font-medium transition-colors hover:bg-[#F9FAFB] sm:h-9 sm:w-auto"
+                      >
+                        <Boxes className="h-4 w-4" />
+                        {showShopOrganization ? "Hide organization" : "Shop organization"}
+                      </button>
+                      <button
+                        onClick={() => setCreating(true)}
+                        data-testid="admin-add-product-button"
+                        className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-[#111827] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#1F2937] sm:h-9 sm:w-auto"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add product
+                      </button>
                     </div>
-                    <select
-                      value={productFilter}
-                      onChange={(e) => setProductFilter(e.target.value)}
-                      data-testid="admin-products-filter-select"
-                      className="h-10 w-full rounded-md border border-[#D1D5DB] bg-white px-3 text-sm outline-none transition-colors focus:border-[#111827] sm:h-9 sm:w-auto"
-                    >
-                      <option value="all">All products</option>
-                      <option value="active">Active</option>
-                      <option value="low">Low stock</option>
-                      <option value="out">Out of stock</option>
-                      <option value="archived">Archived</option>
-                    </select>
-                    <button
-                      onClick={() => setCreating(true)}
-                      data-testid="admin-add-product-button"
-                      className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-[#111827] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#1F2937] sm:h-9 sm:w-auto"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Add product
-                    </button>
-                  </div>
-                }
-              >
-                <ProductsTable
-                  products={filteredProducts}
-                  onEdit={setEditing}
-                  onArchive={(product) => void setProductArchived(product, true)}
-                  onRestore={(product) => void setProductArchived(product, false)}
-                  onDelete={(product) => void permanentlyDeleteProduct(product)}
-                />
-              </Section>
+                  }
+                >
+                  <ProductsTable
+                    products={filteredProducts}
+                    onEdit={setEditing}
+                    onArchive={(product) => void setProductArchived(product, true)}
+                    onRestore={(product) => void setProductArchived(product, false)}
+                    onDelete={(product) => void permanentlyDeleteProduct(product)}
+                  />
+                </Section>
+              </>
             )}
 
             {!loading && !adminLoadError && tab === "inventory" && (
@@ -1258,16 +1340,65 @@ const Admin = () => {
               </Section>
             )}
 
+            {!loading && !adminLoadError && tab === "promotions" && (
+              <PromotionsPanel
+                promotions={promotions}
+                products={products}
+                onSave={async (input: PromotionInput, id?: string) => {
+                  const saved = await savePromotion(input, id);
+                  await refreshPromotions();
+                  notify({
+                    title: id ? "Promotion updated" : "Promotion created",
+                    description: `${saved.code} is ready for checkout.`,
+                  });
+                  return saved;
+                }}
+                onDelete={async (id: string) => {
+                  const removed = await deletePromotion(id);
+                  if (removed) {
+                    await refreshPromotions();
+                    notify({ title: "Promotion deleted" });
+                  }
+                  return removed;
+                }}
+              />
+            )}
+
+            {!loading && !adminLoadError && tab === "gifts" && (
+              <GiftCampaignsPanel
+                campaigns={giftCampaigns}
+                products={products}
+                categories={categories}
+                onSave={async (input: GiftCampaignInput, id?: string) => {
+                  const saved = await saveGiftCampaign(input, id);
+                  await refreshGiftCampaigns();
+                  notify({
+                    title: id ? "Gift offer updated" : "Gift offer created",
+                    description: saved.active
+                      ? `${saved.name} is active.`
+                      : `${saved.name} was saved as a draft.`,
+                  });
+                  return saved;
+                }}
+                onDelete={async (id: string) => {
+                  const removed = await archiveGiftCampaign(id);
+                  if (removed) {
+                    await refreshGiftCampaigns();
+                    notify({ title: "Gift campaign archived" });
+                  }
+                  return removed;
+                }}
+              />
+            )}
+
             {!loading && !adminLoadError && tab === "homepage" && (
-              <Suspense
-                fallback={
-                  <div className="grid min-h-[68vh] place-items-center rounded-lg border bg-white text-sm text-black/55">
-                    Loading visual editor...
-                  </div>
-                }
-              >
-                <HomepageVisualEditor categories={categories} />
-              </Suspense>
+              <HomepageEditorPortal
+                categories={categories}
+                onClose={() => {
+                  window.history.replaceState({}, "", "/admin");
+                  setTab("dash");
+                }}
+              />
             )}
 
             {!loading && !adminLoadError && tab === "customers" && (
@@ -1878,8 +2009,15 @@ const STATUS_BADGE: Record<
     border: "border-amber-200",
     Icon: Package,
   },
+  booked: {
+    label: "Booked",
+    bg: "bg-cyan-50",
+    text: "text-cyan-800",
+    border: "border-cyan-200",
+    Icon: PackageCheck,
+  },
   shipped: {
-    label: "Shipped",
+    label: "Dispatch",
     bg: "bg-blue-50",
     text: "text-blue-800",
     border: "border-blue-200",
@@ -1909,8 +2047,7 @@ const STATUS_BADGE: Record<
 };
 
 function statusLabel(status: string) {
-  if (status === "processing") return "Processing / In fulfillment";
-  return STATUS_BADGE[status]?.label ?? status;
+  return orderStatusLabel(status);
 }
 
 function StatusBadge({ status, testId }: { status: string | null | undefined; testId?: string }) {
@@ -1933,17 +2070,34 @@ function StatusBadge({ status, testId }: { status: string | null | undefined; te
 
 function PaymentBadge({ status, testId }: { status: string | null | undefined; testId: string }) {
   const isPaid = status === "paid";
+  const isRefunded = status === "refunded";
+  const isPartial = status === "partially_refunded";
   return (
     <span
       data-testid={testId}
       className={cn(
         "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium border",
-        isPaid
-          ? "bg-white text-[#374151] border-[#D1D5DB]"
-          : "bg-white text-[#6B7280] border-[#D1D5DB]",
+        isRefunded
+          ? "border-violet-200 bg-violet-50 text-violet-800"
+          : isPartial
+            ? "border-amber-200 bg-amber-50 text-amber-800"
+            : isPaid
+              ? "border-[#D1D5DB] bg-white text-[#374151]"
+              : "border-[#D1D5DB] bg-white text-[#6B7280]",
       )}
     >
-      <span className={cn("h-1.5 w-1.5 rounded-full", isPaid ? "bg-[#111827]" : "bg-[#9CA3AF]")} />
+      <span
+        className={cn(
+          "h-1.5 w-1.5 rounded-full",
+          isRefunded
+            ? "bg-violet-600"
+            : isPartial
+              ? "bg-amber-600"
+              : isPaid
+                ? "bg-[#111827]"
+                : "bg-[#9CA3AF]",
+        )}
+      />
       {status ?? "—"}
     </span>
   );
@@ -2011,34 +2165,50 @@ function RecentOrdersTable({ rows }: { rows: AdminOrder[] }) {
 
 function OrdersTable({
   rows,
+  allRows,
   onStatusChange,
   onSendWhatsApp,
 }: {
   rows: AdminOrder[];
+  allRows: AdminOrder[];
   onStatusChange: (id: string, s: string) => Promise<void>;
   onSendWhatsApp: (
     o: AdminOrder,
     p: { carrier: string; trackingNumber: string; trackingUrl: string },
   ) => Promise<void>;
 }) {
-  if (rows.length === 0)
-    return (
-      <div className="text-center py-10">
-        <ShoppingBag className="h-8 w-8 text-foreground/30 mx-auto mb-2" />
-        <p className="text-sm text-foreground/55">No orders to show.</p>
-      </div>
-    );
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const selectedOrder = allRows.find((order) => order.id === selectedOrderId) ?? null;
   return (
-    <div className="space-y-2.5">
-      {rows.map((r) => (
-        <OrderRow
-          key={r.id}
-          order={r}
-          onStatusChange={onStatusChange}
-          onSendWhatsApp={onSendWhatsApp}
-        />
-      ))}
-    </div>
+    <>
+      {rows.length ? (
+        <div className="space-y-2.5">
+          {rows.map((r) => (
+            <OrderRow
+              key={r.id}
+              order={r}
+              onStatusChange={onStatusChange}
+              onSendWhatsApp={onSendWhatsApp}
+              onViewDetails={() => setSelectedOrderId(r.id)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="py-10 text-center">
+          <ShoppingBag className="mx-auto mb-2 h-8 w-8 text-foreground/30" />
+          <p className="text-sm text-foreground/55">No orders to show.</p>
+        </div>
+      )}
+      <OrderDetailsSheet
+        order={selectedOrder}
+        open={Boolean(selectedOrder)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setSelectedOrderId(null);
+        }}
+        onStatusChange={onStatusChange}
+        onSendWhatsApp={onSendWhatsApp}
+      />
+    </>
   );
 }
 
@@ -2046,6 +2216,7 @@ function OrderRow({
   order,
   onStatusChange,
   onSendWhatsApp,
+  onViewDetails,
 }: {
   order: AdminOrder;
   onStatusChange: (id: string, s: string) => Promise<void>;
@@ -2053,6 +2224,7 @@ function OrderRow({
     o: AdminOrder,
     p: { carrier: string; trackingNumber: string; trackingUrl: string },
   ) => Promise<void>;
+  onViewDetails: () => void;
 }) {
   const [carrier, setCarrier] = useState(order.tracking_carrier ?? "");
   const [trackingNumber, setTrackingNumber] = useState(order.tracking_number ?? "");
@@ -2088,6 +2260,11 @@ function OrderRow({
           <p className="text-sm font-semibold tabular-nums">
             {formatPrice(order.total_inr ?? order.total)}
           </p>
+          {order.promotion_code ? (
+            <p className="mt-0.5 font-mono text-[10px] font-semibold text-emerald-700">
+              {order.promotion_code} · -{formatPrice(order.discount)}
+            </p>
+          ) : null}
           <PaymentBadge
             status={order.payment_status}
             testId={`admin-order-payment-badge-${order.id}`}
@@ -2097,6 +2274,15 @@ function OrderRow({
           <StatusBadge status={order.status} testId={`admin-order-status-badge-${order.id}`} />
         </div>
         <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onViewDetails}
+            data-testid={`admin-order-details-button-${order.id}`}
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-medium transition-colors hover:bg-foreground/[0.04]"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            View
+          </button>
           <select
             value={normalizeOrderStatus(order.status)}
             onChange={(e) => onStatusChange(order.id, e.target.value)}
@@ -2104,7 +2290,7 @@ function OrderRow({
             className="text-xs h-8 rounded-md border border-border bg-background px-2 capitalize cursor-pointer hover:border-foreground/40 focus:outline-none focus:border-foreground transition-colors"
             aria-label="Change order status"
           >
-            {STATUS_OPTIONS.map((s) => (
+            {ORDER_STATUS_OPTIONS.map((s) => (
               <option key={s} value={s} className="capitalize">
                 {statusLabel(s)}
               </option>
@@ -2166,8 +2352,22 @@ function OrderRow({
           status={order.payment_status}
           testId={`admin-order-mobile-payment-badge-${order.id}`}
         />
+        {order.promotion_code ? (
+          <span className="rounded bg-emerald-50 px-2 py-1 font-mono text-[10px] font-semibold text-emerald-800">
+            {order.promotion_code} · -{formatPrice(order.discount)}
+          </span>
+        ) : null}
       </div>
       <div className="grid grid-cols-1 gap-2 px-4 pb-4 md:hidden">
+        <button
+          type="button"
+          onClick={onViewDetails}
+          data-testid={`admin-mobile-order-details-button-${order.id}`}
+          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#111827] text-sm font-semibold text-white"
+        >
+          <Eye className="h-4 w-4" />
+          View order details
+        </button>
         <select
           value={normalizeOrderStatus(order.status)}
           onChange={(e) => onStatusChange(order.id, e.target.value)}
@@ -2175,7 +2375,7 @@ function OrderRow({
           className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm capitalize outline-none transition-colors focus:border-foreground"
           aria-label="Change order status"
         >
-          {STATUS_OPTIONS.map((s) => (
+          {ORDER_STATUS_OPTIONS.map((s) => (
             <option key={s} value={s} className="capitalize">
               {statusLabel(s)}
             </option>
@@ -2653,7 +2853,7 @@ const EMPTY_CAMPAIGN: MarketingCampaignInput = {
   preheader: "",
   body: "",
   buttonLabel: "Shop now",
-  buttonUrl: "https://fawzaanstore.pages.dev/shop",
+  buttonUrl: "https://officialfawzaanstore.com/shop",
 };
 
 function MarketingPanel({
@@ -2847,7 +3047,7 @@ function MarketingPanel({
             <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.14em] text-[rgb(var(--vibe-muted))]">
               Customer preview
             </p>
-            <div className="border-t-[5px] border-[#f4b400] bg-white p-6 shadow-sm">
+            <div className="border-t-[5px] border-[#F18532] bg-white p-6 shadow-sm">
               <p className="text-center font-serif text-2xl">Fawzaan</p>
               <h3 className="mt-8 font-serif text-2xl leading-tight">
                 {draft.subject || "Your email subject"}
@@ -2856,7 +3056,7 @@ function MarketingPanel({
                 {draft.body || "Your offer message will appear here."}
               </div>
               {draft.buttonLabel && draft.buttonUrl ? (
-                <span className="mt-6 inline-flex bg-[#f4b400] px-5 py-3 text-[11px] font-bold uppercase">
+                <span className="brand-mango-bg mt-6 inline-flex px-5 py-3 text-[11px] font-bold uppercase">
                   {draft.buttonLabel}
                 </span>
               ) : null}
@@ -2944,7 +3144,7 @@ function MarketingPanel({
                           setBusy(null);
                         }
                       }}
-                      className="h-9 rounded-lg bg-[#f4b400] px-3 text-xs font-semibold disabled:opacity-40"
+                      className="brand-mango-bg h-9 rounded-lg px-3 text-xs font-semibold disabled:opacity-40"
                     >
                       {busy === "send" ? "Sending..." : `Send to ${optedIn}`}
                     </button>
@@ -3220,7 +3420,7 @@ function LegacyBannerAdminPanel({
   return (
     <Section
       title="Homepage content"
-      subtitle="Add hero slides, offers, or a collection banner with live products underneath."
+      subtitle="Manage hero slides and the collection Mosaic shown on the storefront."
     >
       <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
         <div className="space-y-3">
@@ -3513,7 +3713,7 @@ function BannerAdminPanel({
     button_label: "",
     button_url: "/shop",
     image_url: "",
-    background_color: "#f4b400",
+    background_color: "#F6AD32",
     image_position: "center",
     overlay_image_url: "",
     overlay_position: "right",
@@ -3545,7 +3745,7 @@ function BannerAdminPanel({
       button_label: banner.button_label ?? "",
       button_url: banner.button_url ?? "",
       image_url: banner.image_url ?? "",
-      background_color: banner.background_color ?? "#f4b400",
+      background_color: banner.background_color ?? "#F6AD32",
       image_position: banner.image_position ?? "center",
       overlay_image_url: banner.overlay_image_url ?? "",
       overlay_position: banner.overlay_position ?? "right",
@@ -3835,7 +4035,7 @@ function BannerAdminPanel({
                   value={
                     /^#[0-9a-f]{6}$/i.test(draft.background_color)
                       ? draft.background_color
-                      : "#f4b400"
+                      : "#F6AD32"
                   }
                   onChange={(event) => setField("background_color", event.target.value)}
                 />
@@ -4046,7 +4246,7 @@ function BannerAdminPanel({
               >
                 <div
                   className="relative aspect-[16/9] overflow-hidden"
-                  style={{ backgroundColor: banner.background_color || "#f4b400" }}
+                  style={{ backgroundColor: banner.background_color || "#F6AD32" }}
                 >
                   {banner.image_url ? (
                     <img
@@ -4282,6 +4482,7 @@ function CategoriesAdminPanel({
   products,
   onSeed,
   onSave,
+  onRemove,
 }: {
   categories: AdminCategory[];
   products: Product[];
@@ -4295,6 +4496,7 @@ function CategoriesAdminPanel({
     sort_order?: number | null;
     is_active?: boolean;
   }) => Promise<void>;
+  onRemove: (category: AdminCategory) => Promise<void>;
 }) {
   const emptyDraft = {
     name: "",
@@ -4307,6 +4509,7 @@ function CategoriesAdminPanel({
   };
   const [draft, setDraft] = useState(emptyDraft);
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
+  const [removingCategoryId, setRemovingCategoryId] = useState<string | null>(null);
   const productCount = (category: AdminCategory) =>
     products.filter((product) =>
       category.type === "filter"
@@ -4343,6 +4546,33 @@ function CategoriesAdminPanel({
     });
     setDraft(emptyDraft);
     setEditingSlug(null);
+  };
+
+  const remove = async (category: AdminCategory) => {
+    const count = productCount(category);
+    const consequence =
+      category.type === "filter"
+        ? `It will be removed from ${count} product${count === 1 ? "" : "s"}.`
+        : count > 0
+          ? `${count} product${count === 1 ? "" : "s"} will be moved to Other.`
+          : "No products will be moved.";
+    if (!confirm(`Remove "${category.name}"? ${consequence}`)) return;
+    setRemovingCategoryId(category.id);
+    try {
+      await onRemove(category);
+      if (editingSlug === category.slug) {
+        setDraft(emptyDraft);
+        setEditingSlug(null);
+      }
+    } catch (error) {
+      notify({
+        title: `Could not remove ${category.name}`,
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setRemovingCategoryId(null);
+    }
   };
 
   return (
@@ -4503,7 +4733,7 @@ function CategoriesAdminPanel({
                       {category.description}
                     </p>
                   ) : null}
-                  <div className="mt-4 flex gap-2">
+                  <div className="mt-4 flex flex-wrap gap-2">
                     <button
                       type="button"
                       className="h-8 rounded-md border border-[rgb(var(--vibe-border))] px-3 text-xs"
@@ -4523,6 +4753,17 @@ function CategoriesAdminPanel({
                     >
                       {category.is_active === false ? "Show" : "Hide"}
                     </button>
+                    {category.slug !== "other" ? (
+                      <button
+                        type="button"
+                        disabled={removingCategoryId === category.id}
+                        className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md border border-rose-200 px-3 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                        onClick={() => void remove(category)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        {removingCategoryId === category.id ? "Removing..." : "Remove"}
+                      </button>
+                    ) : null}
                   </div>
                 </article>
               );
@@ -4682,6 +4923,23 @@ function cleanImageUrl(value: string | null | undefined) {
   return raw.split("#")[0] || null;
 }
 
+function persistableProductImage(value: string | null | undefined) {
+  const url = cleanImageUrl(value);
+  if (!url) return null;
+  try {
+    const pathname = new URL(url, window.location.origin).pathname;
+    if (
+      pathname.startsWith("/src/assets/") ||
+      /^\/assets\/.+-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/.test(pathname)
+    ) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+  return url;
+}
+
 function imageUrlsMatch(a: string | null | undefined, b: string | null | undefined) {
   const left = cleanImageUrl(a);
   const right = cleanImageUrl(b);
@@ -4809,6 +5067,7 @@ function ProductDrawer({
   onRemoveGroup: (category: AdminCategory) => Promise<{
     removed: boolean;
     updatedProducts: number;
+    pausedGiftCampaigns?: number;
     slug: string | null;
   }>;
   onClose: () => void;
@@ -4824,6 +5083,11 @@ function ProductDrawer({
     slug: CATEGORIES[0].key,
     name: CATEGORIES[0].label,
   };
+  const catalogFallback = storefrontCatalog.find(
+    (item) =>
+      item.slug === product?.slug ||
+      (product?.slug === "yemeni-shemagh" && item.slug === "yemeni-shemagh-red"),
+  );
   const [form, setForm] = useState<ProductInput>({
     name: product?.name ?? "",
     slug: product?.slug ?? null,
@@ -4835,11 +5099,20 @@ function ProductDrawer({
     sale_price_inr: product?.sale_price_inr ?? null,
     category: product?.category ?? defaultCollection.name,
     category_id: product?.category_id ?? defaultCollection.slug,
+    highlights: product?.highlights ?? catalogFallback?.features ?? [],
     cover_image_url: product?.cover_image_url ?? null,
     images: product?.images ?? [],
+    media_fit: product?.media_fit === "contain" ? "contain" : "cover",
+    media_position: product?.media_position ?? "center",
     hidden_image_urls: product?.hidden_image_urls ?? [],
     linked_product_ids: product?.linked_product_ids ?? [],
     variant_label: product?.variant_label ?? "",
+    color_options: product?.color_options ?? [],
+    size_options: product?.size_options ?? [],
+    option_types: product?.option_types?.map((group) => ({
+      name: String(group.name ?? ""),
+      values: Array.isArray(group.values) ? group.values : [],
+    })),
     badge: product?.badge ?? null,
     stock_quantity: product?.stock_quantity ?? 0,
     is_active: product?.is_active ?? true,
@@ -4860,7 +5133,6 @@ function ProductDrawer({
   const [newFilterName, setNewFilterName] = useState("");
   const [addingGroup, setAddingGroup] = useState<"collection" | "filter" | null>(null);
   const [removingGroup, setRemovingGroup] = useState<string | null>(null);
-  const [linkedIds, setLinkedIds] = useState((product?.linked_product_ids ?? []).join(", "));
   const drawerImages = useMemo(() => {
     const hidden = new Set(
       (form.hidden_image_urls ?? []).map(cleanImageUrl).filter(Boolean) as string[],
@@ -5111,6 +5383,27 @@ function ProductDrawer({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const regularPrice = Number(form.price_inr);
+    const salePrice = form.sale_price_inr == null ? null : Number(form.sale_price_inr);
+    if (!Number.isFinite(regularPrice) || regularPrice < 0) {
+      notify({
+        title: "Check the regular price",
+        description: "Enter a valid price in INR.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (
+      salePrice != null &&
+      (!Number.isFinite(salePrice) || salePrice < 0 || salePrice > regularPrice)
+    ) {
+      notify({
+        title: "Check the sale price",
+        description: "The sale price must be lower than or equal to the regular price.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (form.is_active !== false && missingVisibilityFields.length > 0) {
       notify({
         title: "Complete the product before publishing",
@@ -5123,13 +5416,8 @@ function ProductDrawer({
     try {
       const savedImages = Array.from(
         new Set(
-          [
-            form.cover_image_url,
-            activeImage,
-            ...(Array.isArray(form.images) ? form.images : []),
-            ...fallbackImagesForProduct({ ...product, ...form }),
-          ]
-            .map(cleanImageUrl)
+          [form.cover_image_url, activeImage, ...(Array.isArray(form.images) ? form.images : [])]
+            .map(persistableProductImage)
             .filter(
               (url): url is string =>
                 Boolean(url) &&
@@ -5143,16 +5431,20 @@ function ProductDrawer({
       const payload = {
         ...form,
         price: form.price_inr,
-        cover_image_url: coverImage ?? cleanImageUrl(activeImage) ?? savedImages[0] ?? null,
+        cover_image_url:
+          persistableProductImage(coverImage) ??
+          persistableProductImage(activeImage) ??
+          savedImages[0] ??
+          null,
         images: savedImages,
         category:
           collectionCategories.find((category) => category.slug === form.category_id)?.name ??
           form.category ??
           defaultCollection.name,
-        linked_product_ids: linkedIds
-          .split(",")
-          .map((id) => id.trim())
-          .filter(Boolean),
+        option_types: [
+          ...(form.color_options?.length ? [{ name: "Colour", values: form.color_options }] : []),
+          ...(form.size_options?.length ? [{ name: "Size", values: form.size_options }] : []),
+        ],
       };
       const result = product
         ? await updateProduct(product.id, payload)
@@ -5515,6 +5807,30 @@ function ProductDrawer({
             />
           </div>
 
+          <div className="grid gap-4 rounded-xl border border-[#E5E7EB] bg-white p-4 lg:col-span-2 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <p className="text-sm font-semibold text-[#111827]">Customer choices</p>
+              <p className="mt-1 text-xs leading-5 text-[#6B7280]">
+                Add the colours and sizes customers can select. Empty groups stay hidden on the
+                storefront.
+              </p>
+            </div>
+            <OptionListField
+              label="Colours"
+              singularLabel="colour"
+              values={form.color_options ?? []}
+              onChange={(values) => setForm({ ...form, color_options: values })}
+              placeholder="Brown"
+            />
+            <OptionListField
+              label="Sizes"
+              singularLabel="size"
+              values={form.size_options ?? []}
+              onChange={(values) => setForm({ ...form, size_options: values })}
+              placeholder="60 x 60 cm"
+            />
+          </div>
+
           <div className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-foreground/[0.015] p-3">
             <Field
               label="Version label"
@@ -5522,16 +5838,6 @@ function ProductDrawer({
               onChange={(v) => setForm({ ...form, variant_label: v || null })}
               placeholder="English, Arabic, Urdu..."
             />
-            <Field
-              label="Linked product IDs"
-              value={linkedIds}
-              onChange={setLinkedIds}
-              placeholder="Paste product IDs separated by commas"
-            />
-            <p className="text-xs text-foreground/55">
-              Use this to connect separate products that are versions of the same title, such as
-              English and Arabic editions.
-            </p>
           </div>
 
           <TextAreaField
@@ -5546,6 +5852,67 @@ function ProductDrawer({
             onChange={(v) => setForm({ ...form, description: v || null })}
             rows={5}
           />
+
+          <div className="rounded-xl border border-[#E5E7EB] bg-white p-4 lg:col-span-2">
+            <p className="text-sm font-semibold text-[#111827]">Product page details</p>
+            <p className="mt-1 text-xs leading-5 text-[#6B7280]">
+              These short highlights appear below the wishlist button. Enter one benefit or fact per
+              line.
+            </p>
+            <textarea
+              value={(form.highlights ?? []).join("\n")}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  highlights: event.target.value
+                    .split("\n")
+                    .map((item) => item.trim())
+                    .filter(Boolean)
+                    .slice(0, 12),
+                })
+              }
+              rows={5}
+              maxLength={2200}
+              placeholder={"Soft breathable fabric\nComfortable everyday fit\nEasy-care finish"}
+              className="mt-3 w-full rounded-md border border-border bg-background px-3 py-2 text-sm leading-6 outline-none focus:border-brand"
+            />
+            <p className="mt-1.5 text-[11px] text-[#6B7280]">
+              {(form.highlights ?? []).length}/12 highlights
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-[#E5E7EB] bg-white p-4 lg:col-span-2">
+            <p className="text-sm font-semibold text-[#111827]">Image display</p>
+            <p className="mt-1 text-xs leading-5 text-[#6B7280]">
+              Cover fills the product frame. Contain keeps the entire item visible and may leave
+              breathing room around it.
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <SelectField
+                label="Image fit"
+                value={form.media_fit ?? "cover"}
+                onChange={(value) =>
+                  setForm({ ...form, media_fit: value === "contain" ? "contain" : "cover" })
+                }
+                options={[
+                  { value: "cover", label: "Fill frame (recommended)" },
+                  { value: "contain", label: "Show entire image" },
+                ]}
+              />
+              <SelectField
+                label="Image focus"
+                value={form.media_position ?? "center"}
+                onChange={(value) => setForm({ ...form, media_position: value })}
+                options={[
+                  { value: "center", label: "Centre" },
+                  { value: "center top", label: "Top" },
+                  { value: "center bottom", label: "Bottom" },
+                  { value: "left center", label: "Left" },
+                  { value: "right center", label: "Right" },
+                ]}
+              />
+            </div>
+          </div>
 
           <div className="rounded-xl border border-[#E5E7EB] bg-white p-4 lg:col-span-2">
             <div className="flex items-start justify-between gap-3">
@@ -5744,6 +6111,88 @@ function Field({
         className="w-full rounded-md border border-border bg-background px-3 py-2 outline-none focus:border-brand transition-colors"
       />
     </label>
+  );
+}
+
+function OptionListField({
+  label,
+  singularLabel,
+  values,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  singularLabel: string;
+  values: string[];
+  onChange: (values: string[]) => void;
+  placeholder: string;
+}) {
+  const [draft, setDraft] = useState("");
+
+  const addValues = () => {
+    const additions = draft
+      .split(/[,\n]/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (!additions.length) return;
+    const known = new Set(values.map((value) => value.toLocaleLowerCase()));
+    const next = [...values];
+    for (const addition of additions) {
+      if (known.has(addition.toLocaleLowerCase())) continue;
+      known.add(addition.toLocaleLowerCase());
+      next.push(addition);
+    }
+    onChange(next.slice(0, 30));
+    setDraft("");
+  };
+
+  return (
+    <fieldset className="min-w-0">
+      <legend className="text-xs font-medium text-foreground/70">{label}</legend>
+      <div className="mt-2 flex min-h-11 flex-wrap gap-2 rounded-md border border-border bg-background p-2">
+        {values.map((value) => (
+          <span
+            key={value}
+            className="inline-flex h-7 max-w-full items-center gap-1.5 rounded bg-[#F3F4F6] pl-2.5 pr-1 text-xs font-medium text-[#111827]"
+          >
+            <span className="truncate">{value}</span>
+            <button
+              type="button"
+              aria-label={`Remove ${value}`}
+              onClick={() => onChange(values.filter((item) => item !== value))}
+              className="grid h-6 w-6 shrink-0 place-items-center rounded hover:bg-black/5"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </span>
+        ))}
+        <input
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== ",") return;
+            event.preventDefault();
+            addValues();
+          }}
+          aria-label={`Add ${singularLabel}`}
+          placeholder={values.length ? `Add ${singularLabel}` : placeholder}
+          className="h-7 min-w-[120px] flex-1 bg-transparent px-1 text-xs outline-none placeholder:text-foreground/35"
+        />
+        <button
+          type="button"
+          onClick={addValues}
+          disabled={!draft.trim()}
+          aria-label={`Add ${singularLabel}`}
+          title={`Add ${singularLabel}`}
+          className="grid h-7 w-7 shrink-0 place-items-center rounded bg-[#111827] text-white disabled:opacity-30"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <p className="mt-1.5 text-[11px] text-[#6B7280]">
+        {values.length ? `${values.length} option${values.length === 1 ? "" : "s"}` : "No options"}
+      </p>
+    </fieldset>
   );
 }
 

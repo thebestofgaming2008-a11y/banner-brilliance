@@ -2,6 +2,8 @@ import { v } from "convex/values";
 import { query } from "./_generated/server";
 
 const RETIRED_DEFAULT_FILTERS = new Set(["men", "women", "unisex", "bestseller", "new", "limited"]);
+const MAX_PUBLIC_TAXONOMY_ITEMS = 200;
+const MAX_PUBLIC_BANNERS = 100;
 
 function publicDoc<T extends { _id: unknown; _creationTime: number }>(doc: T) {
   const { _id, _creationTime, ...rest } = doc;
@@ -14,7 +16,7 @@ export const listActiveTaxonomy = query({
     const rows = await ctx.db
       .query("categories")
       .withIndex("by_active", (q) => q.eq("is_active", true))
-      .collect();
+      .take(MAX_PUBLIC_TAXONOMY_ITEMS);
     return rows
       .filter(
         (row) =>
@@ -37,11 +39,11 @@ export const listActiveBanners = query({
       ? await ctx.db
           .query("storefront_banners")
           .withIndex("by_placement", (q) => q.eq("placement", args.placement!))
-          .collect()
+          .take(MAX_PUBLIC_BANNERS)
       : await ctx.db
           .query("storefront_banners")
           .withIndex("by_active", (q) => q.eq("is_active", true))
-          .collect();
+          .take(MAX_PUBLIC_BANNERS);
     return rows
       .filter((row) => row.is_active !== false)
       .map(publicDoc)

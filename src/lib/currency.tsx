@@ -55,7 +55,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         if (!saved && CURRENCIES[detected]) setCurrency(detected);
       })
       .catch(() => undefined);
-    fetch("/api/rates?base=INR")
+    fetch("/api/rates?base=INR&v=2")
       .then((response) => response.json())
       .then((payload) => {
         if (payload?.rates && typeof payload.rates === "object") {

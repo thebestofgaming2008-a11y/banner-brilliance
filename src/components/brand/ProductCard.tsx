@@ -1,16 +1,19 @@
 import { Link } from "@tanstack/react-router";
-import { Plus, Heart } from "lucide-react";
-import { useCart } from "@/lib/cart";
+import { Heart } from "lucide-react";
 import { useWishlist } from "@/lib/wishlist";
 import { useCurrency } from "@/lib/currency";
 import type { Product } from "@/lib/products";
 import { toast } from "sonner";
+import { ProductQuickAdd } from "@/components/store/product-quick-add";
+import { isPreOrderProduct, toStoreProduct } from "@/data/store";
 
 export function ProductCard({ p, priority = false }: { p: Product; priority?: boolean }) {
-  const { add } = useCart();
   const { has, toggle } = useWishlist();
   const { format } = useCurrency();
   const wished = has(p.slug);
+  const storeProduct = toStoreProduct(p);
+  const preOrder = isPreOrderProduct(storeProduct);
+  const available = storeProduct.inStock !== false && Number(storeProduct.stockQuantity ?? 1) > 0;
 
   return (
     <article className="group relative">
@@ -20,7 +23,7 @@ export function ProductCard({ p, priority = false }: { p: Product; priority?: bo
             src={p.images[0]}
             alt={p.name}
             loading={priority ? "eager" : "lazy"}
-            className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+            className={`absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out ${available ? "group-hover:scale-105" : ""}`}
           />
           {p.images[1] && (
             <img
@@ -31,11 +34,15 @@ export function ProductCard({ p, priority = false }: { p: Product; priority?: bo
               className="absolute inset-0 h-full w-full object-cover opacity-0 group-hover:opacity-100 transition-opacity duration-500"
             />
           )}
-          {p.tag && (
+          {!available ? (
+            <span className="absolute left-3 top-3 rounded-md bg-ink px-2.5 py-1.5 text-[10px] font-bold uppercase text-ivory">
+              Sold out
+            </span>
+          ) : p.tag && !preOrder ? (
             <span className="absolute top-3 left-3 bg-ivory/95 text-ink text-[10px] uppercase tracking-[0.22em] px-2 py-1">
               {p.tag}
             </span>
-          )}
+          ) : null}
           {p.compareAt && (
             <span className="absolute top-3 right-3 bg-ink text-ivory text-[10px] uppercase tracking-[0.22em] px-2 py-1">
               -{Math.round((1 - p.price / p.compareAt) * 100)}%
@@ -56,7 +63,7 @@ export function ProductCard({ p, priority = false }: { p: Product; priority?: bo
           </button>
         </div>
       </Link>
-      <div className="mt-3 md:mt-4 flex items-start justify-between gap-3">
+      <div className="mt-3 md:mt-4">
         <div className="min-w-0">
           <Link
             to="/products/$slug"
@@ -72,23 +79,15 @@ export function ProductCard({ p, priority = false }: { p: Product; priority?: bo
             )}
           </div>
         </div>
-        <button
-          onClick={() => {
-            add({
-              id: p.slug,
-              productId: p.id,
-              slug: p.slug,
-              name: p.name,
-              price: p.price,
-              img: p.images[0],
-            });
-            toast.success(`${p.name} added to cart`);
-          }}
-          aria-label={`Quick add ${p.name}`}
-          className="shrink-0 h-9 w-9 rounded-full border border-ink/15 text-ink flex items-center justify-center hover:bg-ink hover:text-ivory transition"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
+        {available &&
+        typeof storeProduct.stockQuantity === "number" &&
+        storeProduct.stockQuantity > 0 &&
+        storeProduct.stockQuantity <= 3 ? (
+          <p className="mt-2 text-[9px] font-bold uppercase text-[#A84624]">
+            Only {storeProduct.stockQuantity} left
+          </p>
+        ) : null}
+        <ProductQuickAdd product={storeProduct} />
       </div>
     </article>
   );

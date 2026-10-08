@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { InfoPage } from "@/components/store/info-page";
-import { seo } from "@/lib/seo";
+import { infoSeo } from "@/lib/info-seo";
 export const Route = createFileRoute("/pages/shipping")({
   head: () =>
-    seo({
+    infoSeo({
       title: "Shipping Information | Fawzaan Store",
       description:
         "Fawzaan Store processing, India delivery and international shipping information.",
       path: "/pages/shipping",
+      label: "Shipping information",
     }),
   component: ShippingPage,
 });
@@ -15,8 +16,8 @@ function ShippingPage() {
   return (
     <InfoPage
       eyebrow="Customer care"
-      title="SHIPPING"
-      intro="Clear delivery expectations from dispatch to your door."
+      title="Shipping information"
+      intro="How orders are prepared, delivered and tracked, including international orders arranged through WhatsApp."
       sections={[
         {
           title: "Processing times",

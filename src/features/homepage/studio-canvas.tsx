@@ -1,0 +1,417 @@
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+
+import { StoreFooter, StoreHeaderPreview } from "@/components/store/store-chrome";
+import { LegacyHomepageContent } from "@/routes/index";
+import { StudioSelection } from "./studio-selection";
+import type { StudioBannerSession } from "./studio-session-context";
+import { StudioSessionProvider } from "./studio-session";
+import type { StudioBannerRef } from "./studio-model";
+import type {
+  BannerFill,
+  BannerLayerStyle,
+  BannerScene,
+  HomepageData,
+  HomepageViewport,
+} from "./types";
+
+function editorPreviewData(data: HomepageData, selectedRef: StudioBannerRef) {
+  const next = structuredClone(data);
+  const hero = next.content.find((item) => item.type === "Hero");
+  if (hero?.type === "Hero" && selectedRef.kind === "hero") {
+    hero.props.editorSlide = (selectedRef.index ?? 0) + 1;
+  }
+  return next;
+}
+
+export function StorefrontFramePreview({
+  data,
+  editMode = false,
+  onAddMosaicCard,
+}: {
+  data: HomepageData;
+  editMode?: boolean;
+  onAddMosaicCard?: () => void;
+}) {
+  return (
+    <div className="studio-storefront-page min-h-screen bg-white font-sans-ui text-black">
+      <StoreHeaderPreview />
+      <LegacyHomepageContent
+        homepage={data}
+        editMode={editMode}
+        onAddMosaicCard={editMode ? onAddMosaicCard : undefined}
+      />
+      <StoreFooter />
+    </div>
+  );
+}
+
+export function StudioCanvas({
+  data,
+  selectedRef,
+  scene,
+  viewport,
+  zoom,
+  selectedLayerIds,
+  editingLayerId,
+  cropLayerId,
+  cropFillId,
+  activeTool,
+  onSelectBanner,
+  onSelectLayers,
+  onEditLayer,
+  onCropLayer,
+  onCropFill,
+  onTextChange,
+  onPatchLayer,
+  onCropChange,
+  onBackgroundCropChange,
+  onEditMosaic,
+  onAddMosaicCard,
+  structuredMode = false,
+}: {
+  data: HomepageData;
+  selectedRef: StudioBannerRef;
+  scene: BannerScene;
+  viewport: HomepageViewport;
+  zoom: number;
+  selectedLayerIds: string[];
+  editingLayerId: string | null;
+  cropLayerId: string | null;
+  cropFillId: string | null;
+  activeTool: "select" | "hand";
+  onSelectBanner: (key: string) => void;
+  onSelectLayers: (ids: string[]) => void;
+  onEditLayer: (id: string | null) => void;
+  onCropLayer: (id: string | null) => void;
+  onCropFill: (id: string | null) => void;
+  onTextChange: (id: string, text: string) => void;
+  onPatchLayer: (id: string, patch: Partial<BannerLayerStyle>) => void;
+  onCropChange: (id: string, patch: Pick<BannerLayerStyle, "cropX" | "cropY" | "cropZoom">) => void;
+  onBackgroundCropChange: (
+    id: string,
+    patch: Pick<BannerFill, "offsetX" | "offsetY" | "zoom">,
+  ) => void;
+  onEditMosaic: (cardId?: string) => void;
+  onAddMosaicCard: () => void;
+  structuredMode?: boolean;
+}) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const frameDocumentRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const [sceneRoot, setSceneRoot] = useState<HTMLElement | null>(null);
+  const [coordinateRoot, setCoordinateRoot] = useState<HTMLElement | null>(null);
+  const [frameRoot, setFrameRoot] = useState<HTMLElement | null>(null);
+  const [snapGuides, setSnapGuides] = useState<{ x?: number; y?: number } | null>(null);
+  const scale = zoom / 100;
+  const canvasWidth = viewport === "mobile" ? 390 : 1440;
+  const canvasHeight = viewport === "mobile" ? 844 : 900;
+  const previewData = useMemo(() => editorPreviewData(data, selectedRef), [data, selectedRef]);
+  const selectedLayers = useMemo(
+    () => scene.layers.filter((layer) => selectedLayerIds.includes(layer.id)),
+    [scene.layers, selectedLayerIds],
+  );
+  const editableLayerIds = useMemo(
+    () =>
+      scene.layers
+        .filter((layer) =>
+          selectedRef.kind === "hero"
+            ? layer.type === "text" || layer.type === "button" || layer.type === "image"
+            : layer.type === "text" || layer.type === "button" || layer.type === "image",
+        )
+        .map((layer) => layer.id),
+    [scene.layers, selectedRef.kind],
+  );
+
+  useEffect(() => {
+    frameDocumentRef.current?.style.setProperty("--studio-canvas-ui-scale", String(100 / zoom));
+  }, [zoom]);
+
+  useLayoutEffect(() => {
+    const frame = frameDocumentRef.current;
+    if (!frame) return;
+    const nextSceneRoot = frame.querySelector<HTMLElement>(
+      `[data-editor-banner-key="${CSS.escape(selectedRef.key)}"]`,
+    );
+    setSceneRoot(nextSceneRoot);
+    setCoordinateRoot(
+      nextSceneRoot?.querySelector<HTMLElement>("[data-banner-coordinate-root]") ?? null,
+    );
+  }, [frameRoot, previewData, selectedRef.key, viewport]);
+
+  useEffect(() => {
+    if (!sceneRoot) return;
+    const scrollingElement = sceneRoot.ownerDocument.scrollingElement as HTMLElement | null;
+    if (!scrollingElement) return;
+    let frame = 0;
+    let active = true;
+    const focusSelectedBanner = () => {
+      if (!active) return;
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        if (!active) return;
+        const sceneRect = sceneRoot.getBoundingClientRect();
+        if (Math.abs(sceneRect.top - 24) < 1) return;
+        scrollingElement.scrollTop = Math.max(0, scrollingElement.scrollTop + sceneRect.top - 24);
+      });
+    };
+    focusSelectedBanner();
+    const images = [...sceneRoot.querySelectorAll("img")];
+    images.forEach((image) => image.addEventListener("load", focusSelectedBanner));
+    const timers = [80, 240, 700, 1400].map((delay) =>
+      window.setTimeout(focusSelectedBanner, delay),
+    );
+    void sceneRoot.ownerDocument.fonts?.ready.then(focusSelectedBanner);
+    return () => {
+      active = false;
+      window.cancelAnimationFrame(frame);
+      timers.forEach((timer) => window.clearTimeout(timer));
+      images.forEach((image) => image.removeEventListener("load", focusSelectedBanner));
+    };
+  }, [sceneRoot, selectedRef.key, viewport]);
+
+  const studioSession = useMemo<StudioBannerSession>(
+    () => ({
+      activeBannerKey: selectedRef.key,
+      viewport,
+      selectedLayerIds,
+      editingLayerId,
+      cropLayerId,
+      cropFillId,
+      snapGuides,
+      interactionDisabled: activeTool !== "select",
+      constrainLayersToCanvas: selectedRef.kind !== "hero",
+      editableLayerIds,
+      onSelectLayer: (id, additive) => {
+        onEditLayer(null);
+        onCropFill(null);
+        if (cropLayerId !== id) onCropLayer(null);
+        onSelectLayers(
+          additive
+            ? selectedLayerIds.includes(id)
+              ? selectedLayerIds.filter((selected) => selected !== id)
+              : [...selectedLayerIds, id]
+            : [id],
+        );
+      },
+      onSelectDeep: (clientX, clientY) => {
+        if (!sceneRoot) return;
+        const layerIds = sceneRoot.ownerDocument
+          .elementsFromPoint(clientX, clientY)
+          .map(
+            (element) => element.closest<HTMLElement>("[data-banner-layer]")?.dataset.bannerLayer,
+          )
+          .filter((id): id is string => Boolean(id));
+        const ordered = [...new Set(layerIds)].filter((id) =>
+          scene.layers.some((layer) => layer.id === id),
+        );
+        if (!ordered.length) return;
+        const current = selectedLayerIds.length === 1 ? selectedLayerIds[0] : null;
+        const currentIndex = current ? ordered.indexOf(current) : -1;
+        onEditLayer(null);
+        onCropLayer(null);
+        onCropFill(null);
+        onSelectLayers([ordered[(currentIndex + 1) % ordered.length]!]);
+      },
+      onSnapGuides: setSnapGuides,
+      onEditLayer: (id) => {
+        if (!id) {
+          onEditLayer(null);
+          return;
+        }
+        const layer = scene.layers.find((item) => item.id === id);
+        onSelectLayers([id]);
+        onCropFill(null);
+        if (layer?.type === "image") {
+          onEditLayer(null);
+          onCropLayer(cropLayerId === id ? null : id);
+        } else {
+          onCropLayer(null);
+          onEditLayer(layer?.type === "text" || layer?.type === "button" ? id : null);
+        }
+      },
+      onSelectBackground: () => {
+        onEditLayer(null);
+        onCropLayer(null);
+        onSelectLayers([]);
+      },
+      onEditBackground: (id) => {
+        onEditLayer(null);
+        onCropLayer(null);
+        onSelectLayers([]);
+        onCropFill(id);
+      },
+      onTextChange,
+      onPatchLayer,
+      onCropChange,
+      onBackgroundCropChange,
+    }),
+    [
+      activeTool,
+      cropFillId,
+      cropLayerId,
+      editingLayerId,
+      editableLayerIds,
+      onBackgroundCropChange,
+      onCropChange,
+      onCropFill,
+      onCropLayer,
+      onEditLayer,
+      onPatchLayer,
+      onSelectLayers,
+      onTextChange,
+      scene.layers,
+      sceneRoot,
+      snapGuides,
+      selectedLayerIds,
+      selectedRef.kind,
+      selectedRef.key,
+      viewport,
+    ],
+  );
+
+  return (
+    <div
+      ref={stageRef}
+      className={`studio-canvas-stage ${activeTool === "hand" ? "is-panning" : ""} ${structuredMode ? "is-structured" : ""}`}
+      data-viewport={viewport}
+      onPointerDown={(event) => {
+        if (activeTool !== "hand" || !stageRef.current) return;
+        event.preventDefault();
+        panRef.current = {
+          x: event.clientX,
+          y: event.clientY,
+          left: stageRef.current.scrollLeft,
+          top: stageRef.current.scrollTop,
+        };
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        if (!panRef.current || !stageRef.current) return;
+        stageRef.current.scrollLeft = panRef.current.left - (event.clientX - panRef.current.x);
+        stageRef.current.scrollTop = panRef.current.top - (event.clientY - panRef.current.y);
+      }}
+      onPointerUp={() => {
+        panRef.current = null;
+      }}
+      onPointerCancel={() => {
+        panRef.current = null;
+      }}
+    >
+      <div className="studio-ruler studio-ruler--horizontal" aria-hidden="true" />
+      <div className="studio-ruler studio-ruler--vertical" aria-hidden="true" />
+      <div
+        className="studio-canvas-scale"
+        style={{ width: `${canvasWidth * scale}px`, height: `${canvasHeight * scale}px` }}
+      >
+        <iframe
+          ref={iframeRef}
+          className="studio-canvas-frame"
+          role="region"
+          aria-label={`${viewport} storefront preview`}
+          title={`${viewport} storefront preview`}
+          srcDoc="<!doctype html><html><head></head><body><div id='studio-frame-root'></div></body></html>"
+          width={canvasWidth}
+          height={canvasHeight}
+          style={{
+            width: `${canvasWidth}px`,
+            height: `${canvasHeight}px`,
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+          }}
+          onLoad={() => {
+            const iframe = iframeRef.current;
+            const document = iframe?.contentDocument;
+            if (!document) return;
+            document.documentElement.lang = "en";
+            document.documentElement.style.background = "#fff";
+            document.body.style.margin = "0";
+            document.body.style.background = "#fff";
+            const base = document.createElement("base");
+            base.href = window.location.origin;
+            document.head.append(base);
+            window.document.head
+              .querySelectorAll<HTMLLinkElement | HTMLStyleElement>('link[rel="stylesheet"], style')
+              .forEach((node) => document.head.append(node.cloneNode(true)));
+            setFrameRoot(document.getElementById("studio-frame-root"));
+          }}
+        />
+        {frameRoot
+          ? createPortal(
+              <StudioSessionProvider value={studioSession}>
+                <div
+                  ref={frameDocumentRef}
+                  className="studio-frame-document"
+                  onClickCapture={(event) => {
+                    const target = event.target as HTMLElement;
+                    if (target.closest("[data-studio-add-mosaic]")) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onAddMosaicCard();
+                      return;
+                    }
+                    const mosaicCard = target.closest<HTMLElement>("[data-mosaic-card-id]");
+                    if (mosaicCard?.dataset.mosaicCardId) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onEditMosaic(mosaicCard.dataset.mosaicCardId);
+                      return;
+                    }
+                    const banner = target.closest<HTMLElement>("[data-editor-banner-key]");
+                    const bannerKey = banner?.dataset.editorBannerKey;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const layerId =
+                      target.closest<HTMLElement>("[data-banner-layer]")?.dataset.bannerLayer;
+                    if (
+                      bannerKey === selectedRef.key &&
+                      layerId &&
+                      editableLayerIds.includes(layerId)
+                    ) {
+                      return;
+                    }
+                    if (bannerKey === selectedRef.key && cropFillId) return;
+                    if (bannerKey) {
+                      onSelectBanner(bannerKey);
+                      onSelectLayers([]);
+                      onEditLayer(null);
+                      onCropLayer(null);
+                      onCropFill(null);
+                    }
+                  }}
+                >
+                  <StorefrontFramePreview
+                    data={previewData}
+                    editMode
+                    onAddMosaicCard={onAddMosaicCard}
+                  />
+                  <StudioSelection
+                    host={coordinateRoot}
+                    layers={
+                      cropLayerId || cropFillId
+                        ? []
+                        : selectedLayers.filter((layer) => {
+                            const style =
+                              viewport === "mobile"
+                                ? { ...layer.style, ...(layer.mobileStyle ?? {}) }
+                                : layer.style;
+                            return (
+                              editableLayerIds.includes(layer.id) &&
+                              (selectedRef.kind === "hero" || !style.locked)
+                            );
+                          })
+                    }
+                    viewport={viewport}
+                    onPatchLayer={onPatchLayer}
+                    constrainToHost={selectedRef.kind !== "hero"}
+                  />
+                </div>
+              </StudioSessionProvider>,
+              frameRoot,
+            )
+          : null}
+      </div>
+    </div>
+  );
+}

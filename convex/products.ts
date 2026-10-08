@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import {
   BOOK_SUBJECT_KEYS,
@@ -38,8 +38,11 @@ const productInput = {
   category: v.optional(v.union(v.string(), v.null())),
   category_id: v.optional(v.union(v.string(), v.null())),
   tags: v.optional(v.union(v.array(v.string()), v.null())),
+  highlights: v.optional(v.union(v.array(v.string()), v.null())),
   cover_image_url: v.optional(v.union(v.string(), v.null())),
   images: v.optional(v.union(v.array(v.string()), v.null())),
+  media_fit: v.optional(v.union(v.string(), v.null())),
+  media_position: v.optional(v.union(v.string(), v.null())),
   hidden_image_urls: v.optional(v.union(v.array(v.string()), v.null())),
   linked_product_ids: v.optional(v.union(v.array(v.string()), v.null())),
   variant_label: v.optional(v.union(v.string(), v.null())),
@@ -84,8 +87,11 @@ const productPatch = {
   category: v.optional(v.union(v.string(), v.null())),
   category_id: v.optional(v.union(v.string(), v.null())),
   tags: v.optional(v.union(v.array(v.string()), v.null())),
+  highlights: v.optional(v.union(v.array(v.string()), v.null())),
   cover_image_url: v.optional(v.union(v.string(), v.null())),
   images: v.optional(v.union(v.array(v.string()), v.null())),
+  media_fit: v.optional(v.union(v.string(), v.null())),
+  media_position: v.optional(v.union(v.string(), v.null())),
   hidden_image_urls: v.optional(v.union(v.array(v.string()), v.null())),
   linked_product_ids: v.optional(v.union(v.array(v.string()), v.null())),
   variant_label: v.optional(v.union(v.string(), v.null())),
@@ -101,6 +107,8 @@ const productPatch = {
   is_on_sale: v.optional(v.union(v.boolean(), v.null())),
   in_stock: v.optional(v.union(v.boolean(), v.null())),
 };
+
+const MAX_PUBLIC_PRODUCTS = 500;
 
 function slugify(s: string): string {
   return s
@@ -138,7 +146,7 @@ function cleanUrl(value: string | null | undefined) {
   ) {
     return url;
   }
-  throw new Error(
+  throw new ConvexError(
     "Image URL must be http(s), a Convex storage URL, or an approved public asset URL.",
   );
 }
@@ -148,7 +156,7 @@ function normalize(input: any, isPatch = false, existingPrice?: number) {
   const output: Record<string, any> = { updated_at: timestamp };
   if (input.name !== undefined) {
     const name = cleanText(input.name, 180);
-    if (!name) throw new Error("Product name is required.");
+    if (!name) throw new ConvexError("Product name is required.");
     output.name = name;
     output.slug = cleanNullable(input.slug, 100) || slugify(name);
   } else if (input.slug !== undefined) {
@@ -158,7 +166,7 @@ function normalize(input: any, isPatch = false, existingPrice?: number) {
   if (!isPatch || input.price_inr !== undefined || input.price !== undefined) {
     const priceInr = Number(input.price_inr ?? input.price ?? 0);
     if (!Number.isFinite(priceInr) || priceInr < 0)
-      throw new Error("Product price must be a positive number.");
+      throw new ConvexError("Product price must be a positive number.");
     output.price = priceInr;
     output.price_inr = priceInr;
   }
@@ -175,7 +183,7 @@ function normalize(input: any, isPatch = false, existingPrice?: number) {
       salePriceInr != null &&
       (!Number.isFinite(salePriceInr) || salePriceInr < 0 || salePriceInr > priceLimit)
     ) {
-      throw new Error("Sale price must be between INR 0 and the regular price.");
+      throw new ConvexError("Sale price must be between INR 0 and the regular price.");
     }
     output.sale_price = salePriceInr;
     output.sale_price_inr = salePriceInr;
@@ -184,7 +192,7 @@ function normalize(input: any, isPatch = false, existingPrice?: number) {
   if (input.stock_quantity !== undefined || !isPatch) {
     const stock = input.stock_quantity == null ? 0 : Math.floor(Number(input.stock_quantity));
     if (!Number.isFinite(stock) || stock < 0)
-      throw new Error("Stock must be a positive whole number.");
+      throw new ConvexError("Stock must be a positive whole number.");
     output.stock_quantity = stock;
     output.in_stock = stock > 0;
   }
@@ -206,6 +214,8 @@ function normalize(input: any, isPatch = false, existingPrice?: number) {
     ["category_id", 80],
     ["variant_label", 80],
     ["badge", 40],
+    ["media_fit", 20],
+    ["media_position", 30],
   ];
   for (const [field, max] of stringFields) {
     if (input[field] !== undefined || !isPatch) output[field] = cleanNullable(input[field], max);
@@ -214,7 +224,7 @@ function normalize(input: any, isPatch = false, existingPrice?: number) {
     if (input[field] !== undefined || !isPatch) {
       const value = input[field] == null || input[field] === "" ? null : Number(input[field]);
       if (value != null && (!Number.isFinite(value) || value < 0))
-        throw new Error(`${field} must be a positive number.`);
+        throw new ConvexError(`${field} must be a positive number.`);
       output[field] = value;
     }
   }
@@ -227,6 +237,25 @@ function normalize(input: any, isPatch = false, existingPrice?: number) {
           .filter(Boolean)
           .slice(0, 20)
       : [];
+  }
+  if (input.highlights !== undefined || !isPatch) {
+    output.highlights = Array.isArray(input.highlights)
+      ? input.highlights
+          .map((item: string) => cleanText(item, 180))
+          .filter(Boolean)
+          .slice(0, 12)
+      : [];
+  }
+  if (output.media_fit && !["cover", "contain"].includes(output.media_fit)) {
+    throw new ConvexError("Image fit must be cover or contain.");
+  }
+  if (
+    output.media_position &&
+    !["center", "center top", "center bottom", "left center", "right center"].includes(
+      output.media_position,
+    )
+  ) {
+    throw new ConvexError("Image focus is not supported.");
   }
   if (input.images !== undefined || !isPatch) {
     output.images = Array.isArray(input.images)
@@ -292,8 +321,21 @@ function isLaunchReady(product: any) {
 }
 
 const BOOK_SUBJECTS = new Set<string>(BOOK_SUBJECT_KEYS);
-const TOP_LEVEL_CATEGORIES = new Set(["books", "clothing", "children", "sets"]);
-const NON_BOOK_CATEGORY_IDS = new Set(["clothing", "children", "essentials", "sets"]);
+const STORE_CATEGORY_IDS = ["shemaghs", "niqabs", "kufis", "gloves", "honey", "watches", "other"];
+const TOP_LEVEL_CATEGORIES = new Set([
+  "books",
+  "clothing",
+  "children",
+  "sets",
+  ...STORE_CATEGORY_IDS,
+]);
+const NON_BOOK_CATEGORY_IDS = new Set([
+  "clothing",
+  "children",
+  "essentials",
+  "sets",
+  ...STORE_CATEGORY_IDS,
+]);
 
 const SUBJECT_PRIORITY = [
   "aqeedah",
@@ -673,7 +715,7 @@ export const listActiveProducts = query({
     const rows = await ctx.db
       .query("products")
       .withIndex("by_active", (q) => q.eq("is_active", true))
-      .collect();
+      .take(MAX_PUBLIC_PRODUCTS);
     return rows
       .filter(isLaunchReady)
       .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))
@@ -685,7 +727,7 @@ export const listAllProducts = query({
   args: {},
   handler: async (ctx) => {
     await requireAdmin(ctx);
-    const rows = await ctx.db.query("products").collect();
+    const rows = await ctx.db.query("products").take(2_000);
     return rows
       .map(publicProduct)
       .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
@@ -717,11 +759,12 @@ export const listByCategory = query({
   args: { category: v.string() },
   handler: async (ctx, args) => {
     const requested = args.category === "essentials" ? "children" : args.category;
-    const rows = await ctx.db.query("products").collect();
+    const rows = await ctx.db
+      .query("products")
+      .withIndex("by_active", (q) => q.eq("is_active", true))
+      .take(MAX_PUBLIC_PRODUCTS);
     return rows
-      .filter(
-        (p) => p.is_active !== false && isLaunchReady(p) && topCategoryForProduct(p) === requested,
-      )
+      .filter((p) => isLaunchReady(p) && topCategoryForProduct(p) === requested)
       .map(publicProductCard);
   },
 });
@@ -746,7 +789,7 @@ export const createProduct = mutation({
       .query("products")
       .withIndex("by_slug", (q) => q.eq("slug", payload.slug))
       .first();
-    if (existing) throw new Error("A product with this slug already exists.");
+    if (existing) throw new ConvexError("A product with this slug already exists.");
     const id = await ctx.db.insert("products", { ...payload, created_at: timestamp } as any);
     await writeAuditLog(ctx, {
       action: "product.create",
@@ -765,21 +808,21 @@ export const createProduct = mutation({
 });
 
 export const updateProduct = mutation({
-  args: { id: v.string(), patch: v.object(productPatch) },
+  args: { id: v.id("products"), patch: v.object(productPatch) },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const current = (await ctx.db.get(args.id as any)) as any;
-    if (!current) throw new Error("Product not found.");
+    const current = (await ctx.db.get(args.id)) as any;
+    if (!current) throw new ConvexError("Product not found.");
     const payload = normalize(args.patch, true, current.price_inr ?? current.price);
     if (payload.slug) {
       const existing = await ctx.db
         .query("products")
         .withIndex("by_slug", (q) => q.eq("slug", payload.slug))
         .first();
-      if (existing && String(existing._id) !== args.id)
-        throw new Error("A product with this slug already exists.");
+      if (existing && existing._id !== args.id)
+        throw new ConvexError("A product with this slug already exists.");
     }
-    await ctx.db.patch(args.id as any, payload);
+    await ctx.db.patch(args.id, payload);
     await writeAuditLog(ctx, {
       action: "product.update",
       entityType: "product",
@@ -787,7 +830,7 @@ export const updateProduct = mutation({
       summary: payload.name ?? current.name,
       metadata: { changed: Object.keys(payload).filter((key) => key !== "updated_at") },
     });
-    const doc = (await ctx.db.get(args.id as any)) as any;
+    const doc = (await ctx.db.get(args.id)) as any;
     return doc ? publicProduct(doc) : null;
   },
 });
@@ -796,7 +839,10 @@ export const assignBookSubjects = mutation({
   args: { dryRun: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const rows = await ctx.db.query("products").collect();
+    const rows = await ctx.db.query("products").take(2_001);
+    if (rows.length > 2_000) {
+      throw new ConvexError("Too many products to assign subjects safely in one operation.");
+    }
     const updates = rows
       .map((product: any) => {
         const patch = subjectPatchForProduct(product);
@@ -880,14 +926,33 @@ export const deleteProduct = mutation({
     const wishlistItems = await ctx.db
       .query("wishlist_items")
       .withIndex("by_product_id", (q) => q.eq("product_id", productId))
-      .collect();
+      .take(2_001);
     const reviews = await ctx.db
       .query("reviews")
       .withIndex("by_product_id", (q) => q.eq("product_id", productId))
-      .collect();
-    const products = await ctx.db.query("products").collect();
+      .take(2_001);
+    const products = await ctx.db.query("products").take(2_001);
+    if (wishlistItems.length > 2_000 || reviews.length > 2_000 || products.length > 2_000) {
+      throw new ConvexError(
+        "This product has too many related records for one safe delete operation.",
+      );
+    }
     let linkedProducts = 0;
+    let pausedGiftCampaigns = 0;
     const timestamp = nowIso();
+
+    const giftCampaigns = await ctx.db
+      .query("gift_campaigns")
+      .withIndex("by_active", (lookup) => lookup.eq("active", true))
+      .take(50);
+    for (const campaign of giftCampaigns) {
+      const dependsOnProduct =
+        campaign.gift_product_id === args.id ||
+        campaign.requirements.some((requirement) => requirement.product_ids.includes(args.id));
+      if (!dependsOnProduct) continue;
+      await ctx.db.patch(campaign._id, { active: false, updated_at: timestamp });
+      pausedGiftCampaigns += 1;
+    }
 
     for (const item of wishlistItems) await ctx.db.delete(item._id);
     for (const review of reviews) await ctx.db.delete(review._id);
@@ -922,6 +987,7 @@ export const deleteProduct = mutation({
         wishlistItems: wishlistItems.length,
         reviews: reviews.length,
         linkedProducts,
+        pausedGiftCampaigns,
       },
     });
     return {
@@ -929,6 +995,7 @@ export const deleteProduct = mutation({
       wishlistItems: wishlistItems.length,
       reviews: reviews.length,
       linkedProducts,
+      pausedGiftCampaigns,
     };
   },
 });

@@ -5,31 +5,47 @@ import { nowIso, requireAdmin, writeAuditLog } from "./lib";
 const PAGE_KEY = "home";
 const MAX_DOCUMENT_BYTES = 750_000;
 const MAX_COMPONENTS = 40;
-const MAX_VERSIONS = 30;
-const ALLOWED_COMPONENTS = new Set([
-  "Hero",
-  "CollectionBanners",
-  "ProductGrid",
-  "SplitEditorial",
-  "CollectionFeature",
-  "PromoBanner",
-  "TextSection",
-  "Spacer",
-]);
+const MAX_VERSIONS = 15;
+const MAX_MOSAIC_CARDS = 20;
+const MIN_SAFE_HERO_TEMPLATE_VERSION = 5;
+const ALLOWED_COMPONENTS = new Set(["Hero", "CollectionFeature", "PromoBanner"]);
+
+function isVersion2Homepage(data: unknown): data is {
+  schemaVersion: 2;
+  content: Array<{ type: string; props: { id: string } }>;
+} {
+  if (!data || typeof data !== "object") return false;
+  const document = data as {
+    schemaVersion?: unknown;
+    content?: Array<{ type?: unknown; props?: { id?: unknown } }>;
+  };
+  if (document.schemaVersion !== 2 || !Array.isArray(document.content)) return false;
+  if (document.content.length < 1 || document.content[0]?.type !== "Hero") return false;
+  return document.content.every(
+    (component, index) =>
+      (index === 0 && component?.type === "Hero") ||
+      (index > 0 && (component?.type === "CollectionFeature" || component?.type === "PromoBanner")),
+  );
+}
 
 function validateValue(value: unknown, path: string, depth = 0): void {
-  if (depth > 8) throw new Error("Homepage content is nested too deeply.");
+  if (depth > 12) throw new Error("Homepage content is nested too deeply.");
   if (value == null || typeof value === "boolean" || typeof value === "number") return;
   if (typeof value === "string") {
     if (value.length > 4_000) throw new Error(`${path} is too long.`);
     const field = path.split(".").at(-1)?.toLowerCase() ?? "";
-    const isMediaOrLink = field === "image" || field.endsWith("image") || field.endsWith("url");
+    const isMediaOrLink =
+      field === "image" ||
+      field === "src" ||
+      field === "href" ||
+      field.endsWith("image") ||
+      field.endsWith("url");
     if (isMediaOrLink && value) {
       const safe = value.startsWith("/") || value.startsWith("#") || /^https:\/\//i.test(value);
       if (!safe) throw new Error(`${path} must use HTTPS or a site-relative URL.`);
     }
-    if (field.includes("color") && value && !/^#[0-9a-f]{6}$/i.test(value)) {
-      throw new Error(`${path} must be a six-digit hex colour.`);
+    if (field.includes("color") && value && !/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(value)) {
+      throw new Error(`${path} must be a six- or eight-digit hex colour.`);
     }
     return;
   }
@@ -47,17 +63,111 @@ function validateValue(value: unknown, path: string, depth = 0): void {
   }
 }
 
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function finiteGeometry(style: Record<string, unknown>) {
+  const x = Number(style.x);
+  const y = Number(style.y);
+  const width = Number(style.width);
+  const height = Number(style.height);
+  if (![x, y, width, height].every(Number.isFinite)) return null;
+  return { x, y, width, height };
+}
+
+function validateHeroResponsiveGeometry(component: unknown, sectionIndex: number) {
+  const props = objectValue(objectValue(component)?.props);
+  const slides = props?.slides;
+  if (!Array.isArray(slides) || slides.length < 1 || slides.length > 12) {
+    throw new Error(`Homepage hero ${sectionIndex + 1} must contain between 1 and 12 slides.`);
+  }
+
+  slides.forEach((slideValue, slideIndex) => {
+    const scene = objectValue(objectValue(slideValue)?.scene);
+    if (
+      !scene ||
+      scene.coordinateMode !== "original-hero" ||
+      Number(scene.templateVersion ?? 0) < MIN_SAFE_HERO_TEMPLATE_VERSION
+    ) {
+      throw new Error(`Hero slide ${slideIndex + 1} needs its responsive layout refreshed.`);
+    }
+    const layers = scene.layers;
+    if (!Array.isArray(layers)) {
+      throw new Error(`Hero slide ${slideIndex + 1} is missing its layers.`);
+    }
+
+    for (const id of ["title", "body", "button", "foreground"]) {
+      const layer = layers.map(objectValue).find((entry) => entry && String(entry.id ?? "") === id);
+      const desktopStyle = objectValue(layer?.style);
+      const mobileOverride = objectValue(layer?.mobileStyle) ?? {};
+      if (!layer || !desktopStyle) {
+        throw new Error(`Hero slide ${slideIndex + 1} is missing its ${id} layer.`);
+      }
+      const mobile = finiteGeometry({ ...desktopStyle, ...mobileOverride });
+      if (!mobile) {
+        throw new Error(`Hero slide ${slideIndex + 1} has invalid mobile ${id} geometry.`);
+      }
+      if (id === "foreground") {
+        if (
+          mobile.width < 100 ||
+          mobile.height < 100 ||
+          mobile.x > 0 ||
+          mobile.y > 0 ||
+          mobile.x + mobile.width < 100 ||
+          mobile.y + mobile.height < 100
+        ) {
+          throw new Error(
+            `Hero slide ${slideIndex + 1} product image must cover the mobile hero frame.`,
+          );
+        }
+      } else if (
+        mobile.width <= 0 ||
+        mobile.height <= 0 ||
+        mobile.x < 0 ||
+        mobile.y < 0 ||
+        mobile.x + mobile.width > 100 ||
+        mobile.y + mobile.height > 100
+      ) {
+        throw new Error(`Hero slide ${slideIndex + 1} has mobile ${id} outside the hero.`);
+      }
+    }
+  });
+}
+
 function validateHomepageData(data: unknown) {
   const encoded = JSON.stringify(data);
   if (encoded.length > MAX_DOCUMENT_BYTES) {
     throw new Error("Homepage content is too large. Remove unused sections or oversized text.");
   }
-  const document = data as {
-    root?: unknown;
-    content?: Array<{ type?: unknown; props?: { id?: unknown } }>;
-  };
-  if (!document || typeof document !== "object" || !Array.isArray(document.content)) {
-    throw new Error("Homepage document is invalid.");
+  if (!isVersion2Homepage(data))
+    throw new Error("Homepage document must use the focused editor schema version 2.");
+  const document = data;
+  const root = objectValue(objectValue(document)?.root);
+  const rootProps = objectValue(root?.props);
+  const mosaic = rootProps?.mosaicCollections;
+  if (mosaic !== undefined) {
+    if (!Array.isArray(mosaic) || mosaic.length < 1 || mosaic.length > MAX_MOSAIC_CARDS) {
+      throw new Error(
+        `The collection Mosaic must contain between 1 and ${MAX_MOSAIC_CARDS} boxes.`,
+      );
+    }
+    const mosaicIds = new Set<string>();
+    mosaic.forEach((value, index) => {
+      const card = objectValue(value);
+      const id = String(card?.id ?? "").trim();
+      const title = String(card?.title ?? "").trim();
+      const image = String(card?.image ?? "").trim();
+      const href = String(card?.href ?? "").trim();
+      if (!id || mosaicIds.has(id))
+        throw new Error(`Collection box ${index + 1} needs a unique ID.`);
+      if (!title) throw new Error(`Collection box ${index + 1} needs a title.`);
+      if (!image) throw new Error(`${title} needs an image.`);
+      if (!href) throw new Error(`${title} needs a shop link.`);
+      mosaicIds.add(id);
+    });
   }
   if (document.content.length > MAX_COMPONENTS) {
     throw new Error(`A homepage can contain at most ${MAX_COMPONENTS} sections.`);
@@ -71,6 +181,7 @@ function validateHomepageData(data: unknown) {
     if (!id || id.length > 120 || ids.has(id)) {
       throw new Error(`Homepage section ${index + 1} needs a unique ID.`);
     }
+    if (component.type === "Hero") validateHeroResponsiveGeometry(component, index);
     ids.add(id);
   }
   validateValue(data, "homepage");
@@ -82,7 +193,7 @@ async function trimVersions(ctx: MutationCtx) {
     .query("homepage_versions")
     .withIndex("by_page_key", (q) => q.eq("page_key", PAGE_KEY))
     .order("desc")
-    .collect();
+    .take(MAX_VERSIONS + 20);
   await Promise.all(versions.slice(MAX_VERSIONS).map((version) => ctx.db.delete(version._id)));
 }
 
@@ -100,8 +211,14 @@ export const getEditorState = query({
       .order("desc")
       .take(MAX_VERSIONS);
     return {
-      draft: document?.draft_data ?? null,
-      published: document?.published_data ?? null,
+      draft: isVersion2Homepage(document?.draft_data) ? document?.draft_data : null,
+      published: null,
+      has_published: isVersion2Homepage(document?.published_data),
+      is_draft_published: document
+        ? document.published_revision != null
+          ? document.published_revision === document.draft_revision
+          : JSON.stringify(document.draft_data) === JSON.stringify(document.published_data)
+        : true,
       draft_revision: document?.draft_revision ?? 0,
       published_version: document?.published_version ?? 0,
       updated_at: document?.updated_at ?? null,
@@ -124,7 +241,7 @@ export const getPublished = query({
       .query("homepage_documents")
       .withIndex("by_page_key", (q) => q.eq("page_key", PAGE_KEY))
       .unique();
-    return document?.published_data ?? null;
+    return isVersion2Homepage(document?.published_data) ? document.published_data : null;
   },
 });
 
@@ -191,6 +308,7 @@ export const publish = mutation({
         published_data: data,
         draft_revision: revision,
         published_version: version,
+        published_revision: revision,
         updated_by: adminEmail,
         updated_at: timestamp,
         published_at: timestamp,
@@ -202,6 +320,7 @@ export const publish = mutation({
         published_data: data,
         draft_revision: revision,
         published_version: version,
+        published_revision: revision,
         updated_by: adminEmail,
         created_at: timestamp,
         updated_at: timestamp,
@@ -252,6 +371,7 @@ export const restoreVersion = mutation({
       published_data: data,
       draft_revision: revision,
       published_version: version,
+      published_revision: revision,
       updated_by: adminEmail,
       updated_at: timestamp,
       published_at: timestamp,
@@ -290,9 +410,139 @@ export const discardDraft = mutation({
     await ctx.db.patch(existing._id, {
       draft_data: existing.published_data,
       draft_revision: revision,
+      published_revision: revision,
       updated_by: adminEmail,
       updated_at: timestamp,
     });
     return { data: existing.published_data, revision, updated_at: timestamp };
+  },
+});
+
+export const resetToOriginalHomepage = mutation({
+  args: {},
+  returns: v.object({
+    data: v.any(),
+    version: v.number(),
+    revision: v.number(),
+    published_at: v.string(),
+  }),
+  handler: async (ctx) => {
+    const admin = await requireAdmin(ctx);
+    const adminEmail = String((admin.user as { email?: string }).email ?? "") || null;
+    const existing = await ctx.db
+      .query("homepage_documents")
+      .withIndex("by_page_key", (q) => q.eq("page_key", PAGE_KEY))
+      .unique();
+    if (!existing?.approved_data) {
+      throw new Error("The approved OG homepage has not been configured yet.");
+    }
+    const data = validateHomepageData(existing.approved_data);
+    const timestamp = nowIso();
+    const version = existing.published_version + 1;
+    const revision = existing.draft_revision + 1;
+    await ctx.db.patch(existing._id, {
+      draft_data: data,
+      published_data: data,
+      draft_revision: revision,
+      published_version: version,
+      published_revision: revision,
+      updated_by: adminEmail,
+      updated_at: timestamp,
+      published_at: timestamp,
+    });
+    await ctx.db.insert("homepage_versions", {
+      page_key: PAGE_KEY,
+      version,
+      data,
+      summary: "Restored approved OG homepage",
+      created_by: adminEmail,
+      created_at: timestamp,
+    });
+    await trimVersions(ctx);
+    await writeAuditLog(ctx, {
+      action: "homepage.reset_original",
+      entityType: "homepage",
+      entityId: PAGE_KEY,
+      summary: `Restored the approved OG homepage as version ${version}`,
+      metadata: { version, revision },
+    });
+    return { data, version, revision, published_at: timestamp };
+  },
+});
+
+export const setApprovedHomepage = mutation({
+  args: {
+    data: v.any(),
+    token: v.optional(v.string()),
+  },
+  returns: v.object({
+    version: v.number(),
+    revision: v.number(),
+    published_at: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const setupToken = process.env.ADMIN_UPLOAD_TOKEN;
+    let adminEmail: string | null = "system";
+    if (!setupToken || args.token !== setupToken) {
+      const admin = await requireAdmin(ctx);
+      adminEmail = String((admin.user as { email?: string }).email ?? "") || null;
+    }
+
+    const data = validateHomepageData(args.data);
+    const existing = await ctx.db
+      .query("homepage_documents")
+      .withIndex("by_page_key", (q) => q.eq("page_key", PAGE_KEY))
+      .unique();
+    const timestamp = nowIso();
+    const version = (existing?.published_version ?? 0) + 1;
+    const revision = (existing?.draft_revision ?? 0) + 1;
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        draft_data: data,
+        published_data: data,
+        approved_data: data,
+        draft_revision: revision,
+        published_version: version,
+        published_revision: revision,
+        approved_by: adminEmail,
+        approved_at: timestamp,
+        updated_by: adminEmail,
+        updated_at: timestamp,
+        published_at: timestamp,
+      });
+    } else {
+      await ctx.db.insert("homepage_documents", {
+        page_key: PAGE_KEY,
+        draft_data: data,
+        published_data: data,
+        approved_data: data,
+        draft_revision: revision,
+        published_version: version,
+        published_revision: revision,
+        approved_by: adminEmail,
+        approved_at: timestamp,
+        updated_by: adminEmail,
+        created_at: timestamp,
+        updated_at: timestamp,
+        published_at: timestamp,
+      });
+    }
+    await ctx.db.insert("homepage_versions", {
+      page_key: PAGE_KEY,
+      version,
+      data,
+      summary: "Set approved OG homepage",
+      created_by: adminEmail,
+      created_at: timestamp,
+    });
+    await trimVersions(ctx);
+    await writeAuditLog(ctx, {
+      action: "homepage.approve_original",
+      entityType: "homepage",
+      entityId: PAGE_KEY,
+      summary: `Set and published the approved OG homepage as version ${version}`,
+      metadata: { version, revision },
+    });
+    return { version, revision, published_at: timestamp };
   },
 });

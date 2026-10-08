@@ -69,7 +69,7 @@ async function clearOtherDefaults(ctx: MutationCtx, userId: string, keepId?: str
   const rows = await ctx.db
     .query("addresses")
     .withIndex("by_user_id", (q) => q.eq("user_id", userId))
-    .collect();
+    .take(10);
   for (const row of rows) {
     if (row.is_default && String(row._id) !== keepId)
       await ctx.db.patch(row._id, { is_default: false, updated_at: nowIso() });
@@ -83,7 +83,7 @@ export const listMine = query({
     const rows = await ctx.db
       .query("addresses")
       .withIndex("by_user_id", (q) => q.eq("user_id", auth.userId))
-      .collect();
+      .take(10);
     return rows
       .map(publicAddress)
       .sort(
@@ -102,7 +102,7 @@ export const create = mutation({
     const rows = await ctx.db
       .query("addresses")
       .withIndex("by_user_id", (q) => q.eq("user_id", auth.userId))
-      .collect();
+      .take(11);
     if (rows.length >= 10) throw new Error("You can save up to 10 addresses.");
     const payload = normalizeAddress({
       ...args.payload,
@@ -162,7 +162,7 @@ export const setDefault = mutation({
     const rows = await ctx.db
       .query("addresses")
       .withIndex("by_user_id", (q) => q.eq("user_id", auth.userId))
-      .collect();
+      .take(10);
     if (!rows.some((row) => String(row._id) === args.id)) throw new Error("Address not found.");
     for (const row of rows)
       await ctx.db.patch(row._id, { is_default: row._id === id, updated_at: nowIso() });
