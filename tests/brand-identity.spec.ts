@@ -30,6 +30,12 @@ test("brand identity is consistent and the spelling clarification is visible wit
     const about = schemas.find((value) => value["@type"] === "AboutPage");
     expect(store.name).toBe("Fawzaan Store");
     expect(website.name).toBe("Fawzaan Store");
+    expect(store.alternateName).toEqual([
+      "Fawzan Store",
+      "Official Fawzaan Store",
+      "officialfawzaanstore.com",
+    ]);
+    expect(website.alternateName).toEqual(store.alternateName);
     expect(store.sameAs).toEqual(["https://www.instagram.com/fawzaan.store/", facebook]);
     expect(about.mainEntity["@id"]).toBe(store["@id"]);
     expect(store["@id"]).toBe(`${origin}/#store`);
